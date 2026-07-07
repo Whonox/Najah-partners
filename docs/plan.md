@@ -19,9 +19,9 @@ Ordre par dépendance. Chaque tranche est testable et se termine par un commit. 
 - [x] Tests auth.
 
 ## Tranche 3 — Grand livre BV (réf. rules/bv-ledger.md)
-- [ ] Service de mouvements BV atomiques, solde jamais négatif.
-- [ ] Ajustement admin tracé.
-- [ ] **Tests d'invariants** (voir la règle).
+- [x] Service de mouvements BV atomiques, solde jamais négatif.
+- [x] Ajustement admin tracé.
+- [x] **Tests d'invariants** (voir la règle).
 
 ## Tranche 4 — Inscription, placement, cycle de vie (réf. rules/inscription-placement.md)
 - [ ] Formulaire d'inscription (sponsor + upline + jambe), code auto-incrémenté, état INSCRIT, placement définitif.
