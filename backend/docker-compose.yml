@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: najah_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: najah
+      POSTGRES_PASSWORD: najah_dev
+      POSTGRES_DB: najah_partners
+    ports:
+      - "5433:5432"
+    volumes:
+      - najah_pgdata:/var/lib/postgresql/data
+
+volumes:
+  najah_pgdata:

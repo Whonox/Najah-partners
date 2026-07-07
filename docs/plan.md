@@ -9,9 +9,9 @@ Ordre par dépendance. Chaque tranche est testable et se termine par un commit. 
 - [ ] Swagger/OpenAPI activé côté backend ; génération du client TS côté fronts vérifiée sur un endpoint bidon.
 
 ## Tranche 1 — Modèle de données (réf. spec §8)
-- [ ] Schéma PostgreSQL : Affilie, Pack, NoeudArbre, GrandLivreBV, Ecard, Commission, RunCommission, Produit, Commande, AdminUser, Parametre, JournalAudit.
-- [ ] Choix ORM tranché (Prisma ou TypeORM) — noter dans backend/CLAUDE.md.
-- [ ] Migrations + seed minimal (packs par défaut, 1 admin).
+- [x] Schéma PostgreSQL : Affilie, Pack, NoeudArbre, GrandLivreBV, Ecard, Commission, RunCommission, Produit, Commande, AdminUser, Parametre, JournalAudit.
+- [x] Choix ORM tranché (Prisma ou TypeORM) — noter dans backend/CLAUDE.md.
+- [x] Migrations + seed minimal (packs par défaut, 1 admin).
 
 ## Tranche 2 — Authentification (réf. D-011)
 - [ ] Connexion email / téléphone / code membre + mot de passe, récupération de mot de passe.

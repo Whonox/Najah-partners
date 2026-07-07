@@ -17,6 +17,8 @@ Chaque décision métier verrouillée est consignée ici. Format : identifiant, 
 | D-011 | Auth par email/téléphone/code membre + mot de passe. Pas de KYC. Notifications in-app uniquement. FR au lancement, AR/RTL en phase future. Pas d'app mobile. | Cliente. |
 | D-012 | Bonus de démarrage : réserve à vie de 6 paliers déséquilibrés rémunérés (paramétrable), points consommés, compté dans le plafond, démarre à l'activation. | Cliente. |
 | D-013 | **Remplace l'ancien modèle de réservation/expiration.** Un inscrit non finalisé (état INSCRIT) persiste indéfiniment, place définitive dès l'inscription, peut recevoir des downlines. Baseline figée à l'activation (seuls les points postérieurs comptent). Suppression de l'état EXPIRÉ, du délai de 7 j et du cron de libération. | Cliente (annule la décision antérieure de réservation temporaire). |
+| D-014 | ORM = Prisma (sur PostgreSQL). SQL brut pour la traversée d'arbre (CTE récursives). Performance : arbre en requête récursive indexée, commissions en batch hebdo asynchrone, tests de charge en tranches 4 et 7. | Choix dev : typage fort, migrations fiables, schéma lisible comme source de vérité. |
+| D-015 | Le code et le nommage (variables, colonnes DB, enums, fonctions, fichiers) sont en ANGLAIS. Le contenu métier destiné à l'utilisateur (spec, docs, libellés d'interface FR) reste en français. | Convention dev, cohérence et lisibilité du code. |
 
 ## Points encore ouverts (à confirmer avec la cliente)
 - Unité du plan de commissions : les montants (500, 250, plafonds…) sont repris en BV ; confirmer si un taux BV↔DT différent s'applique.

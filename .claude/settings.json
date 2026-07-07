@@ -3,7 +3,21 @@
     "allow": [
       "Bash(echo \"exit=$?\")",
       "Bash(git -C /c/chamonix/dev/Najah-partners status)",
-      "Bash(rm -rf /c/chamonix/dev/Najah-partners/backend/.git && echo \"backend/.git supprimé.\" && echo \"--- re-scan .git imbriqués \\(doit ne lister que la racine\\) ---\" && find /c/chamonix/dev/Najah-partners -maxdepth 3 -name .git -not -path '*/node_modules/*')"
+      "Bash(rm -rf /c/chamonix/dev/Najah-partners/backend/.git && echo \"backend/.git supprimé.\" && echo \"--- re-scan .git imbriqués \\(doit ne lister que la racine\\) ---\" && find /c/chamonix/dev/Najah-partners -maxdepth 3 -name .git -not -path '*/node_modules/*')",
+      "Bash(docker --version)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('prisma', p.devDependencies.prisma, '| @prisma/client', p.dependencies['@prisma/client'], '| bcryptjs', p.dependencies.bcryptjs, '| @types/bcryptjs', p.devDependencies['@types/bcryptjs']\\)\")",
+      "Bash(npm remove *)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('prisma', p.devDependencies.prisma, '| @prisma/client', p.dependencies['@prisma/client'], '| bcryptjs', p.dependencies.bcryptjs\\)\")",
+      "PowerShell(echo $env:DATABASE_URL)",
+      "PowerShell([Environment]::GetEnvironmentVariable\\(\"DATABASE_URL\",\"User\"\\); [Environment]::GetEnvironmentVariable\\(\"DATABASE_URL\",\"Machine\"\\))",
+      "PowerShell(Get-Content -Encoding Byte -TotalCount 8 backend\\\\.env | ForEach-Object { $_.ToString\\(\"X2\"\\) })",
+      "Bash(docker exec *)",
+      "Bash(node -e ' *)",
+      "Bash(PGPASSWORD=najah_dev psql -h localhost -p 5432 -U najah -d najah_partners -c \"select current_user;\")",
+      "Bash(docker run *)",
+      "Bash(grep -v '^$')",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec najah_postgres cat //var/lib/postgresql/data/pg_hba.conf)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 5432 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { $proc = Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue; [PSCustomObject]@{ LocalAddress=$_.LocalAddress; LocalPort=$_.LocalPort; PID=$_.OwningProcess; ProcessName=$proc.ProcessName; Path=$proc.Path } } | Format-Table -AutoSize)"
     ],
     "additionalDirectories": [
       "C:\\chamonix\\dev\\Najah-partners\\backend\\.git"

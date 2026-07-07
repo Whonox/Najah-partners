@@ -33,6 +33,7 @@ La logique BV/commissions vit **uniquement** dans `backend/`, jamais dupliquée 
 
 ## Conventions de travail
 
+- **Code et nommage en anglais** ; `docs/` et libellés utilisateur en français. Tout le code (variables, colonnes de base de données, enums et leurs valeurs, fonctions, fichiers, modules) est en anglais. Restent en français : le contenu de `docs/` (spec, decisions, plan) et les textes destinés à l'utilisateur final (formulaires, interface).
 - Fais des **modifications minimales** — ne refactorise pas du code non demandé.
 - Quand tu **hésites entre deux approches**, expose les deux et laisse-moi choisir.
 - **Un commit par tranche ou par décision**, message clair et atomique.

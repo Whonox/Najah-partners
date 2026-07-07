@@ -1,0 +1,332 @@
+// Najah Partners — schéma de données (Prisma 6 / PostgreSQL)
+// Convention : code & nommage en anglais. Voir ../CLAUDE.md et ../../docs/spec.md §8.
+// Unités : BV = Int partout ; DT = Decimal(12,3) (millimes tunisiens), affichage uniquement.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────── Enums ───────────────────────────
+
+enum MemberStatus {
+  REGISTERED // INSCRIT
+  ACTIVE // ACTIF
+  INACTIVE // INACTIF
+}
+
+enum Leg {
+  LEFT
+  RIGHT
+}
+
+enum EcardStatus {
+  ACTIVE
+  USED
+  REVOKED
+  EXPIRED
+}
+
+enum CommissionType {
+  DIRECT
+  INDIRECT
+  STARTUP_BONUS
+}
+
+enum BvMovementType {
+  ECARD_CREATION // débit du créateur
+  ECARD_USE // crédit / consommation bénéficiaire
+  ECARD_REFUND // recrédit créateur (EXPIRED / REVOKED)
+  COMMISSION // crédit issu d'un run
+  ACTIVATION // consommation à l'activation
+  ADMIN_ADJUSTMENT // motif obligatoire
+  ADMIN_GENESIS // amorçage réseau / promo
+}
+
+enum ProductType {
+  PHYSICAL
+  VIRTUAL
+}
+
+enum RunStatus {
+  IN_PROGRESS
+  SUCCESS
+  ERROR
+}
+
+enum OrderContext {
+  ACTIVATION
+  FREE
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+enum ShipmentStatus {
+  PREPARATION
+  SHIPPED
+  DELIVERED
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  MANAGER
+  SUPPORT
+}
+
+// ─────────────────────────── Member (nœud d'arbre 1:1) ───────────────────────────
+
+model Member {
+  id           Int          @id @default(autoincrement())
+  memberCode   String       @unique // NP + auto-incrément
+  lastName     String
+  firstName    String
+  email        String?      @unique
+  phone        String?      @unique
+  passwordHash String
+  status       MemberStatus @default(REGISTERED)
+
+  // Pack (choisi à l'activation)
+  packId Int?
+  pack   Pack? @relation(fields: [packId], references: [id])
+
+  // Deux liens distincts (self-relations)
+  sponsorId Int?
+  sponsor   Member?  @relation("Sponsorship", fields: [sponsorId], references: [id])
+  referrals Member[] @relation("Sponsorship")
+
+  uplineId  Int?
+  upline    Member?  @relation("Placement", fields: [uplineId], references: [id])
+  downlines Member[] @relation("Placement")
+  leg       Leg? // position sous l'upline
+
+  // Solde & dates
+  bvBalance    Int       @default(0)
+  registeredAt DateTime  @default(now())
+  activatedAt  DateTime?
+  renewalAt    DateTime?
+
+  // Baseline figée à l'activation (points antérieurs exclus du calcul propre)
+  baselineLeft  Int @default(0)
+  baselineRight Int @default(0)
+
+  // Accumulateurs binaires (repris de NoeudArbre §8, fusionnés ici — relation 1:1)
+  leftPoints         Int @default(0) // semaine en cours
+  rightPoints        Int @default(0)
+  carriedLeftPoints  Int @default(0) // report / carry-over
+  carriedRightPoints Int @default(0)
+
+  // Réserve de bonus de démarrage (défaut 6, initialisée à l'activation)
+  startupBonusRemaining Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations inverses
+  createdEcards  Ecard[]         @relation("EcardCreator")
+  receivedEcards Ecard[]         @relation("EcardUser")
+  ledgerEntries  BvLedgerEntry[]
+  commissions    Commission[]
+  orders         Order[]
+
+  @@unique([uplineId, leg]) // 1 enfant gauche + 1 droit max → placement immuable, pas de spillover
+  @@index([uplineId])
+  @@index([sponsorId])
+  @@index([leg])
+  @@index([status])
+}
+
+// ─────────────────────────── Pack (palier) ───────────────────────────
+
+model Pack {
+  id                   Int     @id @default(autoincrement())
+  name                 String  @unique
+  tierBv               Int
+  refPriceDt           Decimal @db.Decimal(12, 3)
+  directCommissionBv   Int
+  indirectCommissionBv Int
+  weeklyCapBv          Int
+  active               Boolean @default(true)
+
+  members Member[]
+}
+
+// ─────────────────────────── Grand livre BV ───────────────────────────
+
+model BvLedgerEntry {
+  id           Int            @id @default(autoincrement())
+  memberId     Int
+  member       Member         @relation(fields: [memberId], references: [id])
+  type         BvMovementType
+  amountBv     Int // signé : + crédit / − débit
+  balanceAfter Int
+  // Références nullables selon la source du mouvement
+  ecardId      Int?
+  ecard        Ecard?         @relation(fields: [ecardId], references: [id])
+  commissionId Int?
+  commission   Commission?    @relation(fields: [commissionId], references: [id])
+  reason       String? // obligatoire pour ADMIN_ADJUSTMENT (contrôlé en code)
+  createdAt    DateTime       @default(now())
+
+  @@index([memberId])
+  @@index([memberId, createdAt])
+}
+
+// ─────────────────────────── E-card ───────────────────────────
+
+model Ecard {
+  id      Int         @id @default(autoincrement())
+  code    String      @unique // XXX-XXX-XXX-XXX
+  valueBv Int
+  status  EcardStatus @default(ACTIVE)
+
+  creatorId Int
+  creator   Member  @relation("EcardCreator", fields: [creatorId], references: [id])
+  userId    Int?
+  user      Member? @relation("EcardUser", fields: [userId], references: [id])
+
+  createdAt DateTime  @default(now())
+  usedAt    DateTime?
+  expiresAt DateTime? // null = illimité
+
+  orders        Order[]
+  ledgerEntries BvLedgerEntry[]
+
+  @@index([creatorId])
+  @@index([userId])
+  @@index([status])
+}
+
+// ─────────────────────────── Commissions ───────────────────────────
+
+model Commission {
+  id             Int            @id @default(autoincrement())
+  memberId       Int
+  member         Member         @relation(fields: [memberId], references: [id])
+  runId          Int
+  run            CommissionRun  @relation(fields: [runId], references: [id])
+  type           CommissionType
+  amountBv       Int
+  appliedCapBv   Int? // plafond figé si écrêtage
+  cycles         Int            @default(0)
+  snapshotParams Json // palier / commissions / plafond figés
+  createdAt      DateTime       @default(now())
+
+  ledgerEntries BvLedgerEntry[]
+
+  @@index([memberId, runId])
+  @@index([runId])
+}
+
+model CommissionRun {
+  id            Int       @id @default(autoincrement())
+  executedAt    DateTime  @default(now())
+  periodStart   DateTime
+  periodEnd     DateTime
+  memberCount   Int       @default(0)
+  distributedBv Int       @default(0)
+  status        RunStatus @default(IN_PROGRESS)
+  log           String?   @db.Text
+
+  commissions Commission[]
+}
+
+// ─────────────────────────── Boutique ───────────────────────────
+
+model Category {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?   @db.Text
+  sortOrder   Int       @default(0)
+  products    Product[]
+}
+
+model Product {
+  id            Int         @id @default(autoincrement())
+  name          String
+  description   String?     @db.Text
+  categoryId    Int
+  category      Category    @relation(fields: [categoryId], references: [id])
+  priceDt       Decimal     @db.Decimal(12, 3)
+  valueBv       Int
+  type          ProductType
+  stock         Int? // null pour VIRTUAL
+  shippingFeeDt Decimal     @default(0) @db.Decimal(12, 3)
+  promoPriceDt  Decimal?    @db.Decimal(12, 3)
+  images        String[]
+  active        Boolean     @default(true)
+  visibleOnSite Boolean     @default(true)
+
+  lines OrderLine[]
+
+  @@index([categoryId])
+}
+
+model Order {
+  id              Int             @id @default(autoincrement())
+  memberId        Int
+  member          Member          @relation(fields: [memberId], references: [id])
+  context         OrderContext
+  totalBv         Int
+  ecardId         Int?
+  ecard           Ecard?          @relation(fields: [ecardId], references: [id])
+  status          OrderStatus     @default(PENDING)
+  shippingAddress String?
+  shipmentStatus  ShipmentStatus?
+  createdAt       DateTime        @default(now())
+
+  lines OrderLine[]
+
+  @@index([memberId])
+}
+
+model OrderLine {
+  id          Int     @id @default(autoincrement())
+  orderId     Int
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   Int
+  product     Product @relation(fields: [productId], references: [id])
+  quantity    Int
+  unitValueBv Int // snapshot BV
+  unitPriceDt Decimal @db.Decimal(12, 3) // snapshot DT
+
+  @@index([orderId])
+}
+
+// ─────────────────────────── Admin, paramètres, audit ───────────────────────────
+
+model AdminUser {
+  id           Int       @id @default(autoincrement())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         AdminRole @default(MANAGER)
+  permissions  Json? // permissions par module
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+}
+
+model Setting {
+  key         String  @id
+  value       String
+  description String?
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  actor     String // id admin ou "SYSTEM"
+  action    String
+  target    String?
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
