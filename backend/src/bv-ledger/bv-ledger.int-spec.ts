@@ -100,6 +100,37 @@ describe('BvLedger — intégration (vrai Postgres)', () => {
     expect(entries[0].balanceAfter).toBe(20);
   });
 
+  it('CONCURRENCE N-way : 5 débits de 30 sur un solde de 100 → exactement 3 passent', async () => {
+    const memberId = await createMember(100);
+
+    const results = await Promise.allSettled(
+      Array.from({ length: 5 }, () =>
+        ledger.recordMovement({
+          memberId,
+          type: BvMovementType.ECARD_CREATION,
+          amountBv: -30,
+        }),
+      ),
+    );
+
+    const fulfilled = results.filter((r) => r.status === 'fulfilled');
+    const rejected = results.filter((r) => r.status === 'rejected');
+    expect(fulfilled).toHaveLength(3); // 3 × 30 = 90 ≤ 100
+    expect(rejected).toHaveLength(2);
+    for (const r of rejected) {
+      expect((r as PromiseRejectedResult).reason).toBeInstanceOf(
+        InsufficientBalanceError,
+      );
+    }
+
+    const member = await prisma.member.findUnique({
+      where: { id: memberId },
+      select: { bvBalance: true },
+    });
+    expect(member?.bvBalance).toBe(10); // 100 − 90, jamais négatif
+    expect(await prisma.bvLedgerEntry.count({ where: { memberId } })).toBe(3);
+  });
+
   it('somme des mouvements = solde courant, et balanceAfter = somme cumulée', async () => {
     const memberId = await createMember(0);
     await ledger.recordMovement({
