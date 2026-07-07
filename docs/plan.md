@@ -14,9 +14,9 @@ Ordre par dépendance. Chaque tranche est testable et se termine par un commit. 
 - [x] Migrations + seed minimal (packs par défaut, 1 admin).
 
 ## Tranche 2 — Authentification (réf. D-011)
-- [ ] Connexion email / téléphone / code membre + mot de passe, récupération de mot de passe.
-- [ ] RBAC admin (super-admin / gestionnaire / support).
-- [ ] Tests auth.
+- [x] Connexion email / téléphone / code membre + mot de passe, récupération de mot de passe.
+- [x] RBAC admin (super-admin / gestionnaire / support).
+- [x] Tests auth.
 
 ## Tranche 3 — Grand livre BV (réf. rules/bv-ledger.md)
 - [ ] Service de mouvements BV atomiques, solde jamais négatif.

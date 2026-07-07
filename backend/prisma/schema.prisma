@@ -81,6 +81,12 @@ enum AdminRole {
   SUPPORT
 }
 
+// Type d'acteur porté par le JWT (cloisonnement MEMBER / ADMIN, D-016)
+enum ActorType {
+  MEMBER
+  ADMIN
+}
+
 // ─────────────────────────── Member (nœud d'arbre 1:1) ───────────────────────────
 
 model Member {
@@ -135,6 +141,10 @@ model Member {
   ledgerEntries  BvLedgerEntry[]
   commissions    Commission[]
   orders         Order[]
+
+  // Auth (Tranche 2)
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
 
   @@unique([uplineId, leg]) // 1 enfant gauche + 1 droit max → placement immuable, pas de spillover
   @@index([uplineId])
@@ -311,6 +321,54 @@ model AdminUser {
   permissions  Json? // permissions par module
   active       Boolean   @default(true)
   createdAt    DateTime  @default(now())
+
+  // Auth (Tranche 2)
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+// ─────────────────────────── Auth : refresh tokens (D-016) ───────────────────────────
+// Le refresh token n'est jamais stocké en clair : seule son empreinte SHA-256 est
+// persistée. Rotation à chaque usage + détection de réutilisation par famille.
+
+model RefreshToken {
+  id          Int        @id @default(autoincrement())
+  familyId    String // chaîne de rotation (une session = une famille)
+  tokenHash   String     @unique // SHA-256 du token (jamais le clair)
+  actorType   ActorType
+  memberId    Int?
+  member      Member?    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  adminUserId Int?
+  adminUser   AdminUser? @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  expiresAt   DateTime
+  revokedAt   DateTime? // rotation, logout ou révocation de famille
+  userAgent   String?
+  ip          String?
+  createdAt   DateTime   @default(now())
+
+  @@index([familyId])
+  @@index([memberId])
+  @@index([adminUserId])
+}
+
+// ─────────────────────────── Auth : reset de mot de passe (D-011) ───────────────────────────
+// Token à usage unique et expirant. Aucun envoi email/SMS (aucun fournisseur, D-011) :
+// le canal de transmission reste à cadrer (notification in-app).
+
+model PasswordResetToken {
+  id          Int        @id @default(autoincrement())
+  tokenHash   String     @unique // SHA-256, usage unique
+  actorType   ActorType
+  memberId    Int?
+  member      Member?    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  adminUserId Int?
+  adminUser   AdminUser? @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  expiresAt   DateTime
+  usedAt      DateTime? // usage unique
+  createdAt   DateTime   @default(now())
+
+  @@index([memberId])
+  @@index([adminUserId])
 }
 
 model Setting {
