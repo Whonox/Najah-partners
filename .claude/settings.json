@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(echo \"exit=$?\")",
+      "Bash(git -C /c/chamonix/dev/Najah-partners status)",
+      "Bash(rm -rf /c/chamonix/dev/Najah-partners/backend/.git && echo \"backend/.git supprimé.\" && echo \"--- re-scan .git imbriqués \\(doit ne lister que la racine\\) ---\" && find /c/chamonix/dev/Najah-partners -maxdepth 3 -name .git -not -path '*/node_modules/*')"
+    ],
+    "additionalDirectories": [
+      "C:\\chamonix\\dev\\Najah-partners\\backend\\.git"
+    ]
+  }
+}

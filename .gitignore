@@ -1,0 +1,34 @@
+# Dépendances
+node_modules/
+.pnp/
+.pnp.js
+
+# Builds
+dist/
+build/
+.next/
+out/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Éditeurs / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Claude Code (local, non partagé)
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Client TS généré (regénéré depuis l'OpenAPI)
+**/src/api/generated/

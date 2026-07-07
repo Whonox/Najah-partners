@@ -1,0 +1,24 @@
+# Journal des décisions (ADR léger)
+
+Chaque décision métier verrouillée est consignée ici. Format : identifiant, date, décision, raison. Une décision n'est « réelle » qu'une fois écrite ici et commitée. Une décision qui en annule une autre le dit explicitement.
+
+| ID | Décision | Raison / source |
+|---|---|---|
+| D-001 | BV est l'unité interne unique ; la plateforme ne manipule jamais de fiat. | Modèle e-card only ; réduit l'exposition paiement. |
+| D-002 | Prix en DT = affichage uniquement ; seul le BV est transactionnel. | Cliente. |
+| D-003 | Deux liens distincts : sponsor (commission directe) et upline de placement (binaire). | Modèle QNet ; captures cliente. |
+| D-004 | Placement explicite (upline + jambe G/D), aucun spillover. | Cliente. |
+| D-005 | Seule l'activation injecte du BV dans l'arbre ; les achats de produits n'alimentent pas l'arbre. | Cliente (correction explicite). |
+| D-006 | Composition du pack = somme des BV des produits **exactement** égale au palier. | Cliente. |
+| D-007 | E-card : format `XXX-XXX-XXX-XXX`, usage unique, transférable, plafonnée au solde, valeur = BV exact. | Cliente. |
+| D-008 | Expiration e-card paramétrable en jours ; `-1` = illimité ; remboursement au créateur sur expiration/révocation. | Cliente + précédent QNet (180 j). |
+| D-009 | Commissions : cron hebdo, reset vendredi 23:59 (Tunis). Carry-over des points non appariés ; commission au-delà du plafond perdue ; directe comptée dans le plafond. | Cliente. |
+| D-010 | Renouvellement annuel 100 DT, validé par l'admin ; sinon INACTIF. Inscription initiale : activation automatique sans admin. | Cliente. |
+| D-011 | Auth par email/téléphone/code membre + mot de passe. Pas de KYC. Notifications in-app uniquement. FR au lancement, AR/RTL en phase future. Pas d'app mobile. | Cliente. |
+| D-012 | Bonus de démarrage : réserve à vie de 6 paliers déséquilibrés rémunérés (paramétrable), points consommés, compté dans le plafond, démarre à l'activation. | Cliente. |
+| D-013 | **Remplace l'ancien modèle de réservation/expiration.** Un inscrit non finalisé (état INSCRIT) persiste indéfiniment, place définitive dès l'inscription, peut recevoir des downlines. Baseline figée à l'activation (seuls les points postérieurs comptent). Suppression de l'état EXPIRÉ, du délai de 7 j et du cron de libération. | Cliente (annule la décision antérieure de réservation temporaire). |
+
+## Points encore ouverts (à confirmer avec la cliente)
+- Unité du plan de commissions : les montants (500, 250, plafonds…) sont repris en BV ; confirmer si un taux BV↔DT différent s'applique.
+- Validation juridique du montage (exposition « schéma pyramidal »).
+- Cadrage financier réévalué (périmètre élargi).
