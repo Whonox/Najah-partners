@@ -39,22 +39,34 @@ export interface RegisteredMember {
   registeredAt: Date;
 }
 
+/** Comment le palier a été réglé (D-025). Exactement un des deux identifiants est non nul. */
+export interface SettlementResult {
+  method: 'BALANCE' | 'ECARD';
+  /** Débit ACTIVATION au grand livre — seulement si réglé sur le solde. */
+  ledgerEntryId: number | null;
+  /** E-card brûlée — seulement si réglé par e-card (aucun mouvement de solde, D-025). */
+  ecardId: number | null;
+}
+
 /**
  * Moyen de paiement de l'activation — SEUL point d'extension entre l'arbre et l'argent.
  *
- * Contrat : à la sortie de `settleInTx`, le solde BV du membre doit couvrir `amountBv`.
- * L'activation débite ensuite ce montant (mouvement ACTIVATION) : si le solde ne suffit
- * pas, le grand livre lève `InsufficientBalanceError` et toute la transaction est annulée.
+ * Contrat : `settleInTx` RÈGLE intégralement `amountBv` dans la transaction de l'appelant,
+ * ou lève. L'activation ne débite plus rien elle-même : la manière dont la valeur est
+ * fournie appartient à la stratégie, pas à l'arbre.
  *
- *  - Tranche 4 : `BalanceActivationPayment` — le solde doit déjà être approvisionné.
- *  - Tranche 5 : implémentation e-card — brûle la carte et crédite ECARD_USE dans la
- *    MÊME transaction (crédit +palier puis débit −palier : net nul, deux lignes tracées).
+ *  - `BalanceActivationPayment` : débite le solde du membre (mouvement ACTIVATION).
+ *  - `EcardActivationPayment` (Tranche 5) : brûle une e-card de valeur EXACTEMENT égale au
+ *    palier. AUCUN mouvement de solde — l'e-card est un instrument de paiement consommé au
+ *    point de transaction, pas une recharge (D-025). Créditer le bénéficiaire ici puis le
+ *    débiter du palier serait un aller-retour net nul qui ferait transiter du BV par un
+ *    solde qui n'a jamais eu à le porter.
  */
 export interface ActivationPayment {
   settleInTx(
     tx: Prisma.TransactionClient,
     input: { memberId: number; amountBv: number },
-  ): Promise<void>;
+  ): Promise<SettlementResult>;
 }
 
 /** Paramètres du pack figés au moment de l'activation (spec §5.8). */
@@ -76,7 +88,8 @@ export interface ActivationResult {
   startupBonusRemaining: number;
   /** Ancêtres crédités du palier, de l'upline direct jusqu'à la racine. */
   creditedAncestors: number;
-  ledgerEntryId: number;
+  /** Comment le palier a été réglé (solde débité, ou e-card brûlée — D-025). */
+  payment: SettlementResult;
 }
 
 /** Ligne plate renvoyée par la CTE descendante. */

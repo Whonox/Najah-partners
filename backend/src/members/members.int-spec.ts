@@ -5,7 +5,10 @@ import { InsufficientBalanceError } from '../bv-ledger/bv-ledger.errors';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivationService } from './activation.service';
 import { MemberCodeService } from './member-code.service';
-import { PositionTakenError, UplineOutsideSponsorTreeError } from './members.errors';
+import {
+  PositionTakenError,
+  UplineOutsideSponsorTreeError,
+} from './members.errors';
 import { MembersService } from './members.service';
 import { ActivationPayment } from './members.types';
 import { BalanceActivationPayment } from './payment/balance-activation-payment';
@@ -78,7 +81,10 @@ describe('Members — intégration (vrai Postgres)', () => {
   }
 
   /** Approvisionne le solde puis active (le moyen de paiement par défaut lit le solde). */
-  async function fundAndActivate(memberId: number, payment?: ActivationPayment) {
+  async function fundAndActivate(
+    memberId: number,
+    payment?: ActivationPayment,
+  ) {
     await ledger.recordMovement({
       memberId,
       type: 'ADMIN_GENESIS',
@@ -108,20 +114,28 @@ describe('Members — intégration (vrai Postgres)', () => {
     prisma = new PrismaService();
     await prisma.$connect();
     const config = {
-      get: jest.fn((key: string, def?: string) => (key === 'BCRYPT_ROUNDS' ? '4' : def)),
+      get: jest.fn((key: string, def?: string) =>
+        key === 'BCRYPT_ROUNDS' ? '4' : def,
+      ),
     } as unknown as ConfigService;
 
     ledger = new BvLedgerService(prisma);
     placement = new PlacementService(prisma);
-    members = new MembersService(prisma, config, placement, new MemberCodeService());
+    members = new MembersService(
+      prisma,
+      config,
+      placement,
+      new MemberCodeService(),
+    );
     activation = new ActivationService(
       prisma,
-      ledger,
       placement,
-      new BalanceActivationPayment(),
+      new BalanceActivationPayment(ledger),
     );
 
-    const pack = await prisma.pack.findFirstOrThrow({ where: { name: 'Silver' } });
+    const pack = await prisma.pack.findFirstOrThrow({
+      where: { name: 'Silver' },
+    });
     packId = pack.id;
     tierBv = pack.tierBv;
   });
@@ -151,7 +165,9 @@ describe('Members — intégration (vrai Postgres)', () => {
     const root = await createRoot();
     const child = await register(root.memberCode, root.memberCode, Leg.LEFT);
 
-    const member = await prisma.member.findUniqueOrThrow({ where: { id: child.id } });
+    const member = await prisma.member.findUniqueOrThrow({
+      where: { id: child.id },
+    });
     expect(member.memberCode).toMatch(/^NP\d{6}$/);
     expect(member.status).toBe(MemberStatus.REGISTERED);
     expect(member.uplineId).toBe(root.id);
@@ -163,7 +179,9 @@ describe('Members — intégration (vrai Postgres)', () => {
     expect(member.bvBalance).toBe(0);
     expect(member.leftPoints).toBe(0);
     expect(member.rightPoints).toBe(0);
-    expect(await prisma.bvLedgerEntry.count({ where: { memberId: child.id } })).toBe(0);
+    expect(
+      await prisma.bvLedgerEntry.count({ where: { memberId: child.id } }),
+    ).toBe(0);
     const rootPoints = await points(root.id);
     expect(rootPoints.leftPoints).toBe(0);
     expect(rootPoints.rightPoints).toBe(0);
@@ -172,7 +190,9 @@ describe('Members — intégration (vrai Postgres)', () => {
   it('vérification d’identité PENDING par défaut, et non bloquante', async () => {
     const root = await createRoot();
     const child = await register(root.memberCode, root.memberCode, Leg.LEFT);
-    const member = await prisma.member.findUniqueOrThrow({ where: { id: child.id } });
+    const member = await prisma.member.findUniqueOrThrow({
+      where: { id: child.id },
+    });
     expect(member.verificationStatus).toBe('PENDING');
 
     // D-018 : un membre PENDING s'active normalement.
@@ -200,12 +220,22 @@ describe('Members — intégration (vrai Postgres)', () => {
 
     const results = await Promise.allSettled([
       members.register({
-        lastName: 'Course', firstName: 'A', email: `a-${Date.now()}@test.local`,
-        password: PASSWORD, sponsorCode: root.memberCode, uplineCode: root.memberCode, leg: Leg.LEFT,
+        lastName: 'Course',
+        firstName: 'A',
+        email: `a-${Date.now()}@test.local`,
+        password: PASSWORD,
+        sponsorCode: root.memberCode,
+        uplineCode: root.memberCode,
+        leg: Leg.LEFT,
       }),
       members.register({
-        lastName: 'Course', firstName: 'B', email: `b-${Date.now()}@test.local`,
-        password: PASSWORD, sponsorCode: root.memberCode, uplineCode: root.memberCode, leg: Leg.LEFT,
+        lastName: 'Course',
+        firstName: 'B',
+        email: `b-${Date.now()}@test.local`,
+        password: PASSWORD,
+        sponsorCode: root.memberCode,
+        uplineCode: root.memberCode,
+        leg: Leg.LEFT,
       }),
     ]);
 
@@ -213,14 +243,16 @@ describe('Members — intégration (vrai Postgres)', () => {
     const lost = results.filter((r) => r.status === 'rejected');
     expect(won).toHaveLength(1); // le premier inscrit l'emporte (§5.4)
     expect(lost).toHaveLength(1);
-    expect((lost[0] as PromiseRejectedResult).reason).toBeInstanceOf(PositionTakenError);
+    expect(lost[0].reason).toBeInstanceOf(PositionTakenError);
 
     for (const r of won) {
       created.push((r as PromiseFulfilledResult<{ id: number }>).value.id);
     }
     // La contrainte DB a bien tranché : une seule ligne occupe la position.
     expect(
-      await prisma.member.count({ where: { uplineId: root.id, leg: Leg.LEFT } }),
+      await prisma.member.count({
+        where: { uplineId: root.id, leg: Leg.LEFT },
+      }),
     ).toBe(1);
   });
 
@@ -254,7 +286,11 @@ describe('Members — intégration (vrai Postgres)', () => {
     const parent = await register(root.memberCode, root.memberCode, Leg.LEFT);
     // Deux downlines s'activent PENDANT que `parent` est encore INSCRIT.
     const left = await register(parent.memberCode, parent.memberCode, Leg.LEFT);
-    const right = await register(parent.memberCode, parent.memberCode, Leg.RIGHT);
+    const right = await register(
+      parent.memberCode,
+      parent.memberCode,
+      Leg.RIGHT,
+    );
     await fundAndActivate(left.id);
     await fundAndActivate(right.id);
 
@@ -325,7 +361,9 @@ describe('Members — intégration (vrai Postgres)', () => {
     const child = await register(root.memberCode, root.memberCode, Leg.LEFT);
     await fundAndActivate(child.id);
 
-    const original = await prisma.pack.findUniqueOrThrow({ where: { id: packId } });
+    const original = await prisma.pack.findUniqueOrThrow({
+      where: { id: packId },
+    });
     try {
       await prisma.pack.update({
         where: { id: packId },
@@ -355,7 +393,9 @@ describe('Members — intégration (vrai Postgres)', () => {
     expect(member.status).toBe(MemberStatus.REGISTERED);
     const rootPoints = await points(root.id);
     expect(rootPoints.leftPoints).toBe(0);
-    expect(await prisma.bvLedgerEntry.count({ where: { memberId: child.id } })).toBe(0);
+    expect(
+      await prisma.bvLedgerEntry.count({ where: { memberId: child.id } }),
+    ).toBe(0);
   });
 
   it('ROLLBACK : une activation interrompue ne laisse ni point propagé, ni mouvement BV', async () => {
@@ -404,9 +444,9 @@ describe('Members — intégration (vrai Postgres)', () => {
       reason: 'Test',
     });
 
-    await expect(activation.activate({ memberId: child.id, packId })).rejects.toThrow(
-      /pas en état INSCRIT/,
-    );
+    await expect(
+      activation.activate({ memberId: child.id, packId }),
+    ).rejects.toThrow(/pas en état INSCRIT/);
     // Le palier n'a été injecté qu'une fois.
     expect((await points(root.id)).leftPoints).toBe(tierBv);
   });
@@ -417,11 +457,29 @@ describe('Members — intégration (vrai Postgres)', () => {
     const root = await createRoot();
     const left = await register(root.memberCode, root.memberCode, Leg.LEFT);
     const right = await register(root.memberCode, root.memberCode, Leg.RIGHT);
-    const leftChild = await register(left.memberCode, left.memberCode, Leg.LEFT);
-    const rightChild = await register(right.memberCode, right.memberCode, Leg.LEFT);
+    const leftChild = await register(
+      left.memberCode,
+      left.memberCode,
+      Leg.LEFT,
+    );
+    const rightChild = await register(
+      right.memberCode,
+      right.memberCode,
+      Leg.LEFT,
+    );
 
-    await ledger.recordMovement({ memberId: leftChild.id, type: 'ADMIN_GENESIS', amountBv: tierBv, reason: 'Test' });
-    await ledger.recordMovement({ memberId: rightChild.id, type: 'ADMIN_GENESIS', amountBv: tierBv, reason: 'Test' });
+    await ledger.recordMovement({
+      memberId: leftChild.id,
+      type: 'ADMIN_GENESIS',
+      amountBv: tierBv,
+      reason: 'Test',
+    });
+    await ledger.recordMovement({
+      memberId: rightChild.id,
+      type: 'ADMIN_GENESIS',
+      amountBv: tierBv,
+      reason: 'Test',
+    });
 
     // Les deux transactions verrouillent la racine : sans ordre de verrouillage commun,
     // c'est exactement le scénario qui interbloque.

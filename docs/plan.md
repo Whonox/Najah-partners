@@ -36,10 +36,10 @@ Ordre par dépendance. Chaque tranche est testable et se termine par un commit. 
 - [ ] **Reporté** : tests de charge de l'arbre (D-014).
 
 ## Tranche 5 — E-cards (réf. rules/ecard.md)
-- [ ] Création plafonnée, format, états, expiration paramétrable, remboursement créateur.
-- [ ] Consommation atomique + rate-limiting sur la validation.
-- [ ] Génération admin (amorçage/promo).
-- [ ] Tests e-card.
+- [x] Création plafonnée, format, états, expiration paramétrable (cron quotidien), remboursement créateur.
+- [x] Consommation atomique (activation par e-card, `ActivationPayment` — D-025) + rate-limiting sur la vérification.
+- [x] Génération admin (amorçage/promo, SUPER_ADMIN) + révocation + prolongation (D-026).
+- [x] Tests e-card (unit + int : rollback, concurrence, conservation de la masse BV).
 
 ## Tranche 6 — Boutique & activation (réf. spec §5.6, §5.7)
 - [ ] Produits (prix DT + valeur BV, type physique/virtuel, stock, livraison, promo).

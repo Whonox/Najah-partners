@@ -72,7 +72,7 @@ export class SeedService {
 
     const settings = [
       { key: 'startup_bonus_default', value: '6', description: 'Réserve de paliers de bonus de démarrage figée à l’activation' },
-      { key: 'ecard_expiration_days', value: '-1', description: 'Durée de validité des e-cards en jours (-1 = illimité)' },
+      { key: 'ecard_expiration_days', value: '180', description: 'Durée de validité des e-cards en jours (-1 = illimité) — 180 j À CONFIRMER avec la cliente (D-008)' },
       { key: 'annual_renewal_bv', value: '0', description: 'Valeur BV du renouvellement annuel (à confirmer avec la cliente)' },
       { key: 'commission_cron_day', value: 'FRIDAY', description: 'Jour de clôture du run hebdomadaire' },
       { key: 'commission_cron_time', value: '23:59', description: 'Heure de clôture (heure de Tunis)' },

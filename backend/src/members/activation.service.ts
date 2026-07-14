@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BvMovementType, MemberStatus, Prisma } from '@prisma/client';
-import { BvLedgerService } from '../bv-ledger/bv-ledger.service';
+import { MemberStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   InvalidSettingError,
@@ -41,7 +40,6 @@ export interface ActivateInput {
 export class ActivationService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly ledger: BvLedgerService,
     private readonly placement: PlacementService,
     private readonly defaultPayment: BalanceActivationPayment,
   ) {}
@@ -85,22 +83,18 @@ export class ActivationService {
           weeklyCapBv: pack.weeklyCapBv,
         };
 
-        // 4. Moyen de paiement (point d'extension e-card, Tranche 5) : à sa sortie, le solde
-        //    doit couvrir le palier.
-        await payment.settleInTx(tx, {
+        // 4. RÈGLEMENT du palier, délégué à la stratégie de paiement (D-025) — elle règle
+        //    intégralement, ou elle lève (et toute l'activation est annulée) :
+        //      - solde  : débit ACTIVATION du membre (grand livre) ;
+        //      - e-card : la carte est brûlée, AUCUN solde n'est touché.
+        //    L'ordre de verrouillage (D-024) est respecté : la chaîne `Member` est déjà
+        //    verrouillée (étape 1), l'`Ecard` ne l'est qu'ici — Member → Ecard, jamais l'inverse.
+        const settlement = await payment.settleInTx(tx, {
           memberId: member.id,
           amountBv: snapshot.tierBv,
         });
 
-        // 5. Débit du palier — via le grand livre, seul point d'écriture des soldes (D-017).
-        //    Solde insuffisant → InsufficientBalanceError → toute l'activation est annulée.
-        const entry = await this.ledger.recordMovementInTx(tx, {
-          memberId: member.id,
-          type: BvMovementType.ACTIVATION,
-          amountBv: -snapshot.tierBv,
-        });
-
-        // 6. Passage à ACTIF + baseline figée. `baselineLeft = leftPoints` est calculé EN SQL,
+        // 5. Passage à ACTIF + baseline figée. `baselineLeft = leftPoints` est calculé EN SQL,
         //    sous verrou : les points accumulés pendant la phase INSCRIT sont ainsi exclus des
         //    commissions propres du membre (§5.8), sans lecture-modification-écriture côté JS.
         //    `WHERE status = 'REGISTERED'` : dernier rempart contre une double activation.
@@ -125,7 +119,7 @@ export class ActivationService {
           throw new MemberNotRegisteredError(member.id, member.status);
         }
 
-        // 7. Propagation du palier SNAPSHOTÉ à tous les ancêtres, sur la bonne jambe (D-020).
+        // 6. Propagation du palier SNAPSHOTÉ à tous les ancêtres, sur la bonne jambe (D-020).
         await this.placement.propagateInTx(
           tx,
           member.id,
@@ -146,7 +140,7 @@ export class ActivationService {
               baselineLeft: updated[0].baselineLeft,
               baselineRight: updated[0].baselineRight,
               creditedAncestors: chain.ancestorCount,
-              ledgerEntryId: entry.id,
+              payment: { ...settlement },
             },
           },
         });
@@ -160,7 +154,7 @@ export class ActivationService {
           baselineRight: updated[0].baselineRight,
           startupBonusRemaining: startupBonus,
           creditedAncestors: chain.ancestorCount,
-          ledgerEntryId: entry.id,
+          payment: settlement,
         };
       },
       { timeout: TX_TIMEOUT_MS },

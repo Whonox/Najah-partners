@@ -7,8 +7,8 @@ Le grand livre BV est la comptabilité interne. Chaque mouvement est tracé, jam
 ## Invariants
 - Un solde BV ne devient **jamais négatif**.
 - **Création d'e-card** = débit du solde du créateur, du montant exact de l'e-card.
-- **Utilisation d'e-card** = crédit du solde du bénéficiaire (ou consommation à l'activation), montant exact.
-- **Expiration / révocation d'e-card** = recrédit du créateur.
+- **Utilisation d'e-card** = **AUCUN mouvement de solde** (D-025). L'e-card est un instrument de paiement consommé au point de transaction, pas une recharge : sa valeur paie le montant dû, elle ne transite jamais par le solde du bénéficiaire. Le grand livre est le journal des SOLDES — aucun solde ne bouge, donc il n'écrit rien. La trace de la consommation vit dans l'`Ecard` (`USED`, `usedAt`, `userId`) et l'`AuditLog`. **Il n'existe pas de `ECARD_USE`** dans `BvMovementType` : la valeur a été supprimée de l'enum pour rendre le retour au modèle recharge impossible.
+- **Expiration / révocation d'e-card** = recrédit du créateur (`ECARD_REFUND`). Sauf e-card de **genèse** (sans créateur) : personne à rembourser.
 - **Commission** = crédit issu d'un run, avec snapshot des paramètres.
 - **Ajustement admin** = mouvement tracé avec motif obligatoire.
 - Toute opération touchant un solde est **atomique** (transaction base de données) : jamais de débit sans le crédit correspondant.
@@ -19,5 +19,5 @@ Le grand livre BV est la comptabilité interne. Chaque mouvement est tracé, jam
 ## Tests attendus
 - Somme des mouvements d'un membre = son solde courant.
 - Impossible de débiter en dessous de zéro.
-- Un flux e-card complet (créer → transférer → utiliser) conserve la masse BV totale.
+- Un flux e-card complet (créer → transférer → utiliser) conserve la masse BV totale : le créateur est débité une fois, le bénéficiaire n'est jamais crédité, la valeur est consommée en payant.
 - Rollback : une transaction interrompue ne laisse aucun mouvement partiel.

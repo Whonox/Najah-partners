@@ -31,15 +31,26 @@ enum EcardStatus {
   EXPIRED
 }
 
+// Origine d'une e-card (D-025). Elle décide du remboursement : une e-card MEMBER a débité
+// le solde de son créateur, donc EXPIRED/REVOKED le lui recrédite ; une e-card GENESIS est
+// née ex nihilo (aucun débit), il n'y a personne à rembourser — sa valeur disparaît.
+enum EcardOrigin {
+  MEMBER
+  GENESIS
+}
+
 enum CommissionType {
   DIRECT
   INDIRECT
   STARTUP_BONUS
 }
 
+// D-025 : PAS de valeur `ECARD_USE`. L'e-card est un instrument de PAIEMENT consommé au point
+// de transaction, jamais une recharge de solde : l'utiliser ne crédite RIEN au bénéficiaire.
+// La valeur sort du solde à la création (ECARD_CREATION) et quitte le système à la
+// consommation (l'e-card est brûlée). Réintroduire ECARD_USE ramènerait le modèle recharge.
 enum BvMovementType {
   ECARD_CREATION // débit du créateur
-  ECARD_USE // crédit / consommation bénéficiaire
   ECARD_REFUND // recrédit créateur (EXPIRED / REVOKED)
   COMMISSION // crédit issu d'un run
   ACTIVATION // consommation à l'activation
@@ -226,15 +237,26 @@ model Ecard {
   code    String      @unique // XXX-XXX-XXX-XXX
   valueBv Int
   status  EcardStatus @default(ACTIVE)
+  origin  EcardOrigin @default(MEMBER)
 
-  creatorId Int
-  creator   Member  @relation("EcardCreator", fields: [creatorId], references: [id])
-  userId    Int?
-  user      Member? @relation("EcardUser", fields: [userId], references: [id])
+  // creatorId est nul SI ET SEULEMENT SI origin = GENESIS (contrainte CHECK en base) :
+  // une e-card de genèse n'a débité personne, donc personne à rembourser à son expiration.
+  // onDelete: Restrict — le défaut Prisma (SET NULL) ferait passer l'e-card d'un membre
+  // supprimé pour une e-card de GENÈSE (creatorId nul), donc non remboursable : la
+  // suppression d'un membre falsifierait la comptabilité BV. Interdit.
+  creatorId Int?
+  creator   Member? @relation("EcardCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  // Admin auteur de la genèse (SUPER_ADMIN, D-017b) — qui a créé de la valeur ex nihilo.
+  createdByAdminId Int?
+  createdByAdmin   AdminUser? @relation("EcardGenesisAdmin", fields: [createdByAdminId], references: [id], onDelete: Restrict)
+
+  userId Int?
+  user   Member? @relation("EcardUser", fields: [userId], references: [id])
 
   createdAt DateTime  @default(now())
   usedAt    DateTime?
-  expiresAt DateTime? // null = illimité
+  expiresAt DateTime? // null = illimité (paramètre ecard_expiration_days = -1)
+  closedAt  DateTime? // horodatage du passage EXPIRED / REVOKED
 
   orders        Order[]
   ledgerEntries BvLedgerEntry[]
@@ -242,6 +264,7 @@ model Ecard {
   @@index([creatorId])
   @@index([userId])
   @@index([status])
+  @@index([status, expiresAt]) // balayage du cron quotidien d'expiration
 }
 
 // ─────────────────────────── Commissions ───────────────────────────
@@ -355,6 +378,9 @@ model AdminUser {
   // Auth (Tranche 2)
   refreshTokens       RefreshToken[]
   passwordResetTokens PasswordResetToken[]
+
+  // E-cards de genèse générées par cet admin (Tranche 5)
+  genesisEcards Ecard[] @relation("EcardGenesisAdmin")
 }
 
 // ─────────────────────────── Auth : refresh tokens (D-016) ───────────────────────────

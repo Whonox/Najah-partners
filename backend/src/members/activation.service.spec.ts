@@ -63,7 +63,10 @@ function makeService(scenario: Scenario = {}) {
       findUnique: jest.fn(async () =>
         scenario.startupBonus === null
           ? null
-          : { key: 'startup_bonus_default', value: scenario.startupBonus ?? '6' },
+          : {
+              key: 'startup_bonus_default',
+              value: scenario.startupBonus ?? '6',
+            },
       ),
     },
   } as unknown as PrismaService;
@@ -71,17 +74,27 @@ function makeService(scenario: Scenario = {}) {
   const recordMovementInTx = jest.fn(async () => ({ id: 77, balanceAfter: 0 }));
   const ledger = { recordMovementInTx } as unknown as BvLedgerService;
 
-  const lockChainInTx = jest.fn(async () => ({ ids: [1, 2, 42], ancestorCount: 2 }));
+  const lockChainInTx = jest.fn(async () => ({
+    ids: [1, 2, 42],
+    ancestorCount: 2,
+  }));
   const propagateInTx = jest.fn(async () => [{ id: 1 }, { id: 2 }]);
-  const placement = { lockChainInTx, propagateInTx } as unknown as PlacementService;
+  const placement = {
+    lockChainInTx,
+    propagateInTx,
+  } as unknown as PlacementService;
 
-  const settleInTx = jest.fn(async () => undefined);
-  const payment = (scenario.payment ?? {
-    settleInTx,
-  }) as unknown as BalanceActivationPayment;
+  // Stratégie par défaut : la VRAIE `BalanceActivationPayment` (grand livre mocké). Depuis
+  // D-025, c'est elle qui porte le débit ACTIVATION — plus `ActivationService` : le mocker
+  // ici masquerait précisément ce que ces tests doivent voir (le débit a bien lieu, du bon
+  // montant, entre le verrou et la propagation).
+  const balancePayment = new BalanceActivationPayment(ledger);
+  const settleInTx = jest.spyOn(balancePayment, 'settleInTx');
+  const payment = (scenario.payment ??
+    balancePayment) as unknown as BalanceActivationPayment;
 
   return {
-    service: new ActivationService(prisma, ledger, placement, payment),
+    service: new ActivationService(prisma, placement, payment),
     lockChainInTx,
     propagateInTx,
     recordMovementInTx,
@@ -92,29 +105,60 @@ function makeService(scenario: Scenario = {}) {
 }
 
 describe('ActivationService.activate — séquence', () => {
-  it('verrouille la chaîne AVANT tout, paie AVANT de débiter, propage APRÈS', async () => {
+  it('verrouille la chaîne AVANT tout, règle le palier, puis propage', async () => {
     const s = makeService();
     await s.service.activate({ memberId: 42, packId: PACK.id });
 
     const lock = s.lockChainInTx.mock.invocationCallOrder[0];
     const settle = s.settleInTx.mock.invocationCallOrder[0];
-    const debit = s.recordMovementInTx.mock.invocationCallOrder[0];
     const propagate = s.propagateInTx.mock.invocationCallOrder[0];
 
+    // Verrou (Member) toujours en premier, règlement ensuite (D-024 : Member → Ecard),
+    // propagation en dernier — rien ne remonte dans l'arbre avant que le palier soit payé.
     expect(lock).toBeLessThan(settle);
-    expect(settle).toBeLessThan(debit); // le crédit e-card (T5) précédera le débit
-    expect(debit).toBeLessThan(propagate);
+    expect(settle).toBeLessThan(propagate);
   });
 
-  it('débite exactement le palier, en mouvement ACTIVATION', async () => {
+  it('règlement sur le solde : débite exactement le palier, en mouvement ACTIVATION', async () => {
     const s = makeService();
-    await s.service.activate({ memberId: 42, packId: PACK.id });
+    const result = await s.service.activate({ memberId: 42, packId: PACK.id });
 
     expect(s.recordMovementInTx).toHaveBeenCalledWith(expect.anything(), {
       memberId: 42,
       type: BvMovementType.ACTIVATION,
       amountBv: -PACK.tierBv,
     });
+    expect(result.payment).toEqual({
+      method: 'BALANCE',
+      ledgerEntryId: 77,
+      ecardId: null,
+    });
+  });
+
+  it('règlement par e-card : AUCUN mouvement de solde (D-025 — la carte paie, elle ne recharge pas)', async () => {
+    const ecardPayment: ActivationPayment = {
+      settleInTx: jest.fn(async () => ({
+        method: 'ECARD' as const,
+        ledgerEntryId: null,
+        ecardId: 9,
+      })),
+    };
+    const s = makeService({ payment: ecardPayment });
+    const result = await s.service.activate({
+      memberId: 42,
+      packId: PACK.id,
+      payment: ecardPayment,
+    });
+
+    // Le membre n'est ni crédité (recharge) ni débité (il n'a rien à débiter) : le grand
+    // livre reste muet. Un seul mouvement suffirait à réintroduire le modèle recharge.
+    expect(s.recordMovementInTx).not.toHaveBeenCalled();
+    expect(result.payment).toEqual({
+      method: 'ECARD',
+      ledgerEntryId: null,
+      ecardId: 9,
+    });
+    expect(s.propagateInTx).toHaveBeenCalled(); // l'arbre est bien alimenté
   });
 
   it('propage le palier SNAPSHOTÉ à tous les ancêtres verrouillés', async () => {
@@ -154,7 +198,9 @@ describe('ActivationService.activate — séquence', () => {
   it('trace l’activation dans le journal d’audit, dans la même transaction', async () => {
     const s = makeService();
     await s.service.activate({ memberId: 42, packId: PACK.id });
-    const arg = s.auditCreate.mock.calls[0][0] as { data: Record<string, unknown> };
+    const arg = s.auditCreate.mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
     expect(arg.data.action).toBe('MEMBER_ACTIVATED');
     expect(arg.data.target).toBe('Member:42');
   });
