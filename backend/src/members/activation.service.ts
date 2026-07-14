@@ -34,7 +34,8 @@ export interface ActivateInput {
  * baseline et propagation committent ensemble ou pas du tout.
  *
  * Aucune route HTTP n'expose ce service (D-023) : la seule porte d'entrée en ACTIF est
- * l'achat par e-card finalisé, qui sera branché ici en Tranche 5/6.
+ * l'achat par e-card finalisé — le checkout de la Tranche 6, qui compose sa propre
+ * transaction (commande + stock) autour de `activateInTx`.
  */
 @Injectable()
 export class ActivationService {
@@ -44,126 +45,144 @@ export class ActivationService {
     private readonly defaultPayment: BalanceActivationPayment,
   ) {}
 
+  /** Activation autonome (seed, tests) : ouvre la transaction et délègue à `activateInTx`. */
   async activate(input: ActivateInput): Promise<ActivationResult> {
+    return this.prisma.$transaction((tx) => this.activateInTx(tx, input), {
+      timeout: TX_TIMEOUT_MS,
+    });
+  }
+
+  /**
+   * Cœur de l'activation, DANS la transaction de l'appelant — c'est ainsi que le checkout
+   * (T6) tient commande + e-card + activation + arbre + stock d'un seul bloc : Prisma
+   * n'imbrique pas les transactions interactives, l'activation doit donc pouvoir composer.
+   *
+   * CONTRAT D'APPEL (D-024) : à invoquer AVANT tout autre verrou de la transaction. C'est ici
+   * que la chaîne d'ancêtres est verrouillée (ids croissants), et l'ordre inter-tables du
+   * projet — `Member` → `Ecard` → `Product` — en découle. Verrouiller une e-card ou un produit
+   * en amont croiserait cet ordre et rouvrirait l'interblocage de la Tranche 4.
+   */
+  async activateInTx(
+    tx: Prisma.TransactionClient,
+    input: ActivateInput,
+  ): Promise<ActivationResult> {
     const payment = input.payment ?? this.defaultPayment;
-    // Hors transaction : rien de coûteux ni de faillible sous verrou.
-    const startupBonus = await this.startupBonusDefault();
+    // Avant tout verrou : un paramètre corrompu doit faire échouer l'activation sans avoir
+    // immobilisé une branche de l'arbre.
+    const startupBonus = await this.startupBonusDefault(tx);
 
-    return this.prisma.$transaction(
-      async (tx) => {
-        await tx.$executeRawUnsafe(LOCK_TIMEOUT);
+    await tx.$executeRawUnsafe(LOCK_TIMEOUT);
 
-        // 1. VERROU ORDONNÉ (D-024) — première instruction touchant `Member` : le membre et
-        //    tous ses ancêtres, par id croissant. Aucun autre verrou ne doit être pris avant.
-        const chain = await this.placement.lockChainInTx(tx, input.memberId);
+    // 1. VERROU ORDONNÉ (D-024) — première instruction touchant `Member` : le membre et
+    //    tous ses ancêtres, par id croissant. Aucun autre verrou ne doit être pris avant.
+    const chain = await this.placement.lockChainInTx(tx, input.memberId);
 
-        // 2. Relecture du statut SOUS VERROU : garde d'idempotence (double soumission, retry).
-        const member = await tx.member.findUnique({
-          where: { id: input.memberId },
-          select: { id: true, memberCode: true, status: true },
-        });
-        if (!member) {
-          throw new MemberNotFoundError(input.memberId);
-        }
-        if (member.status !== MemberStatus.REGISTERED) {
-          throw new MemberNotRegisteredError(member.id, member.status);
-        }
+    // 2. Relecture du statut SOUS VERROU : garde d'idempotence (double soumission, retry).
+    const member = await tx.member.findUnique({
+      where: { id: input.memberId },
+      select: { id: true, memberCode: true, status: true },
+    });
+    if (!member) {
+      throw new MemberNotFoundError(input.memberId);
+    }
+    if (member.status !== MemberStatus.REGISTERED) {
+      throw new MemberNotRegisteredError(member.id, member.status);
+    }
 
-        // 3. SNAPSHOT du pack (spec §5.8) : à partir d'ici, plus rien ne relit Pack. Modifier
-        //    un palier demain ne réécrira pas cette activation.
-        const pack = await tx.pack.findUnique({ where: { id: input.packId } });
-        if (!pack || !pack.active) {
-          throw new PackUnavailableError(input.packId);
-        }
-        const snapshot: ActivationSnapshot = {
-          packName: pack.name,
-          tierBv: pack.tierBv,
-          directCommissionBv: pack.directCommissionBv,
-          indirectCommissionBv: pack.indirectCommissionBv,
-          weeklyCapBv: pack.weeklyCapBv,
-        };
+    // 3. SNAPSHOT du pack (spec §5.8) : à partir d'ici, plus rien ne relit Pack. Modifier
+    //    un palier demain ne réécrira pas cette activation.
+    const pack = await tx.pack.findUnique({ where: { id: input.packId } });
+    if (!pack || !pack.active) {
+      throw new PackUnavailableError(input.packId);
+    }
+    const snapshot: ActivationSnapshot = {
+      packName: pack.name,
+      tierBv: pack.tierBv,
+      directCommissionBv: pack.directCommissionBv,
+      indirectCommissionBv: pack.indirectCommissionBv,
+      weeklyCapBv: pack.weeklyCapBv,
+    };
 
-        // 4. RÈGLEMENT du palier, délégué à la stratégie de paiement (D-025) — elle règle
-        //    intégralement, ou elle lève (et toute l'activation est annulée) :
-        //      - solde  : débit ACTIVATION du membre (grand livre) ;
-        //      - e-card : la carte est brûlée, AUCUN solde n'est touché.
-        //    L'ordre de verrouillage (D-024) est respecté : la chaîne `Member` est déjà
-        //    verrouillée (étape 1), l'`Ecard` ne l'est qu'ici — Member → Ecard, jamais l'inverse.
-        const settlement = await payment.settleInTx(tx, {
-          memberId: member.id,
-          amountBv: snapshot.tierBv,
-        });
+    // 4. RÈGLEMENT du palier, délégué à la stratégie de paiement (D-025) — elle règle
+    //    intégralement, ou elle lève (et toute l'activation est annulée) :
+    //      - solde  : débit ACTIVATION du membre (grand livre) ;
+    //      - e-card : la carte est brûlée, AUCUN solde n'est touché.
+    //    L'ordre de verrouillage (D-024) est respecté : la chaîne `Member` est déjà
+    //    verrouillée (étape 1), l'`Ecard` ne l'est qu'ici — Member → Ecard, jamais l'inverse.
+    const settlement = await payment.settleInTx(tx, {
+      memberId: member.id,
+      amountBv: snapshot.tierBv,
+    });
 
-        // 5. Passage à ACTIF + baseline figée. `baselineLeft = leftPoints` est calculé EN SQL,
-        //    sous verrou : les points accumulés pendant la phase INSCRIT sont ainsi exclus des
-        //    commissions propres du membre (§5.8), sans lecture-modification-écriture côté JS.
-        //    `WHERE status = 'REGISTERED'` : dernier rempart contre une double activation.
-        const updated = await tx.$queryRaw<
-          Array<{ baselineLeft: number; baselineRight: number }>
-        >`
-          UPDATE "Member"
-          SET "status" = 'ACTIVE'::"MemberStatus",
-              "packId" = ${input.packId},
-              "activatedAt" = now(),
-              "activationTierBv" = ${snapshot.tierBv},
-              "activationSnapshot" = ${JSON.stringify(snapshot)}::jsonb,
-              "baselineLeft" = "leftPoints",
-              "baselineRight" = "rightPoints",
-              "startupBonusRemaining" = ${startupBonus},
-              "updatedAt" = now()
-          WHERE "id" = ${member.id}
-            AND "status" = 'REGISTERED'::"MemberStatus"
-          RETURNING "baselineLeft", "baselineRight"
-        `;
-        if (updated.length !== 1) {
-          throw new MemberNotRegisteredError(member.id, member.status);
-        }
+    // 5. Passage à ACTIF + baseline figée. `baselineLeft = leftPoints` est calculé EN SQL,
+    //    sous verrou : les points accumulés pendant la phase INSCRIT sont ainsi exclus des
+    //    commissions propres du membre (§5.8), sans lecture-modification-écriture côté JS.
+    //    `WHERE status = 'REGISTERED'` : dernier rempart contre une double activation.
+    const updated = await tx.$queryRaw<
+      Array<{ baselineLeft: number; baselineRight: number }>
+    >`
+      UPDATE "Member"
+      SET "status" = 'ACTIVE'::"MemberStatus",
+          "packId" = ${input.packId},
+          "activatedAt" = now(),
+          "activationTierBv" = ${snapshot.tierBv},
+          "activationSnapshot" = ${JSON.stringify(snapshot)}::jsonb,
+          "baselineLeft" = "leftPoints",
+          "baselineRight" = "rightPoints",
+          "startupBonusRemaining" = ${startupBonus},
+          "updatedAt" = now()
+      WHERE "id" = ${member.id}
+        AND "status" = 'REGISTERED'::"MemberStatus"
+      RETURNING "baselineLeft", "baselineRight"
+    `;
+    if (updated.length !== 1) {
+      throw new MemberNotRegisteredError(member.id, member.status);
+    }
 
-        // 6. Propagation du palier SNAPSHOTÉ à tous les ancêtres, sur la bonne jambe (D-020).
-        await this.placement.propagateInTx(
-          tx,
-          member.id,
-          snapshot.tierBv,
-          chain.ancestorCount,
-        );
+    // 6. Propagation du palier SNAPSHOTÉ à tous les ancêtres, sur la bonne jambe (D-020).
+    await this.placement.propagateInTx(
+      tx,
+      member.id,
+      snapshot.tierBv,
+      chain.ancestorCount,
+    );
 
-        await tx.auditLog.create({
-          data: {
-            actor: 'SYSTEM',
-            action: 'MEMBER_ACTIVATED',
-            target: `Member:${member.id}`,
-            before: { status: MemberStatus.REGISTERED },
-            after: {
-              status: MemberStatus.ACTIVE,
-              packId: input.packId,
-              snapshot: snapshot as unknown as Prisma.JsonObject,
-              baselineLeft: updated[0].baselineLeft,
-              baselineRight: updated[0].baselineRight,
-              creditedAncestors: chain.ancestorCount,
-              payment: { ...settlement },
-            },
-          },
-        });
-
-        return {
-          memberId: member.id,
-          memberCode: member.memberCode,
+    await tx.auditLog.create({
+      data: {
+        actor: 'SYSTEM',
+        action: 'MEMBER_ACTIVATED',
+        target: `Member:${member.id}`,
+        before: { status: MemberStatus.REGISTERED },
+        after: {
+          status: MemberStatus.ACTIVE,
           packId: input.packId,
-          snapshot,
+          snapshot: snapshot as unknown as Prisma.JsonObject,
           baselineLeft: updated[0].baselineLeft,
           baselineRight: updated[0].baselineRight,
-          startupBonusRemaining: startupBonus,
           creditedAncestors: chain.ancestorCount,
-          payment: settlement,
-        };
+          payment: { ...settlement },
+        },
       },
-      { timeout: TX_TIMEOUT_MS },
-    );
+    });
+
+    return {
+      memberId: member.id,
+      memberCode: member.memberCode,
+      packId: input.packId,
+      snapshot,
+      baselineLeft: updated[0].baselineLeft,
+      baselineRight: updated[0].baselineRight,
+      startupBonusRemaining: startupBonus,
+      creditedAncestors: chain.ancestorCount,
+      payment: settlement,
+    };
   }
 
   /** Réserve de bonus de démarrage figée à l'activation (défaut 6, paramétrable — D-012). */
-  private async startupBonusDefault(): Promise<number> {
-    const setting = await this.prisma.setting.findUnique({
+  private async startupBonusDefault(
+    tx: Prisma.TransactionClient,
+  ): Promise<number> {
+    const setting = await tx.setting.findUnique({
       where: { key: STARTUP_BONUS_SETTING },
     });
     if (!setting) {

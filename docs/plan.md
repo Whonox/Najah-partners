@@ -42,10 +42,10 @@ Ordre par dépendance. Chaque tranche est testable et se termine par un commit. 
 - [x] Tests e-card (unit + int : rollback, concurrence, conservation de la masse BV).
 
 ## Tranche 6 — Boutique & activation (réf. spec §5.6, §5.7)
-- [ ] Produits (prix DT + valeur BV, type physique/virtuel, stock, livraison, promo).
-- [ ] Panier + checkout activation (palier exact, paiement e-card).
-- [ ] Achat libre (sans effet arbre).
-- [ ] Commandes + statuts d'expédition.
+- [x] Produits (prix DT + valeur BV, type physique/virtuel, stock, livraison, promo).
+- [x] Panier + checkout activation (palier exact, paiement e-card).
+- [x] Achat libre (sans effet arbre).
+- [x] Commandes + statuts d'expédition.
 
 ## Tranche 7 — Moteur de commissions (réf. rules/commission-engine.md) — LE joyau
 - [ ] Cron hebdo (vendredi 23:59 Tunis), run + supervision.

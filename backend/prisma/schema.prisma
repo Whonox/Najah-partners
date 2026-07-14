@@ -258,7 +258,10 @@ model Ecard {
   expiresAt DateTime? // null = illimité (paramètre ecard_expiration_days = -1)
   closedAt  DateTime? // horodatage du passage EXPIRED / REVOKED
 
-  orders        Order[]
+  // Une e-card règle AU PLUS une commande (D-007 : une seule e-card par transaction, usage
+  // unique). L'unicité est tenue en base par `Order.ecardId @unique` — d'où `Order?` et non
+  // `Order[]` : deux commandes ne peuvent pas se réclamer de la même carte.
+  order         Order?
   ledgerEntries BvLedgerEntry[]
 
   @@index([creatorId])
@@ -330,24 +333,34 @@ model Product {
   lines OrderLine[]
 
   @@index([categoryId])
+  @@index([active, visibleOnSite]) // liste boutique / vitrine
 }
 
+// Le checkout est atomique : une commande naît déjà PAID (e-card brûlée dans la même
+// transaction). PENDING ne décrit donc aucun état réel du parcours — une commande qui
+// n'aboutit pas est annulée par le rollback, elle n'existe jamais.
 model Order {
-  id              Int             @id @default(autoincrement())
-  memberId        Int
-  member          Member          @relation(fields: [memberId], references: [id])
-  context         OrderContext
-  totalBv         Int
-  ecardId         Int?
+  id       Int          @id @default(autoincrement())
+  memberId Int
+  member   Member       @relation(fields: [memberId], references: [id])
+  context  OrderContext
+  totalBv  Int
+  // @unique : une e-card règle au plus une commande (D-007). Nullable pour ne pas fermer la
+  // porte à une commande non réglée par e-card, mais le CHECK `Order_paid_ecard_ck` interdit
+  // qu'une commande PAID soit sans e-card : aucun achat ne peut échapper au paiement.
+  ecardId         Int?            @unique
   ecard           Ecard?          @relation(fields: [ecardId], references: [id])
   status          OrderStatus     @default(PENDING)
   shippingAddress String?
-  shipmentStatus  ShipmentStatus?
+  shipmentStatus  ShipmentStatus? // null si la commande ne contient aucun produit PHYSICAL
   createdAt       DateTime        @default(now())
+  paidAt          DateTime?
 
   lines OrderLine[]
 
   @@index([memberId])
+  @@index([context])
+  @@index([shipmentStatus]) // file de préparation admin
 }
 
 model OrderLine {
@@ -357,9 +370,12 @@ model OrderLine {
   productId   Int
   product     Product @relation(fields: [productId], references: [id])
   quantity    Int
-  unitValueBv Int // snapshot BV
-  unitPriceDt Decimal @db.Decimal(12, 3) // snapshot DT
+  unitValueBv Int // snapshot BV — figé au checkout, jamais relu depuis Product
+  unitPriceDt Decimal @db.Decimal(12, 3) // snapshot du prix EFFECTIF affiché (promo appliquée). Affichage seul (D-002).
 
+  // Un produit = une ligne : le checkout fusionne les quantités d'un même produit. Deux
+  // lignes pour un même produit feraient diverger le contrôle de stock du total BV.
+  @@unique([orderId, productId])
   @@index([orderId])
 }
 

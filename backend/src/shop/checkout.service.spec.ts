@@ -1,0 +1,393 @@
+import {
+  MemberStatus,
+  OrderContext,
+  OrderStatus,
+  Prisma,
+  ProductType,
+} from '@prisma/client';
+import { EcardsService } from '../ecards/ecards.service';
+import { ActivationService } from '../members/activation.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { CheckoutService } from './checkout.service';
+import { OrdersService } from './orders.service';
+import {
+  CartTierMismatchError,
+  MemberNotActiveError,
+  OutOfStockError,
+  ProductUnavailableError,
+} from './shop.errors';
+
+/**
+ * Checkout — tests unitaires (Prisma mocké, sans base). On y vérifie les RÈGLES, pas
+ * l'atomicité : le rollback, la concurrence de stock et la propagation d'arbre exigent un
+ * vrai Postgres et vivent dans `shop.int-spec.ts`.
+ *
+ * Ce qui est vérifié ici tient en une phrase : **rien d'autre que la somme des BV n'entre
+ * dans le montant dû**, et l'achat libre ne touche jamais l'arbre.
+ */
+
+const SILVER = { id: 1, name: 'Silver', tierBv: 1000, active: true };
+
+/** Un physique en promo AVEC frais de livraison : les deux pièges de la spec, sur un produit. */
+const OLIVE_OIL = {
+  id: 10,
+  name: 'Huile 1 L',
+  type: ProductType.PHYSICAL,
+  valueBv: 250,
+  priceDt: new Prisma.Decimal(45),
+  promoPriceDt: new Prisma.Decimal(39.9), // le prix DT baisse…
+  shippingFeeDt: new Prisma.Decimal(7), // …et la livraison se règle hors système
+  stock: 100,
+  active: true,
+};
+
+const GUIDE = {
+  id: 20,
+  name: 'Guide numérique',
+  type: ProductType.VIRTUAL,
+  valueBv: 500,
+  priceDt: new Prisma.Decimal(40),
+  promoPriceDt: null,
+  shippingFeeDt: new Prisma.Decimal(0),
+  stock: null,
+  active: true,
+};
+
+type ProductRow = typeof OLIVE_OIL | typeof GUIDE;
+
+interface Scenario {
+  products?: ProductRow[];
+  memberStatus?: MemberStatus;
+  /** Palier renvoyé par le snapshot d'activation (peut différer du pack pré-lu). */
+  snapshotTierBv?: number;
+  /** Le décrément gardé ne rend aucune ligne (rupture ou produit modifié). */
+  stockGuardFails?: boolean;
+}
+
+function makeService(scenario: Scenario = {}) {
+  const products = scenario.products ?? [OLIVE_OIL, GUIDE];
+
+  const productFindMany = jest.fn(async () => products);
+  const productFindUnique = jest.fn(async (args: { where: { id: number } }) => {
+    const p = products.find((x) => x.id === args.where.id);
+    return p ? { active: p.active, valueBv: p.valueBv, stock: p.stock } : null;
+  });
+  const orderCreate = jest.fn(async (args: { data: Record<string, any> }) => ({
+    id: 99,
+    memberId: args.data.memberId,
+    context: args.data.context,
+    status: args.data.status,
+    totalBv: args.data.totalBv,
+    ecardId: args.data.ecardId,
+    shippingAddress: args.data.shippingAddress,
+    shipmentStatus: args.data.shipmentStatus,
+    createdAt: new Date(),
+    paidAt: args.data.paidAt,
+    lines: (args.data.lines.create as Array<Record<string, any>>).map((l) => ({
+      ...l,
+      product: { name: 'x' },
+    })),
+  }));
+  const auditCreate = jest.fn(async () => ({}));
+
+  // Le `$queryRaw` du checkout sert à deux choses : verrouiller/lire le statut du membre
+  // (achat libre) et décrémenter le stock. On les distingue par le SQL lui-même.
+  const queryRaw = jest.fn(async (strings: TemplateStringsArray) => {
+    const sql = strings.join('');
+    if (sql.includes('FROM "Member"')) {
+      return [{ status: scenario.memberStatus ?? MemberStatus.ACTIVE }];
+    }
+    return scenario.stockGuardFails ? [] : [{ id: 1 }];
+  });
+
+  const tx = {
+    $executeRawUnsafe: jest.fn(async () => 0),
+    $queryRaw: queryRaw,
+    product: { findMany: productFindMany, findUnique: productFindUnique },
+    order: { create: orderCreate },
+    auditLog: { create: auditCreate },
+  };
+
+  const transaction = jest.fn(async (cb: (t: unknown) => unknown) => cb(tx));
+  const prisma = {
+    $transaction: transaction,
+    pack: { findUnique: jest.fn(async () => SILVER) },
+    product: {
+      findMany: jest.fn(async () =>
+        products.map((p) => ({
+          id: p.id,
+          valueBv: p.valueBv,
+          active: p.active,
+        })),
+      ),
+    },
+  } as unknown as PrismaService;
+
+  const activateInTx = jest.fn(
+    async (_tx: unknown, input: { packId: number }) => ({
+      memberId: 1,
+      memberCode: 'NP000001',
+      packId: input.packId,
+      snapshot: {
+        packName: 'Silver',
+        tierBv: scenario.snapshotTierBv ?? SILVER.tierBv,
+        directCommissionBv: 500,
+        indirectCommissionBv: 250,
+        weeklyCapBv: 10000,
+      },
+      baselineLeft: 0,
+      baselineRight: 0,
+      startupBonusRemaining: 6,
+      creditedAncestors: 3,
+      payment: { method: 'ECARD' as const, ledgerEntryId: null, ecardId: 42 },
+    }),
+  );
+  const activation = { activateInTx } as unknown as ActivationService;
+
+  const consumeInTx = jest.fn(async () => ({ ecardId: 42, valueBv: 1000 }));
+  const activationPayment = jest.fn(() => ({ settleInTx: jest.fn() }));
+  const ecards = {
+    consumeInTx,
+    activationPayment,
+  } as unknown as EcardsService;
+
+  const service = new CheckoutService(
+    prisma,
+    activation,
+    ecards,
+    new OrdersService(prisma),
+  );
+
+  return {
+    service,
+    transaction,
+    activateInTx,
+    activationPayment,
+    consumeInTx,
+    orderCreate,
+    queryRaw,
+    auditCreate,
+  };
+}
+
+describe('CheckoutService — activation (D-006, D-007)', () => {
+  it('panier ≠ palier → REFUSÉ avant toute transaction (aucune branche verrouillée)', async () => {
+    const { service, transaction, activateInTx } = makeService();
+
+    // 250 + 500 = 750 BV ≠ 1000 (Silver).
+    await expect(
+      service.activationCheckout({
+        memberId: 1,
+        packId: 1,
+        items: [
+          { productId: 10, quantity: 1 },
+          { productId: 20, quantity: 1 },
+        ],
+        ecardCode: 'AAA-BBB-CCC-DDD',
+      }),
+    ).rejects.toBeInstanceOf(CartTierMismatchError);
+
+    expect(transaction).not.toHaveBeenCalled();
+    expect(activateInTx).not.toHaveBeenCalled();
+  });
+
+  it('panier = palier → activation par E-CARD, commande PAID en contexte ACTIVATION', async () => {
+    const { service, activateInTx, activationPayment, orderCreate } =
+      makeService();
+
+    // 2 × 250 + 1 × 500 = 1000 BV = palier Silver.
+    const order = await service.activationCheckout({
+      memberId: 1,
+      packId: 1,
+      items: [
+        { productId: 10, quantity: 2 },
+        { productId: 20, quantity: 1 },
+      ],
+      ecardCode: 'AAA-BBB-CCC-DDD',
+    });
+
+    expect(activationPayment).toHaveBeenCalledWith('AAA-BBB-CCC-DDD');
+    expect(activateInTx).toHaveBeenCalledTimes(1);
+    expect(order.context).toBe(OrderContext.ACTIVATION);
+    expect(order.status).toBe(OrderStatus.PAID);
+    expect(order.totalBv).toBe(1000);
+    expect(order.ecardId).toBe(42);
+    expect(orderCreate.mock.calls[0][0].data.shipmentStatus).toBe(
+      'PREPARATION',
+    );
+  });
+
+  it('le palier qui FAIT FOI est celui du snapshot : pack modifié sous verrou → tout est annulé', async () => {
+    // Le pré-contrôle voit 1000 (panier conforme), mais l'activation fige un palier de 2000 :
+    // l'e-card a payé 2000 et l'arbre reçu 2000 — un panier à 1000 activerait à rabais.
+    const { service } = makeService({ snapshotTierBv: 2000 });
+
+    await expect(
+      service.activationCheckout({
+        memberId: 1,
+        packId: 1,
+        items: [{ productId: 10, quantity: 4 }], // 1000 BV
+        ecardCode: 'AAA-BBB-CCC-DDD',
+      }),
+    ).rejects.toBeInstanceOf(CartTierMismatchError);
+  });
+});
+
+describe('CheckoutService — achat libre (D-005, D-025)', () => {
+  it('e-card = somme EXACTE des BV → commande FREE, sans jamais toucher à l’arbre', async () => {
+    const { service, activateInTx, consumeInTx, orderCreate } = makeService();
+
+    const order = await service.freeCheckout({
+      memberId: 1,
+      items: [{ productId: 20, quantity: 3 }], // 3 × 500 = 1500 BV (VIRTUEL)
+      ecardCode: 'AAA-BBB-CCC-DDD',
+    });
+
+    expect(consumeInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ dueBv: 1500, memberId: 1 }),
+    );
+    // Aucune activation, donc aucune propagation de points : l'achat libre est neutre (D-005).
+    expect(activateInTx).not.toHaveBeenCalled();
+    expect(order.context).toBe(OrderContext.FREE);
+    expect(order.totalBv).toBe(1500);
+    // Commande 100 % virtuelle : rien à expédier.
+    expect(orderCreate.mock.calls[0][0].data.shipmentStatus).toBeNull();
+  });
+
+  it('membre INSCRIT → achat libre refusé (réservé aux ACTIFS)', async () => {
+    const { service, consumeInTx } = makeService({
+      memberStatus: MemberStatus.REGISTERED,
+    });
+
+    await expect(
+      service.freeCheckout({
+        memberId: 1,
+        items: [{ productId: 20, quantity: 1 }],
+        ecardCode: 'AAA-BBB-CCC-DDD',
+      }),
+    ).rejects.toBeInstanceOf(MemberNotActiveError);
+    expect(consumeInTx).not.toHaveBeenCalled();
+  });
+
+  it('le membre est verrouillé AVANT l’e-card, elle-même avant le produit (ordre D-024)', async () => {
+    const { service, consumeInTx, queryRaw, orderCreate } = makeService();
+
+    await service.freeCheckout({
+      memberId: 1,
+      items: [{ productId: 10, quantity: 4 }],
+      ecardCode: 'AAA-BBB-CCC-DDD',
+    });
+
+    const memberLock = queryRaw.mock.invocationCallOrder[0];
+    const ecardBurn = consumeInTx.mock.invocationCallOrder[0];
+    const stockGuard = queryRaw.mock.invocationCallOrder[1];
+    const orderInsert = orderCreate.mock.invocationCallOrder[0];
+    expect(memberLock).toBeLessThan(ecardBurn);
+    expect(ecardBurn).toBeLessThan(stockGuard);
+    expect(stockGuard).toBeLessThan(orderInsert);
+  });
+});
+
+describe('CheckoutService — le montant dû est la somme des BV, et rien d’autre', () => {
+  it('les frais de livraison n’entrent JAMAIS dans le montant BV dû', async () => {
+    const { service, consumeInTx } = makeService();
+
+    // 4 × 250 BV = 1000 BV. Le produit porte 7 DT de frais de livraison, l'e-card doit
+    // valoir 1000 — pas un BV de plus : les frais se règlent hors système.
+    await service.freeCheckout({
+      memberId: 1,
+      items: [{ productId: 10, quantity: 4 }],
+      ecardCode: 'AAA-BBB-CCC-DDD',
+    });
+
+    expect(consumeInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ dueBv: 1000 }),
+    );
+  });
+
+  it('promo : le prix DT snapshoté baisse, la valeur BV ne bouge pas (D-002)', async () => {
+    const { service, consumeInTx, orderCreate } = makeService();
+
+    await service.freeCheckout({
+      memberId: 1,
+      items: [{ productId: 10, quantity: 2 }],
+      ecardCode: 'AAA-BBB-CCC-DDD',
+    });
+
+    const line = orderCreate.mock.calls[0][0].data.lines.create[0];
+    expect(line.unitValueBv).toBe(250); // valeur BV : inchangée par la promo
+    expect(line.unitPriceDt.toString()).toBe('39.9'); // prix affiché : le prix promo
+    expect(consumeInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ dueBv: 500 }), // 2 × 250, jamais un calcul en dinars
+    );
+  });
+
+  it('quantités d’un même produit fusionnées en une seule ligne', async () => {
+    const { service, orderCreate } = makeService();
+
+    await service.freeCheckout({
+      memberId: 1,
+      items: [
+        { productId: 10, quantity: 1 },
+        { productId: 10, quantity: 3 },
+      ],
+      ecardCode: 'AAA-BBB-CCC-DDD',
+    });
+
+    const lines = orderCreate.mock.calls[0][0].data.lines.create;
+    expect(lines).toHaveLength(1);
+    expect(lines[0].quantity).toBe(4);
+  });
+});
+
+describe('CheckoutService — stock', () => {
+  it('décrément gardé sans effet → rupture (la commande entière échoue)', async () => {
+    const { service, orderCreate } = makeService({ stockGuardFails: true });
+
+    await expect(
+      service.freeCheckout({
+        memberId: 1,
+        items: [{ productId: 10, quantity: 200 }], // stock 100
+        ecardCode: 'AAA-BBB-CCC-DDD',
+      }),
+    ).rejects.toBeInstanceOf(OutOfStockError);
+    expect(orderCreate).not.toHaveBeenCalled();
+  });
+
+  it('produit désactivé pendant le checkout → commande refusée', async () => {
+    const { service } = makeService({
+      stockGuardFails: true,
+      products: [{ ...OLIVE_OIL, active: false }, GUIDE],
+    });
+
+    await expect(
+      service.freeCheckout({
+        memberId: 1,
+        items: [
+          { productId: 20, quantity: 1 },
+          { productId: 10, quantity: 1 },
+        ],
+        ecardCode: 'AAA-BBB-CCC-DDD',
+      }),
+    ).rejects.toBeInstanceOf(ProductUnavailableError);
+  });
+
+  it('produit VIRTUEL : illimité, son stock (null) n’est jamais décrémenté', async () => {
+    const { service, queryRaw } = makeService();
+
+    await service.freeCheckout({
+      memberId: 1,
+      items: [{ productId: 20, quantity: 999 }], // VIRTUEL, stock null
+      ecardCode: 'AAA-BBB-CCC-DDD',
+    });
+
+    // Le SQL garde le stock intact pour un VIRTUEL (CASE … ELSE "stock") et n'exige aucune
+    // disponibilité : la commande passe quelle que soit la quantité.
+    const stockSql = queryRaw.mock.calls[1][0].join('');
+    expect(stockSql).toContain('VIRTUAL');
+    expect(stockSql).toContain('"stock" >=');
+  });
+});

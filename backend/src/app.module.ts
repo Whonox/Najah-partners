@@ -10,6 +10,7 @@ import { BvLedgerModule } from './bv-ledger/bv-ledger.module';
 import { EcardsModule } from './ecards/ecards.module';
 import { MembersModule } from './members/members.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ShopModule } from './shop/shop.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { PrismaModule } from './prisma/prisma.module';
     BvLedgerModule,
     MembersModule,
     EcardsModule,
+    ShopModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

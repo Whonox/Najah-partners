@@ -43,6 +43,9 @@ function makeService(scenario: Scenario = {}) {
     { baselineLeft: 700, baselineRight: 300 },
   ]);
   const auditCreate = jest.fn(async (..._args: unknown[]) => ({}));
+  // Depuis la Tranche 6, `activateInTx` compose DANS la transaction de l'appelant (le
+  // checkout) : toutes ses lectures — paramètre système compris — passent par `tx`, jamais
+  // par le client Prisma racine.
   const tx = {
     $executeRawUnsafe: executeRawUnsafe,
     $queryRaw: queryRaw,
@@ -54,11 +57,6 @@ function makeService(scenario: Scenario = {}) {
       })),
     },
     pack: { findUnique: jest.fn(async () => scenario.pack ?? PACK) },
-    auditLog: { create: auditCreate },
-  };
-
-  const prisma = {
-    $transaction: jest.fn(async (cb: (t: unknown) => unknown) => cb(tx)),
     setting: {
       findUnique: jest.fn(async () =>
         scenario.startupBonus === null
@@ -69,6 +67,11 @@ function makeService(scenario: Scenario = {}) {
             },
       ),
     },
+    auditLog: { create: auditCreate },
+  };
+
+  const prisma = {
+    $transaction: jest.fn(async (cb: (t: unknown) => unknown) => cb(tx)),
   } as unknown as PrismaService;
 
   const recordMovementInTx = jest.fn(async () => ({ id: 77, balanceAfter: 0 }));
