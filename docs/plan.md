@@ -23,12 +23,17 @@ Ordre par dépendance. Chaque tranche est testable et se termine par un commit. 
 - [x] Ajustement admin tracé.
 - [x] **Tests d'invariants** (voir la règle).
 
-## Tranche 4 — Inscription, placement, cycle de vie (réf. rules/inscription-placement.md)
-- [ ] Formulaire d'inscription (sponsor + upline + jambe), code auto-incrémenté, état INSCRIT, placement définitif.
-- [ ] Machine à états INSCRIT → ACTIF → INACTIF (pas d'expiration).
-- [ ] Baseline figée à l'activation.
-- [ ] Verrou de concurrence sur une position.
-- [ ] Tests placement + baseline.
+## Tranche 4 — Inscription, placement, cycle de vie (réf. rules/inscription-placement.md, rules/tree.md)
+- [x] Formulaire d'inscription (sponsor + upline + jambe), code auto-incrémenté, état INSCRIT, placement définitif.
+- [x] Transition INSCRIT → ACTIF (activation structurelle : snapshot du pack, débit BV, propagation du palier à tous les ancêtres).
+- [x] Baseline figée à l'activation.
+- [x] Verrou de concurrence sur une position (contrainte DB `@@unique([uplineId, leg])`) + ordre de verrouillage d'arbre (D-024).
+- [x] Consultation de l'arbre (CTE récursive descendante, une requête).
+- [x] Vérification d'identité : champs + upload local, non bloquante (D-018).
+- [x] Seed du réseau d'amorçage : 7 comptes ACTIFS sur 3 niveaux (D-019).
+- [x] Tests placement + baseline (16 tests d'intégration + unitaires).
+- [ ] **Reporté** : transition ACTIF → INACTIF (renouvellement annuel validé par l'admin, §5.9). Le montant `annual_renewal_bv` est encore « à confirmer avec la cliente » : l'implémenter reviendrait à inventer une règle. À traiter avec le back-office (Tranche 8).
+- [ ] **Reporté** : tests de charge de l'arbre (D-014).
 
 ## Tranche 5 — E-cards (réf. rules/ecard.md)
 - [ ] Création plafonnée, format, états, expiration paramétrable, remboursement créateur.

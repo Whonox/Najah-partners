@@ -9,8 +9,9 @@ Ils peuvent désigner des membres différents. Les deux sont saisis à l'inscrip
 
 ## Placement
 - **Explicite** : le sponsor choisit l'upline et la jambe. **Aucun spillover** (débordement automatique). Si la position est occupée, choisir une autre position libre.
+- L'upline choisi doit appartenir au **sous-arbre du sponsor** (ou être le sponsor lui-même) — décision D-022.
 - **Immuable** dès l'inscription.
-- Seule l'**activation** injecte du BV dans l'arbre : la valeur du **palier** du nouveau membre est ajoutée à la jambe concernée de chacun de ses uplines **actifs**, jusqu'à la racine.
+- Seule l'**activation** injecte du BV dans l'arbre : la valeur du **palier** du nouveau membre est ajoutée à la jambe concernée de **chacun de ses uplines, quel que soit leur état, jusqu'à la racine** (décision D-020 — l'ancienne formulation « uplines actifs » désignait qui est *rémunéré*, pas qui est *crédité*). Le palier crédité est celui **figé au snapshot d'activation**, jamais le palier vivant du pack.
 - Les **achats de produits n'alimentent pas** l'arbre.
 
 ## Cycle de vie (états)

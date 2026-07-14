@@ -36,7 +36,7 @@ describe('PasswordResetService — demande', () => {
   });
 
   it('crée un token hashé pour un membre existant', async () => {
-    const create = jest.fn(async () => ({}));
+    const create = jest.fn(async (..._args: unknown[]) => ({}));
     const prisma = {
       member: { findFirst: jest.fn(async () => ({ id: 9 })) },
       passwordResetToken: { create },
@@ -44,7 +44,7 @@ describe('PasswordResetService — demande', () => {
     const service = new PasswordResetService(prisma, makeConfig(), makeTokens());
     await service.requestReset('NP000009');
     expect(create).toHaveBeenCalledTimes(1);
-    const data = create.mock.calls[0][0].data;
+    const data = (create.mock.calls[0][0] as { data: Record<string, unknown> }).data;
     expect(data.actorType).toBe(ActorType.MEMBER);
     expect(data.memberId).toBe(9);
     expect(typeof data.tokenHash).toBe('string');

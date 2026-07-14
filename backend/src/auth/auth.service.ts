@@ -4,15 +4,19 @@ import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthenticatedActor } from './auth.types';
 
-/** Vue publique d'un membre (jamais le hash de mot de passe). */
-export type SafeMember = Omit<Member, 'passwordHash'>;
+/** Vue publique d'un membre (ni hash de mot de passe, ni chemin de pièce d'identité). */
+export type SafeMember = Omit<Member, 'passwordHash' | 'idDocumentPath'>;
 
 @Injectable()
 export class AuthService {
   constructor(private readonly prisma: PrismaService) {}
 
   private stripMember(member: Member): SafeMember {
-    const { passwordHash: _passwordHash, ...safe } = member;
+    const {
+      passwordHash: _passwordHash,
+      idDocumentPath: _idDocumentPath, // chemin de la pièce d'identité : jamais exposé (D-018)
+      ...safe
+    } = member;
     return safe;
   }
 

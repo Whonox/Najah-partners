@@ -87,6 +87,20 @@ enum ActorType {
   ADMIN
 }
 
+// Vérification d'identité légère et NON bloquante (D-018) : elle informe l'admin,
+// elle n'empêche jamais un membre de s'inscrire, de s'activer ni de percevoir.
+enum IdDocumentType {
+  ID_CARD // CIN
+  DRIVING_LICENSE
+  PASSPORT
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
 // ─────────────────────────── Member (nœud d'arbre 1:1) ───────────────────────────
 
 model Member {
@@ -103,13 +117,21 @@ model Member {
   packId Int?
   pack   Pack? @relation(fields: [packId], references: [id])
 
-  // Deux liens distincts (self-relations)
+  // Snapshot du pack FIGÉ à l'activation (spec §5.8 : « chaque commission ET activation fige
+  // les paramètres applicables »). Le moteur de commissions lit CES valeurs, jamais Pack en
+  // direct : modifier un palier ne doit jamais réécrire l'historique. `packId` reste la FK
+  // d'affichage. activationTierBv est sorti du Json car le calcul des cycles s'en sert.
+  activationTierBv   Int?
+  activationSnapshot Json? // { packName, tierBv, directCommissionBv, indirectCommissionBv, weeklyCapBv }
+
+  // Deux liens distincts (self-relations). onDelete: Restrict — le défaut Prisma
+  // (SET NULL) réenracinerait le sous-arbre d'un membre supprimé : placement immuable.
   sponsorId Int?
-  sponsor   Member?  @relation("Sponsorship", fields: [sponsorId], references: [id])
+  sponsor   Member?  @relation("Sponsorship", fields: [sponsorId], references: [id], onDelete: Restrict)
   referrals Member[] @relation("Sponsorship")
 
   uplineId  Int?
-  upline    Member?  @relation("Placement", fields: [uplineId], references: [id])
+  upline    Member?  @relation("Placement", fields: [uplineId], references: [id], onDelete: Restrict)
   downlines Member[] @relation("Placement")
   leg       Leg? // position sous l'upline
 
@@ -132,6 +154,13 @@ model Member {
   // Réserve de bonus de démarrage (défaut 6, initialisée à l'activation)
   startupBonusRemaining Int @default(0)
 
+  // Vérification d'identité (D-018) — jamais bloquante. Le fichier est stocké hors du
+  // dépôt (IDENTITY_UPLOAD_DIR) ; seul son chemin RELATIF est en base. Le badge admin
+  // (VERIFIED / REJECTED) est apposé en Tranche 8.
+  idDocumentType     IdDocumentType?
+  idDocumentPath     String?
+  verificationStatus VerificationStatus @default(PENDING)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -151,6 +180,7 @@ model Member {
   @@index([sponsorId])
   @@index([leg])
   @@index([status])
+  @@index([verificationStatus]) // file de vérification admin (Tranche 8)
 }
 
 // ─────────────────────────── Pack (palier) ───────────────────────────

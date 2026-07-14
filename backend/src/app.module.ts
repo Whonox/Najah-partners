@@ -6,6 +6,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { BvLedgerModule } from './bv-ledger/bv-ledger.module';
+import { MembersModule } from './members/members.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -16,6 +17,7 @@ import { PrismaModule } from './prisma/prisma.module';
     PrismaModule,
     AuthModule,
     BvLedgerModule,
+    MembersModule,
   ],
   controllers: [AppController],
   providers: [

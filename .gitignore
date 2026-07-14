@@ -32,3 +32,9 @@ CLAUDE.local.md
 
 # Client TS généré (regénéré depuis l'OpenAPI)
 **/src/api/generated/
+
+# Pièces d'identité uploadées (D-018) : stockage local, jamais versionné.
+# Le chemin par défaut (IDENTITY_UPLOAD_DIR) est HORS du dépôt ; cette règle
+# n'est qu'un garde-fou si on le reconfigure à l'intérieur.
+najah-uploads/
+

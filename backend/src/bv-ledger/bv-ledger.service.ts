@@ -44,10 +44,18 @@ export class BvLedgerService {
 
   /**
    * Cœur atomique, à exécuter dans une transaction Prisma. Verrouille la ligne
-   * du membre (SELECT ... FOR UPDATE — Prisma ne verrouille pas nativement),
-   * relit le solde sous verrou, refuse un solde négatif, puis écrit la ligne de
-   * mouvement et met à jour le solde. Le verrou tient jusqu'au commit/rollback :
-   * deux débits concurrents sont sérialisés (le second relit le solde à jour).
+   * du membre (Prisma ne verrouille pas nativement), relit le solde sous verrou,
+   * refuse un solde négatif, puis écrit la ligne de mouvement et met à jour le
+   * solde. Le verrou tient jusqu'au commit/rollback : deux débits concurrents
+   * sont sérialisés (le second relit le solde à jour).
+   *
+   * FOR NO KEY UPDATE, et surtout PAS `FOR UPDATE` (D-024) : `FOR UPDATE` entre en
+   * conflit avec le `FOR KEY SHARE` que Postgres prend sur la ligne référencée à
+   * chaque INSERT pointant vers ce membre (login → RefreshToken, e-card, commande,
+   * inscription d'un filleul). Un débit BV bloquerait donc des opérations sans
+   * rapport, et provoque un interblocage dès qu'on y ajoute la remontée d'arbre.
+   * NO KEY UPDATE reste exclusif entre écrivains : la sérialisation des débits —
+   * donc l'invariant « solde jamais négatif » — est intacte.
    */
   async recordMovementInTx(
     tx: Prisma.TransactionClient,
@@ -58,7 +66,7 @@ export class BvLedgerService {
     // Identifiants quotés : Prisma mappe le modèle `Member` et le champ
     // `bvBalance` en casse mixte (Postgres replierait sinon en minuscules).
     const locked = await tx.$queryRaw<Array<{ bvBalance: number }>>`
-      SELECT "bvBalance" FROM "Member" WHERE "id" = ${input.memberId} FOR UPDATE
+      SELECT "bvBalance" FROM "Member" WHERE "id" = ${input.memberId} FOR NO KEY UPDATE
     `;
     if (locked.length === 0) {
       throw new MemberNotFoundError(input.memberId);
