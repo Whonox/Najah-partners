@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
-import { BvLedgerModule } from '../bv-ledger/bv-ledger.module';
+import { LedgerModule } from '../ledger/ledger.module';
 import { EcardExpirationCron } from './ecard-expiration.cron';
 import { EcardsAdminController } from './ecards-admin.controller';
 import { EcardsController } from './ecards.controller';
 import { EcardsService } from './ecards.service';
 
 /**
- * E-cards (Tranche 5). `BvLedgerModule` est importé pour le débit à la création et le
+ * E-cards (Tranche 5). `LedgerModule` est importé pour le débit à la création et le
  * remboursement à l'expiration/révocation : aucune écriture de solde ne se fait ailleurs
  * que dans le grand livre (D-017).
  *
@@ -15,7 +15,7 @@ import { EcardsService } from './ecards.service';
  * modules restent indépendants, et c'est le checkout (Tranche 6) qui les assemblera.
  */
 @Module({
-  imports: [BvLedgerModule],
+  imports: [LedgerModule],
   controllers: [EcardsController, EcardsAdminController],
   providers: [EcardsService, EcardExpirationCron],
   exports: [EcardsService],

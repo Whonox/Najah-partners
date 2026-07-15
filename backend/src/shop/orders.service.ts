@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, ShipmentStatus } from '@prisma/client';
+import { moneyToApi } from '../common/money';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminOrdersQueryDto, OrdersQueryDto } from './dto/orders-query.dto';
 import {
@@ -162,14 +163,19 @@ export class OrdersService {
     return { items: orders.map((o) => this.toView(o)), total, page, pageSize };
   }
 
-  /** Vue API. Les montants DT sont sérialisés en chaîne (Decimal) : ils restent de l'affichage. */
+  /**
+   * Vue API. Les montants en DT sortent en CHAÎNE à 3 décimales : JSON n'a que des flottants, et
+   * un montant qui traverse un `double` peut revenir faux au millime près. Les POINTS, eux,
+   * restent des entiers.
+   */
   toView(order: OrderWithLines): OrderView {
     return {
       id: order.id,
       memberId: order.memberId,
       context: order.context,
       status: order.status,
-      totalBv: order.totalBv,
+      totalDt: moneyToApi(order.totalDt),
+      totalPoints: order.totalPoints,
       ecardId: order.ecardId,
       shippingAddress: order.shippingAddress,
       shipmentStatus: order.shipmentStatus,
@@ -180,7 +186,7 @@ export class OrdersService {
         productName: line.product.name,
         quantity: line.quantity,
         unitValueBv: line.unitValueBv,
-        unitPriceDt: line.unitPriceDt.toString(),
+        unitPriceDt: moneyToApi(line.unitPriceDt),
       })),
     };
   }

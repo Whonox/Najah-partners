@@ -7,6 +7,7 @@ import {
   ProductType,
   ShipmentStatus,
 } from '@prisma/client';
+import { Money, ZERO_DT, money, moneyToApi } from '../common/money';
 import { EcardsService } from '../ecards/ecards.service';
 import { ActivationService } from '../members/activation.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -25,20 +26,25 @@ const TX_TIMEOUT_MS = 20_000;
 const LOCK_TIMEOUT = "SET LOCAL lock_timeout = '3s'";
 
 /**
- * Checkout (spec §5.6, §5.7, §7.1.4). Deux contextes, une seule règle de paiement.
+ * Checkout (spec §5.6, §5.7, §7.1.4). Deux contextes, deux montants dus — une seule règle de
+ * paiement : l'e-card couvre EXACTEMENT ce qui est dû, et il n'en faut qu'une (D-007).
  *
- * ── Ce que le BV dû vaut, et ne vaut pas ────────────────────────────────────────────────
- * `dueBv = Σ (valeur BV × quantité)`. Rien d'autre n'y entre JAMAIS :
- *   - les frais de livraison sont de l'affichage, réglés hors système (spec §5.7) ;
- *   - une promotion baisse le prix DT affiché et laisse le BV intact (D-002).
- * Ils ne sont pas « exclus du calcul » par vigilance : ils sont d'une autre nature. Le BV est
- * la seule unité transactionnelle ; le dinar ne franchit jamais la frontière du système.
+ * ── Ce qui est dû, selon le contexte (D-028, D-029) ──────────────────────────────────────
+ * ACTIVATION : `dueDt = prix du PACK` (ex. Silver = 2200 DT), figé au snapshot d'activation.
+ *              Ce n'est PAS la somme des prix des produits du panier : le panier ne sert qu'à
+ *              COMPOSER le palier en POINTS (`Σ valeur BV × qté == tierBv`, D-006). Deux
+ *              paniers Silver différents coûtent le même prix — celui du pack.
+ * LIBRE      : `dueDt = Σ (prix effectif × qté)` — le prix promo s'il existe. Ici, et ici
+ *              seulement, ce sont les produits qui font le montant.
+ *
+ * Dans les deux cas, n'entrent JAMAIS dans le montant dû :
+ *   - les frais de livraison — affichés, réglés hors système en espèces (spec §5.7) ;
+ *   - une promotion sur les POINTS — une promo baisse le prix, jamais la valeur BV (D-002).
  *
  * ── Effet réseau ────────────────────────────────────────────────────────────────────────
- * ACTIVATION : le panier vaut EXACTEMENT le palier (D-006), l'e-card paie ce palier, et
- * l'activation — elle seule — injecte le BV dans l'arbre (D-005).
- * LIBRE      : aucun point dans l'arbre, aucun BV crédité au membre, aucune ligne de grand
- * livre. L'e-card est brûlée en payant : sa valeur quitte le système (D-025).
+ * ACTIVATION : l'activation — elle seule — injecte les POINTS du palier dans l'arbre (D-005).
+ * LIBRE      : aucun point dans l'arbre, aucune ligne de grand livre, rien de crédité au
+ * membre. L'e-card est brûlée en payant : sa valeur quitte le système (D-025).
  *
  * ── Verrouillage (D-024) : `Member` → `Ecard` → `Product` → INSERT `Order` ───────────────
  * L'activation impose déjà `Member` (chaîne d'ancêtres, ids croissants) puis `Ecard`. Le
@@ -64,6 +70,9 @@ export class CheckoutService {
    * l'e-card + activation + propagation d'arbre + stock, dans UNE transaction. Un échec à
    * n'importe quelle étape annule tout : l'e-card reste `ACTIVE`, le membre reste `INSCRIT`,
    * le stock est intact, et aucune commande orpheline ne subsiste.
+   *
+   * Le panier compose le palier en POINTS ; l'e-card paie le PRIX DU PACK en DINARS (D-029).
+   * Les deux contrôles sont indépendants, et l'un ne se déduit pas de l'autre.
    */
   async activationCheckout(input: {
     memberId: number;
@@ -85,20 +94,22 @@ export class CheckoutService {
 
         // 1. ACTIVATION — première instruction sous verrou (D-024) : elle verrouille la chaîne
         //    d'ancêtres (`Member`, ids croissants) puis brûle l'e-card (`Ecard`) pour payer le
-        //    palier SNAPSHOTÉ. Rien d'autre ne doit être verrouillé avant elle.
+        //    PRIX DU PACK snapshoté. Rien d'autre ne doit être verrouillé avant elle.
         const activated = await this.activation.activateInTx(tx, {
           memberId: input.memberId,
           packId: input.packId,
           payment: this.ecards.activationPayment(input.ecardCode),
         });
 
-        // 2. Le panier doit valoir EXACTEMENT le palier (D-006) — comparé au palier figé au
-        //    snapshot, pas au palier vivant du pack : c'est celui-là que l'e-card a payé et
-        //    que l'arbre a reçu. Un écart ici annule toute l'activation.
+        // 2. Le panier doit valoir EXACTEMENT le palier, EN POINTS (D-006) — comparé au palier
+        //    figé au snapshot, pas au palier vivant du pack : c'est celui-là que l'arbre a reçu.
+        //    Ce contrôle ne parle pas d'argent : le montant, lui, a été réglé à l'étape 1 au
+        //    prix du pack, quels que soient les prix des produits choisis. Un écart ici annule
+        //    toute l'activation.
         const priced = await this.priceCartInTx(tx, cart);
-        if (priced.totalBv !== activated.snapshot.tierBv) {
+        if (priced.totalPoints !== activated.snapshot.tierBv) {
           throw new CartTierMismatchError(
-            priced.totalBv,
+            priced.totalPoints,
             activated.snapshot.tierBv,
             activated.snapshot.packName,
           );
@@ -111,6 +122,8 @@ export class CheckoutService {
           memberId: input.memberId,
           context: OrderContext.ACTIVATION,
           priced,
+          // Le montant PAYÉ est le prix du pack (D-029), pas la somme des prix du panier.
+          totalDt: money(activated.snapshot.priceDt),
           ecardId: activated.payment.ecardId,
           shippingAddress: input.shippingAddress,
         });
@@ -122,9 +135,11 @@ export class CheckoutService {
   // ─────────────────────────── Checkout ACHAT LIBRE ───────────────────────────
 
   /**
-   * Achat libre d'un membre ACTIF (spec §5.7, §7.1.4b). AUCUN effet réseau : pas de
-   * propagation dans l'arbre (D-005), pas de mouvement de grand livre (D-025) — le membre
-   * n'est ni crédité ni débité, l'e-card paie et disparaît.
+   * Achat libre d'un membre ACTIF (spec §5.7, §7.1.4b) : le montant dû est la somme des PRIX
+   * DT du panier. AUCUN effet réseau : pas de propagation dans l'arbre (D-005), pas de
+   * mouvement de grand livre (D-025) — le membre n'est ni crédité ni débité, l'e-card paie et
+   * disparaît. Les points des produits achetés ne vont nulle part : seule une activation
+   * alimente l'arbre.
    */
   async freeCheckout(input: {
     memberId: number;
@@ -150,25 +165,27 @@ export class CheckoutService {
           );
         }
 
-        // 2. Chiffrage du panier (lecture seule) : il donne le montant dû, que l'e-card doit
-        //    couvrir EXACTEMENT. Le chiffrage précède donc forcément la consommation.
+        // 2. Chiffrage du panier (lecture seule) : il donne le montant dû EN DINARS, que
+        //    l'e-card doit couvrir EXACTEMENT. Le chiffrage précède donc la consommation.
         const priced = await this.priceCartInTx(tx, cart);
 
-        // 3. `Ecard` : brûlée pour `totalBv` — valeur différente = refus (D-007).
+        // 3. `Ecard` : brûlée pour `totalDt` — valeur différente = refus (D-007).
         const consumed = await this.ecards.consumeInTx(tx, {
           code: input.ecardCode,
           memberId: input.memberId,
-          dueBv: priced.totalBv,
+          dueDt: priced.totalDt,
         });
 
-        // 4. `Product` : le décrément gardé revérifie la valeur BV lue à l'étape 2 — un produit
-        //    revalorisé entre-temps ferait payer l'e-card au mauvais prix, donc on annule.
+        // 4. `Product` : le décrément gardé revérifie le PRIX EFFECTIF lu à l'étape 2 — un
+        //    produit revalorisé entre-temps ferait payer l'e-card au mauvais prix, donc on
+        //    annule.
         await this.reserveStockInTx(tx, priced);
 
         return this.createOrderInTx(tx, {
           memberId: input.memberId,
           context: OrderContext.FREE,
           priced,
+          totalDt: priced.totalDt,
           ecardId: consumed.ecardId,
           shippingAddress: input.shippingAddress,
         });
@@ -201,8 +218,12 @@ export class CheckoutService {
   }
 
   /**
-   * Chiffre le panier DANS la transaction : c'est ici que sont figés `unitValueBv` (BV, la
-   * seule valeur transactionnelle) et `unitPriceDt` (prix effectif affiché, promo comprise).
+   * Chiffre le panier DANS la transaction : c'est ici que sont figés `unitValueBv` (POINTS) et
+   * `unitPriceDt` (DINARS — le prix EFFECTIF, promo comprise). Les deux totaux qui en sortent
+   * ne se déduisent pas l'un de l'autre (D-028) :
+   *   `totalPoints` → sert au contrôle du palier (ACTIVATION) ;
+   *   `totalDt`     → sert au montant dû (achat LIBRE uniquement ; en ACTIVATION, c'est le prix
+   *                   du pack qui est dû, et ce total n'est alors que de l'information).
    * Lecture seule — aucun verrou n'est pris ici : le verrou de produit vient au décrément,
    * après l'e-card (D-024).
    */
@@ -216,7 +237,8 @@ export class CheckoutService {
     const byId = new Map(products.map((p) => [p.id, p]));
 
     const lines: PricedLine[] = [];
-    let totalBv = 0;
+    let totalPoints = 0;
+    let totalDt = ZERO_DT;
     let hasPhysical = false;
 
     for (const item of cart) {
@@ -224,8 +246,8 @@ export class CheckoutService {
       if (!product || !product.active) {
         throw new ProductUnavailableError(item.productId);
       }
-      // Le prix DT affiché est le prix promo s'il existe (D-002 : affichage seul). La valeur
-      // BV, elle, est la même avec ou sans promo — c'est tout l'objet de la règle.
+      // Le prix effectif est le prix promo s'il existe. La valeur BV, elle, est la même avec ou
+      // sans promo (D-002) : une remise touche l'argent, jamais les points.
       const unitPriceDt = product.promoPriceDt ?? product.priceDt;
       lines.push({
         productId: product.id,
@@ -233,30 +255,36 @@ export class CheckoutService {
         type: product.type,
         quantity: item.quantity,
         unitValueBv: product.valueBv,
-        unitPriceDt: unitPriceDt.toString(),
+        unitPriceDt,
       });
-      totalBv += product.valueBv * item.quantity;
+      totalPoints += product.valueBv * item.quantity;
+      totalDt = totalDt.plus(unitPriceDt.times(item.quantity));
       hasPhysical ||= product.type === ProductType.PHYSICAL;
-      // `shippingFeeDt` n'est même pas lu : il ne participe à aucun total.
+      // `shippingFeeDt` n'est même pas lu : il ne participe à aucun total (réglé hors système).
     }
 
-    return { lines, totalBv, hasPhysical };
+    return { lines, totalPoints, totalDt, hasPhysical };
   }
 
   /**
    * Décrément ATOMIQUE et gardé du stock, produit par produit, par id CROISSANT (D-024).
    *
    * Une seule instruction par produit fait tout : elle verrouille la ligne, revérifie que le
-   * produit est toujours achetable et à la MÊME valeur BV que celle chiffrée (sinon l'e-card
-   * paierait au mauvais prix), et n'ôte du stock que si `stock >= quantité`. Zéro ligne
-   * rendue = rupture ou produit modifié → on lève, la transaction entière est annulée.
+   * produit est toujours achetable et INCHANGÉ dans SES DEUX DIMENSIONS — même valeur BV
+   * (sinon le panier ne ferait plus le palier) et même prix effectif (sinon l'e-card paierait
+   * au mauvais prix) —, et n'ôte du stock que si `stock >= quantité`. Zéro ligne rendue =
+   * rupture ou produit modifié → on lève, la transaction entière est annulée.
+   *
+   * Épingler le PRIX est indispensable depuis D-028 : en achat libre, c'est lui qui fait le
+   * montant dû. Une promotion appliquée entre le chiffrage et le décrément ferait autrement
+   * brûler une e-card pour un montant qui n'est plus celui du panier.
+   *
    * Sous concurrence, deux commandes du dernier exemplaire se sérialisent sur le verrou de
    * ligne : la seconde relit le stock committé par la première et échoue. Exactement une
    * passe — jamais un stock négatif, jamais un test-puis-écrit non atomique.
    *
    * Un produit VIRTUEL est illimité : son stock (`null`) n'est pas touché. La ligne est tout
-   * de même verrouillée par l'UPDATE, ce qui garde le contrôle de valeur BV valable pour lui
-   * aussi.
+   * de même verrouillée par l'UPDATE, ce qui garde les deux contrôles valables pour lui aussi.
    */
   private async reserveStockInTx(
     tx: Prisma.TransactionClient,
@@ -272,19 +300,29 @@ export class CheckoutService {
         WHERE "id" = ${line.productId}
           AND "active" = true
           AND "valueBv" = ${line.unitValueBv}
+          AND COALESCE("promoPriceDt", "priceDt") = ${line.unitPriceDt}
           AND ("type" = 'VIRTUAL'::"ProductType" OR "stock" >= ${line.quantity})
         RETURNING "id"
       `;
       if (rows.length !== 1) {
-        // Rupture, ou produit désactivé / revalorisé entre le chiffrage et ici. On ne
-        // distingue les deux que pour le message : les deux annulent la commande.
+        // Rupture, ou produit désactivé / revalorisé / reprisé entre le chiffrage et ici. On ne
+        // distingue les cas que pour le message : tous annulent la commande.
         const current = await tx.product.findUnique({
           where: { id: line.productId },
-          select: { active: true, valueBv: true, stock: true },
+          select: {
+            active: true,
+            valueBv: true,
+            stock: true,
+            priceDt: true,
+            promoPriceDt: true,
+          },
         });
-        if (
-          current?.active &&
+        const unchanged =
+          current?.active === true &&
           current.valueBv === line.unitValueBv &&
+          (current.promoPriceDt ?? current.priceDt).equals(line.unitPriceDt);
+        if (
+          unchanged &&
           (current.stock ?? Number.MAX_SAFE_INTEGER) < line.quantity
         ) {
           throw new OutOfStockError(line.productId, line.quantity);
@@ -310,6 +348,8 @@ export class CheckoutService {
       memberId: number;
       context: OrderContext;
       priced: PricedCart;
+      /** Ce que l'e-card a réellement payé : prix du pack (ACTIVATION) ou Σ des prix (LIBRE). */
+      totalDt: Money;
       ecardId: number | null;
       shippingAddress?: string;
     },
@@ -318,7 +358,8 @@ export class CheckoutService {
       data: {
         memberId: input.memberId,
         context: input.context,
-        totalBv: input.priced.totalBv,
+        totalDt: input.totalDt, // DINARS payés
+        totalPoints: input.priced.totalPoints, // POINTS du panier (= le palier, en ACTIVATION)
         ecardId: input.ecardId,
         status: OrderStatus.PAID,
         paidAt: new Date(),
@@ -331,7 +372,7 @@ export class CheckoutService {
             productId: line.productId,
             quantity: line.quantity,
             unitValueBv: line.unitValueBv, // snapshot : une revalorisation ultérieure du
-            unitPriceDt: new Prisma.Decimal(line.unitPriceDt), // produit ne réécrit pas la commande
+            unitPriceDt: line.unitPriceDt, // produit ne réécrit pas la commande
           })),
         },
       },
@@ -347,7 +388,8 @@ export class CheckoutService {
             : 'ORDER_FREE_PAID',
         target: `Order:${order.id}`,
         after: {
-          totalBv: order.totalBv,
+          totalDt: moneyToApi(order.totalDt), // en texte : l'audit passe par du JSON
+          totalPoints: order.totalPoints,
           ecardId: order.ecardId, // jamais le code en clair (règle e-card)
           lines: input.priced.lines.length,
         },
@@ -358,10 +400,11 @@ export class CheckoutService {
   }
 
   /**
-   * Pré-contrôle hors transaction du panier d'activation. Purement défensif : il évite de
-   * verrouiller une branche pour un panier manifestement faux. L'autorité reste le contrôle
-   * fait sous verrou contre le snapshot (le pack peut changer entre les deux — auquel cas
-   * c'est le snapshot qui gagne, et le checkout est annulé).
+   * Pré-contrôle hors transaction du panier d'activation : le panier fait-il le palier, EN
+   * POINTS ? Purement défensif — il évite de verrouiller une branche pour un panier
+   * manifestement faux. L'autorité reste le contrôle fait sous verrou contre le snapshot (le
+   * pack peut changer entre les deux — auquel cas c'est le snapshot qui gagne, et le checkout
+   * est annulé).
    */
   private async precheckTier(
     packId: number,
@@ -378,16 +421,16 @@ export class CheckoutService {
       return; // Pack inexistant : `activateInTx` lèvera PackUnavailableError, sa responsabilité.
     }
     const byId = new Map(products.map((p) => [p.id, p]));
-    let totalBv = 0;
+    let totalPoints = 0;
     for (const item of cart) {
       const product = byId.get(item.productId);
       if (!product || !product.active) {
         throw new ProductUnavailableError(item.productId);
       }
-      totalBv += product.valueBv * item.quantity;
+      totalPoints += product.valueBv * item.quantity;
     }
-    if (totalBv !== pack.tierBv) {
-      throw new CartTierMismatchError(totalBv, pack.tierBv, pack.name);
+    if (totalPoints !== pack.tierBv) {
+      throw new CartTierMismatchError(totalPoints, pack.tierBv, pack.name);
     }
   }
 }

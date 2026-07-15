@@ -1,12 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
-  BvMovementType,
   Ecard,
   EcardOrigin,
   EcardStatus,
+  LedgerMovementType,
   Prisma,
 } from '@prisma/client';
-import { BvLedgerService } from '../bv-ledger/bv-ledger.service';
+import { Money, ZERO_DT, moneyFromSql, moneyToApi } from '../common/money';
+import { LedgerService } from '../ledger/ledger.service';
 import { ActivationPayment } from '../members/members.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { generateEcardCode, normalizeEcardCode } from './ecard-code';
@@ -39,18 +40,22 @@ const EXPIRATION_BATCH = 200;
 const DAY_MS = 86_400_000;
 
 /**
- * Cycle de vie complet de l'e-card (spec §5.5, D-007, D-008, D-025).
+ * Cycle de vie complet de l'e-card (spec §5.5, D-007, D-008, D-025, D-028).
+ *
+ * UNITÉ : le DINAR. Une e-card est de l'ARGENT — c'est l'instrument par lequel l'argent entre
+ * dans une transaction, alors qu'il circule hors plateforme (aucune passerelle, D-001). Elle ne
+ * porte JAMAIS de points : les points n'entrent dans l'arbre que par une activation (D-005).
  *
  * MODÈLE (D-025) — l'e-card est un instrument de PAIEMENT, pas une recharge de solde :
  *   création    : le solde du créateur est débité (ECARD_CREATION) ; la valeur vit dans la carte ;
  *   consommation: la carte est BRÛLÉE et paie le montant dû — aucun solde n'est crédité ;
  *   expiration / révocation : la valeur revient au créateur (ECARD_REFUND).
- * La masse BV est donc conservée : ce qui sort d'un solde revient à ce solde, ou est
+ * La masse monétaire est donc conservée : ce qui sort d'un solde revient à ce solde, ou est
  * consommé en payant. Aucune ligne de grand livre à la consommation : le grand livre est
  * le journal des SOLDES, et aucun solde ne bouge.
  *
  * VERROUILLAGE (D-024) — ordre inter-tables `Member` → `Ecard`, sans exception. Toute
- * opération qui rembourse écrit donc le mouvement BV (qui verrouille le membre) AVANT de
+ * opération qui rembourse écrit donc le mouvement de solde (qui verrouille le membre) AVANT de
  * revendiquer l'e-card. Revendiquer l'e-card d'abord croiserait l'ordre de l'activation
  * (chaîne `Member` verrouillée, puis carte brûlée) et rouvrirait l'interblocage.
  */
@@ -60,7 +65,7 @@ export class EcardsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly ledger: BvLedgerService,
+    private readonly ledger: LedgerService,
   ) {}
 
   // ─────────────────────────── Création (membre) ───────────────────────────
@@ -74,10 +79,7 @@ export class EcardsService {
    * ensuite rattachée à l'e-card (`ecardId`) — impossible à faire en une passe, l'identifiant
    * de la carte n'existant pas encore.
    */
-  async create(input: {
-    creatorId: number;
-    valueBv: number;
-  }): Promise<EcardView> {
+  async create(input: { creatorId: number; valueDt: Money }): Promise<EcardView> {
     const expiresAt = await this.computeExpiresAt();
 
     // Une collision de code fait échouer l'INSERT, ce qui AVORTE la transaction Postgres :
@@ -88,14 +90,14 @@ export class EcardsService {
           async (tx) => {
             const entry = await this.ledger.recordMovementInTx(tx, {
               memberId: input.creatorId,
-              type: BvMovementType.ECARD_CREATION,
-              amountBv: -input.valueBv,
+              type: LedgerMovementType.ECARD_CREATION,
+              amountDt: input.valueDt.negated(),
             });
 
             const ecard = await tx.ecard.create({
               data: {
                 code: generateEcardCode(),
-                valueBv: input.valueBv,
+                valueDt: input.valueDt,
                 status: EcardStatus.ACTIVE,
                 origin: EcardOrigin.MEMBER,
                 creatorId: input.creatorId,
@@ -103,7 +105,7 @@ export class EcardsService {
               },
             });
 
-            await tx.bvLedgerEntry.update({
+            await tx.ledgerEntry.update({
               where: { id: entry.id },
               data: { ecardId: ecard.id },
             });
@@ -146,7 +148,7 @@ export class EcardsService {
   async verify(rawCode: string): Promise<EcardVerification> {
     const ecard = await this.prisma.ecard.findUnique({
       where: { code: normalizeEcardCode(rawCode) },
-      select: { valueBv: true, status: true, expiresAt: true },
+      select: { valueDt: true, status: true, expiresAt: true },
     });
     if (!ecard) {
       throw new EcardNotFoundError();
@@ -157,7 +159,7 @@ export class EcardsService {
 
     return {
       valid,
-      valueBv: ecard.valueBv,
+      valueDt: moneyToApi(ecard.valueDt),
       status: ecard.status,
       expiresAt: ecard.expiresAt,
       reason: valid ? null : expired ? 'EXPIRED' : ecard.status,
@@ -167,26 +169,29 @@ export class EcardsService {
   // ─────────────────────────── Consommation ───────────────────────────
 
   /**
-   * Brûle une e-card pour payer `dueBv`, DANS la transaction de l'appelant : la carte ne
-   * passe `USED` que si cette transaction committe. Une activation interrompue laisse donc
-   * la carte `ACTIVE` (spec §5.4) — c'est le rollback Postgres qui le garantit, pas une
-   * compensation applicative.
+   * Brûle une e-card pour payer `dueDt` (en DINARS — une e-card est de l'argent, D-028), DANS la
+   * transaction de l'appelant : la carte ne passe `USED` que si cette transaction committe. Une
+   * activation interrompue laisse donc la carte `ACTIVE` (spec §5.4) — c'est le rollback
+   * Postgres qui le garantit, pas une compensation applicative.
    *
    * Les contrôles préalables ne servent qu'à produire une erreur PARLANTE. L'autorité est
    * l'`UPDATE` gardé (`WHERE status = 'ACTIVE' AND …`) : deux consommations simultanées de
    * la même carte se sérialisent sur le verrou de ligne, et la perdante relit `status`
    * committé par la gagnante → 0 ligne → `EcardAlreadyConsumedError`, transaction annulée.
    * Exactement une réussit, toujours.
+   *
+   * La garde compare la valeur en `numeric` : `${dueDt}` est envoyé en paramètre typé, donc
+   * Postgres compare des décimaux exacts — jamais des flottants.
    */
   async consumeInTx(
     tx: Prisma.TransactionClient,
-    input: { code: string; memberId: number; dueBv: number },
+    input: { code: string; memberId: number; dueDt: Money },
   ): Promise<ConsumedEcard> {
     const code = normalizeEcardCode(input.code);
 
     const ecard = await tx.ecard.findUnique({
       where: { code },
-      select: { id: true, valueBv: true, status: true, expiresAt: true },
+      select: { id: true, valueDt: true, status: true, expiresAt: true },
     });
     if (!ecard) {
       throw new EcardNotFoundError();
@@ -197,21 +202,22 @@ export class EcardsService {
     if (this.isExpired(ecard.expiresAt)) {
       throw new EcardExpiredError();
     }
-    // Couverture EXACTE (spec §5.5) : ni trop-perçu, ni appoint, une seule carte.
-    if (ecard.valueBv !== input.dueBv) {
-      throw new EcardValueMismatchError(ecard.valueBv, input.dueBv);
+    // Couverture EXACTE (spec §5.5, D-007) : ni trop-perçu, ni appoint, une seule carte.
+    // `.equals` et non `!==` : deux `Decimal` de même valeur sont deux objets distincts.
+    if (!ecard.valueDt.equals(input.dueDt)) {
+      throw new EcardValueMismatchError(ecard.valueDt, input.dueDt);
     }
 
-    const burned = await tx.$queryRaw<Array<{ id: number; valueBv: number }>>`
+    const burned = await tx.$queryRaw<Array<{ id: number; valueDt: string }>>`
       UPDATE "Ecard"
       SET "status" = 'USED'::"EcardStatus",
           "usedAt" = now(),
           "userId" = ${input.memberId}
       WHERE "id" = ${ecard.id}
         AND "status" = 'ACTIVE'::"EcardStatus"
-        AND "valueBv" = ${input.dueBv}
+        AND "valueDt" = ${input.dueDt}
         AND ("expiresAt" IS NULL OR "expiresAt" > now())
-      RETURNING "id", "valueBv"
+      RETURNING "id", "valueDt"::text AS "valueDt"
     `;
     if (burned.length !== 1) {
       throw new EcardAlreadyConsumedError();
@@ -219,7 +225,7 @@ export class EcardsService {
 
     // AUCUN mouvement de grand livre (D-025) : la valeur de la carte paie le montant dû,
     // elle ne transite pas par le solde du bénéficiaire.
-    return { ecardId: burned[0].id, valueBv: burned[0].valueBv };
+    return { ecardId: burned[0].id, valueDt: moneyFromSql(burned[0].valueDt) };
   }
 
   /**
@@ -341,11 +347,16 @@ export class EcardsService {
             actor: String(input.adminId),
             action: 'ECARD_REVOKED',
             target: `Ecard:${ecard.id}`,
-            before: { status: EcardStatus.ACTIVE, valueBv: ecard.valueBv },
+            before: {
+              status: EcardStatus.ACTIVE,
+              valueDt: moneyToApi(ecard.valueDt),
+            },
             after: {
               status: EcardStatus.REVOKED,
               refundedTo: ecard.creatorId, // null si genèse : rien à rembourser
-              refundedBv: ecard.creatorId ? ecard.valueBv : 0,
+              refundedDt: moneyToApi(
+                ecard.creatorId ? ecard.valueDt : ZERO_DT,
+              ),
               reason: input.reason ?? null,
             },
           },
@@ -369,7 +380,7 @@ export class EcardsService {
    */
   async genesis(input: {
     adminId: number;
-    valueBv: number;
+    valueDt: Money;
     expirationDays?: number;
     reason?: string;
   }): Promise<EcardView> {
@@ -394,7 +405,7 @@ export class EcardsService {
             const ecard = await tx.ecard.create({
               data: {
                 code: generateEcardCode(),
-                valueBv: input.valueBv,
+                valueDt: input.valueDt,
                 status: EcardStatus.ACTIVE,
                 origin: EcardOrigin.GENESIS,
                 creatorId: null,
@@ -409,7 +420,7 @@ export class EcardsService {
                 action: 'ECARD_GENESIS',
                 target: `Ecard:${ecard.id}`, // jamais le code en clair
                 after: {
-                  valueBv: ecard.valueBv,
+                  valueDt: moneyToApi(ecard.valueDt),
                   expiresAt: ecard.expiresAt?.toISOString() ?? null,
                   reason: input.reason ?? null,
                 },
@@ -442,7 +453,7 @@ export class EcardsService {
   async expireDue(now: Date = new Date()): Promise<ExpirationSweepResult> {
     const result: ExpirationSweepResult = {
       expired: 0,
-      refundedBv: 0,
+      refundedDt: ZERO_DT,
       skipped: 0,
     };
 
@@ -475,12 +486,14 @@ export class EcardsService {
                   target: `Ecard:${closed.id}`,
                   before: {
                     status: EcardStatus.ACTIVE,
-                    valueBv: closed.valueBv,
+                    valueDt: moneyToApi(closed.valueDt),
                   },
                   after: {
                     status: EcardStatus.EXPIRED,
                     refundedTo: closed.creatorId,
-                    refundedBv: closed.creatorId ? closed.valueBv : 0,
+                    refundedDt: moneyToApi(
+                      closed.creatorId ? closed.valueDt : ZERO_DT,
+                    ),
                   },
                 },
               });
@@ -488,7 +501,9 @@ export class EcardsService {
             { timeout: TX_TIMEOUT_MS },
           );
           result.expired += 1;
-          result.refundedBv += ecard.creatorId ? ecard.valueBv : 0;
+          if (ecard.creatorId) {
+            result.refundedDt = result.refundedDt.plus(ecard.valueDt);
+          }
         } catch (error) {
           if (error instanceof EcardAlreadyConsumedError) {
             result.skipped += 1; // consommée pendant le balayage : la course est normale
@@ -530,8 +545,8 @@ export class EcardsService {
     if (ecard.creatorId !== null) {
       await this.ledger.recordMovementInTx(tx, {
         memberId: ecard.creatorId,
-        type: BvMovementType.ECARD_REFUND,
-        amountBv: ecard.valueBv,
+        type: LedgerMovementType.ECARD_REFUND,
+        amountDt: ecard.valueDt,
         ecardId: ecard.id,
       });
     }
@@ -589,7 +604,7 @@ export class EcardsService {
     return {
       id: ecard.id,
       code: ecard.code,
-      valueBv: ecard.valueBv,
+      valueDt: moneyToApi(ecard.valueDt),
       status: ecard.status,
       origin: ecard.origin,
       createdAt: ecard.createdAt,

@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { BvLedgerModule } from '../bv-ledger/bv-ledger.module';
+import { LedgerModule } from '../ledger/ledger.module';
 import { MembersModule } from '../members/members.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { SeedService } from './seed.service';
@@ -15,7 +15,7 @@ import { SeedService } from './seed.service';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
-    BvLedgerModule,
+    LedgerModule,
     MembersModule,
   ],
   providers: [SeedService],

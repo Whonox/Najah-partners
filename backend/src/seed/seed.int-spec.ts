@@ -41,7 +41,7 @@ describe('Seed — réseau d’amorçage D-019 (vrai Postgres)', () => {
       });
       const ids = leftovers.map((m) => m.id);
       if (ids.length > 0) {
-        await prisma.bvLedgerEntry.deleteMany({ where: { memberId: { in: ids } } });
+        await prisma.ledgerEntry.deleteMany({ where: { memberId: { in: ids } } });
         for (const id of ids) {
           await prisma.member.delete({ where: { id } });
         }
@@ -67,9 +67,9 @@ describe('Seed — réseau d’amorçage D-019 (vrai Postgres)', () => {
     for (const member of members) {
       expect(member.status).toBe(MemberStatus.ACTIVE);
       expect(member.packId).not.toBeNull();
-      expect(member.activationTierBv).toBe(TIER); // palier figé au snapshot
+      expect(member.activationTierBv).toBe(TIER); // palier (POINTS) figé au snapshot
       expect(member.activatedAt).not.toBeNull();
-      expect(member.bvBalance).toBe(0); // genèse (+palier) consommée par l'activation (−palier)
+      expect(member.balanceDt.toString()).toBe('0'); // genèse (+prix) consommée par l'activation (−prix)
     }
   });
 

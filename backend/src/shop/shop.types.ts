@@ -4,6 +4,7 @@ import {
   ProductType,
   ShipmentStatus,
 } from '@prisma/client';
+import { Money } from '../common/money';
 
 /** Une ligne de panier telle que soumise (le DTO a déjà validé les bornes). */
 export interface CartItemInput {
@@ -12,12 +13,11 @@ export interface CartItemInput {
 }
 
 /**
- * Ligne de panier CHIFFRÉE dans la transaction du checkout : `unitValueBv` et `unitPriceDt`
- * sont les valeurs figées (snapshot) écrites dans `OrderLine`.
+ * Ligne de panier CHIFFRÉE dans la transaction du checkout : `unitValueBv` (POINTS) et
+ * `unitPriceDt` (DINARS) sont les valeurs figées (snapshot) écrites dans `OrderLine`.
  *
- * `unitPriceDt` est le prix EFFECTIF affiché (promo appliquée) — de l'affichage, jamais du
- * transactionnel (D-002). Les frais de livraison n'apparaissent pas ici : ils se règlent hors
- * système et n'entrent dans aucun total.
+ * `unitPriceDt` est le prix EFFECTIF (promo appliquée). Les frais de livraison n'apparaissent
+ * pas ici : ils se règlent hors système et n'entrent dans aucun total.
  */
 export interface PricedLine {
   productId: number;
@@ -25,17 +25,25 @@ export interface PricedLine {
   type: ProductType;
   quantity: number;
   unitValueBv: number;
-  unitPriceDt: string;
+  unitPriceDt: Money;
 }
 
-/** Panier chiffré : le montant BV dû, et rien d'autre, sert au règlement par e-card. */
+/**
+ * Panier chiffré — DEUX totaux, dans deux unités, qui ne se déduisent pas l'un de l'autre (D-028) :
+ *   `totalPoints` → contrôle du palier à l'ACTIVATION (D-006) ;
+ *   `totalDt`     → montant dû en achat LIBRE. (En ACTIVATION, le montant dû est le prix du
+ *                   PACK — D-029 — et ce total n'est plus qu'une information.)
+ */
 export interface PricedCart {
   lines: PricedLine[];
-  /** Σ (valeur BV × quantité). Aucun frais, aucune remise : le BV est l'unité unique. */
-  totalBv: number;
+  /** POINTS : Σ (valeur BV × quantité). */
+  totalPoints: number;
+  /** DINARS : Σ (prix effectif × quantité). Aucun frais de livraison, jamais. */
+  totalDt: Money;
   hasPhysical: boolean;
 }
 
+/** Les montants sortent en CHAÎNE à 3 décimales : JSON n'a que des flottants (cf. money.ts). */
 export interface OrderLineView {
   productId: number;
   productName: string;
@@ -49,7 +57,10 @@ export interface OrderView {
   memberId: number;
   context: OrderContext;
   status: OrderStatus;
-  totalBv: number;
+  /** DINARS payés : prix du pack (ACTIVATION) ou Σ des prix effectifs (LIBRE). */
+  totalDt: string;
+  /** POINTS du panier : le palier, en ACTIVATION. */
+  totalPoints: number;
   ecardId: number | null;
   shippingAddress: string | null;
   shipmentStatus: ShipmentStatus | null;

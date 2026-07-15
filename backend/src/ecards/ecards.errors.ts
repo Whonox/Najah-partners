@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EcardStatus } from '@prisma/client';
+import { Money, moneyToApi } from '../common/money';
 
 /**
  * Erreurs métier des e-cards. Comme celles du grand livre et de l'inscription, elles
@@ -44,13 +45,13 @@ export class EcardExpiredError extends ConflictException {
 }
 
 /**
- * Couverture exacte (spec §5.5) : ni trop-perçu, ni appoint. Une e-card paie un montant
- * égal, au BV près.
+ * Couverture exacte (spec §5.5, D-007) : ni trop-perçu, ni appoint. Une e-card paie un montant
+ * égal, au millime près.
  */
 export class EcardValueMismatchError extends ConflictException {
-  constructor(valueBv: number, dueBv: number) {
+  constructor(valueDt: Money, dueDt: Money) {
     super(
-      `Valeur de l’e-card (${valueBv} BV) différente du montant dû (${dueBv} BV) : ` +
+      `Valeur de l’e-card (${moneyToApi(valueDt)} DT) différente du montant dû (${moneyToApi(dueDt)} DT) : ` +
         'une e-card doit couvrir le montant exactement (une seule e-card par transaction).',
     );
   }

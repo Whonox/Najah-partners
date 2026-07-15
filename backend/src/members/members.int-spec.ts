@@ -1,7 +1,8 @@
 import { ConfigService } from '@nestjs/config';
 import { Leg, MemberStatus, Prisma } from '@prisma/client';
-import { BvLedgerService } from '../bv-ledger/bv-ledger.service';
-import { InsufficientBalanceError } from '../bv-ledger/bv-ledger.errors';
+import { Money, money } from '../common/money';
+import { LedgerService } from '../ledger/ledger.service';
+import { InsufficientBalanceError } from '../ledger/ledger.errors';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivationService } from './activation.service';
 import { MemberCodeService } from './member-code.service';
@@ -28,12 +29,13 @@ const PASSWORD = 'MotDePasse123!';
 
 describe('Members — intégration (vrai Postgres)', () => {
   let prisma: PrismaService;
-  let ledger: BvLedgerService;
+  let ledger: LedgerService;
   let placement: PlacementService;
   let members: MembersService;
   let activation: ActivationService;
   let packId: number;
-  let tierBv: number;
+  let tierBv: number; // POINTS — ce que l'arbre reçoit
+  let priceDt: Money; // DINARS — ce que l'activation fait payer (D-029)
 
   /** Membres créés par les tests, dans l'ordre : on les supprime à l'envers (FK Restrict). */
   const created: number[] = [];
@@ -80,7 +82,10 @@ describe('Members — intégration (vrai Postgres)', () => {
     return { id: member.id, memberCode: member.memberCode };
   }
 
-  /** Approvisionne le solde puis active (le moyen de paiement par défaut lit le solde). */
+  /**
+   * Approvisionne le solde du PRIX du pack (en DT) puis active — le moyen de paiement par défaut
+   * (BalanceActivationPayment) débite ce prix. L'arbre, lui, reçoit le palier en POINTS (D-028).
+   */
   async function fundAndActivate(
     memberId: number,
     payment?: ActivationPayment,
@@ -88,7 +93,7 @@ describe('Members — intégration (vrai Postgres)', () => {
     await ledger.recordMovement({
       memberId,
       type: 'ADMIN_GENESIS',
-      amountBv: tierBv,
+      amountDt: priceDt,
       reason: 'Test',
     });
     return activation.activate({ memberId, packId, payment });
@@ -103,7 +108,7 @@ describe('Members — intégration (vrai Postgres)', () => {
         baselineLeft: true,
         baselineRight: true,
         status: true,
-        bvBalance: true,
+        balanceDt: true,
         activationTierBv: true,
         startupBonusRemaining: true,
       },
@@ -119,7 +124,7 @@ describe('Members — intégration (vrai Postgres)', () => {
       ),
     } as unknown as ConfigService;
 
-    ledger = new BvLedgerService(prisma);
+    ledger = new LedgerService(prisma);
     placement = new PlacementService(prisma);
     members = new MembersService(
       prisma,
@@ -138,6 +143,7 @@ describe('Members — intégration (vrai Postgres)', () => {
     });
     packId = pack.id;
     tierBv = pack.tierBv;
+    priceDt = pack.priceDt;
   });
 
   afterEach(async () => {
@@ -146,7 +152,7 @@ describe('Members — intégration (vrai Postgres)', () => {
     const ids = [...created].reverse();
     created.length = 0;
     if (ids.length === 0) return;
-    await prisma.bvLedgerEntry.deleteMany({ where: { memberId: { in: ids } } });
+    await prisma.ledgerEntry.deleteMany({ where: { memberId: { in: ids } } });
     await prisma.auditLog.deleteMany({
       where: { target: { in: ids.map((id) => `Member:${id}`) } },
     });
@@ -175,12 +181,12 @@ describe('Members — intégration (vrai Postgres)', () => {
     expect(member.sponsorId).toBe(root.id);
     expect(member.activatedAt).toBeNull();
 
-    // Aucun BV n'entre dans l'arbre à l'inscription (§5.2).
-    expect(member.bvBalance).toBe(0);
+    // Ni argent, ni point à l'inscription (§5.2).
+    expect(member.balanceDt.toString()).toBe('0');
     expect(member.leftPoints).toBe(0);
     expect(member.rightPoints).toBe(0);
     expect(
-      await prisma.bvLedgerEntry.count({ where: { memberId: child.id } }),
+      await prisma.ledgerEntry.count({ where: { memberId: child.id } }),
     ).toBe(0);
     const rootPoints = await points(root.id);
     expect(rootPoints.leftPoints).toBe(0);
@@ -337,23 +343,23 @@ describe('Members — intégration (vrai Postgres)', () => {
     const cPoints = await points(c.id);
     expect(cPoints.leftPoints).toBe(0);
     expect(cPoints.rightPoints).toBe(0);
-    // Le palier est consommé : crédité en genèse, débité à l'activation.
-    expect(cPoints.bvBalance).toBe(0);
+    // Le prix est consommé : crédité en genèse, débité à l'activation.
+    expect(cPoints.balanceDt.toString()).toBe('0');
   });
 
-  it('activation : un seul mouvement ACTIVATION, du montant exact du palier', async () => {
+  it('activation : un seul mouvement ACTIVATION, du montant exact du PRIX du pack (DT)', async () => {
     const root = await createRoot();
     const child = await register(root.memberCode, root.memberCode, Leg.LEFT);
     await fundAndActivate(child.id);
 
-    const entries = await prisma.bvLedgerEntry.findMany({
+    const entries = await prisma.ledgerEntry.findMany({
       where: { memberId: child.id },
       orderBy: { id: 'asc' },
     });
-    expect(entries).toHaveLength(2); // genèse (+palier) puis activation (−palier)
+    expect(entries).toHaveLength(2); // genèse (+prix) puis activation (−prix)
     expect(entries[1].type).toBe('ACTIVATION');
-    expect(entries[1].amountBv).toBe(-tierBv);
-    expect(entries[1].balanceAfter).toBe(0);
+    expect(entries[1].amountDt.toString()).toBe(priceDt.negated().toString());
+    expect(entries[1].balanceAfterDt.toString()).toBe('0');
   });
 
   it('SNAPSHOT : modifier le pack après coup ne réécrit pas l’activation', async () => {
@@ -394,7 +400,7 @@ describe('Members — intégration (vrai Postgres)', () => {
     const rootPoints = await points(root.id);
     expect(rootPoints.leftPoints).toBe(0);
     expect(
-      await prisma.bvLedgerEntry.count({ where: { memberId: child.id } }),
+      await prisma.ledgerEntry.count({ where: { memberId: child.id } }),
     ).toBe(0);
   });
 
@@ -404,7 +410,7 @@ describe('Members — intégration (vrai Postgres)', () => {
     await ledger.recordMovement({
       memberId: child.id,
       type: 'ADMIN_GENESIS',
-      amountBv: tierBv,
+      amountDt: priceDt,
       reason: 'Test',
     });
 
@@ -420,14 +426,14 @@ describe('Members — intégration (vrai Postgres)', () => {
 
     const member = await points(child.id);
     expect(member.status).toBe(MemberStatus.REGISTERED);
-    expect(member.bvBalance).toBe(tierBv); // la genèse, intacte
+    expect(member.balanceDt.toString()).toBe(priceDt.toString()); // la genèse, intacte
     expect(member.activationTierBv).toBeNull();
 
     const rootPoints = await points(root.id);
     expect(rootPoints.leftPoints).toBe(0); // aucune propagation partielle
     // Aucun mouvement ACTIVATION orphelin.
     expect(
-      await prisma.bvLedgerEntry.count({
+      await prisma.ledgerEntry.count({
         where: { memberId: child.id, type: 'ACTIVATION' },
       }),
     ).toBe(0);
@@ -440,7 +446,7 @@ describe('Members — intégration (vrai Postgres)', () => {
     await ledger.recordMovement({
       memberId: child.id,
       type: 'ADMIN_GENESIS',
-      amountBv: tierBv,
+      amountDt: priceDt,
       reason: 'Test',
     });
 
@@ -471,13 +477,13 @@ describe('Members — intégration (vrai Postgres)', () => {
     await ledger.recordMovement({
       memberId: leftChild.id,
       type: 'ADMIN_GENESIS',
-      amountBv: tierBv,
+      amountDt: priceDt,
       reason: 'Test',
     });
     await ledger.recordMovement({
       memberId: rightChild.id,
       type: 'ADMIN_GENESIS',
-      amountBv: tierBv,
+      amountDt: priceDt,
       reason: 'Test',
     });
 
@@ -536,7 +542,7 @@ describe('Members — intégration (vrai Postgres)', () => {
     const rows = await placement.descendants(root.id, 2);
     for (const row of rows) {
       expect(row).not.toHaveProperty('passwordHash');
-      expect(row).not.toHaveProperty('bvBalance');
+      expect(row).not.toHaveProperty('balanceDt');
       expect(row).not.toHaveProperty('idDocumentPath');
       expect(row).not.toHaveProperty('email');
     }

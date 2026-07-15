@@ -5,6 +5,7 @@ import {
   Prisma,
   ProductType,
 } from '@prisma/client';
+import { money } from '../common/money';
 import { EcardsService } from '../ecards/ecards.service';
 import { ActivationService } from '../members/activation.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -22,20 +23,28 @@ import {
  * l'atomicité : le rollback, la concurrence de stock et la propagation d'arbre exigent un
  * vrai Postgres et vivent dans `shop.int-spec.ts`.
  *
- * Ce qui est vérifié ici tient en une phrase : **rien d'autre que la somme des BV n'entre
- * dans le montant dû**, et l'achat libre ne touche jamais l'arbre.
+ * Les DEUX dimensions (D-028) : le panier compose le palier en POINTS, l'e-card paie en DINARS.
+ *   ACTIVATION → dû = PRIX DU PACK (D-029), indépendant des prix des produits ;
+ *   LIBRE      → dû = Σ des prix effectifs des produits.
+ * L'achat libre ne touche jamais l'arbre.
  */
 
-const SILVER = { id: 1, name: 'Silver', tierBv: 1000, active: true };
+const SILVER = {
+  id: 1,
+  name: 'Silver',
+  tierBv: 1000, // POINTS
+  priceDt: money(2200), // DINARS — le prix payé (D-029)
+  active: true,
+};
 
 /** Un physique en promo AVEC frais de livraison : les deux pièges de la spec, sur un produit. */
 const OLIVE_OIL = {
   id: 10,
   name: 'Huile 1 L',
   type: ProductType.PHYSICAL,
-  valueBv: 250,
-  priceDt: new Prisma.Decimal(45),
-  promoPriceDt: new Prisma.Decimal(39.9), // le prix DT baisse…
+  valueBv: 250, // POINTS
+  priceDt: new Prisma.Decimal(45), // DINARS
+  promoPriceDt: new Prisma.Decimal('39.900'), // le prix baisse…
   shippingFeeDt: new Prisma.Decimal(7), // …et la livraison se règle hors système
   stock: 100,
   active: true,
@@ -58,7 +67,7 @@ type ProductRow = typeof OLIVE_OIL | typeof GUIDE;
 interface Scenario {
   products?: ProductRow[];
   memberStatus?: MemberStatus;
-  /** Palier renvoyé par le snapshot d'activation (peut différer du pack pré-lu). */
+  /** Palier (POINTS) renvoyé par le snapshot d'activation (peut différer du pack pré-lu). */
   snapshotTierBv?: number;
   /** Le décrément gardé ne rend aucune ligne (rupture ou produit modifié). */
   stockGuardFails?: boolean;
@@ -70,14 +79,23 @@ function makeService(scenario: Scenario = {}) {
   const productFindMany = jest.fn(async () => products);
   const productFindUnique = jest.fn(async (args: { where: { id: number } }) => {
     const p = products.find((x) => x.id === args.where.id);
-    return p ? { active: p.active, valueBv: p.valueBv, stock: p.stock } : null;
+    return p
+      ? {
+          active: p.active,
+          valueBv: p.valueBv,
+          stock: p.stock,
+          priceDt: p.priceDt,
+          promoPriceDt: p.promoPriceDt,
+        }
+      : null;
   });
   const orderCreate = jest.fn(async (args: { data: Record<string, any> }) => ({
     id: 99,
     memberId: args.data.memberId,
     context: args.data.context,
     status: args.data.status,
-    totalBv: args.data.totalBv,
+    totalDt: args.data.totalDt,
+    totalPoints: args.data.totalPoints,
     ecardId: args.data.ecardId,
     shippingAddress: args.data.shippingAddress,
     shipmentStatus: args.data.shipmentStatus,
@@ -131,9 +149,10 @@ function makeService(scenario: Scenario = {}) {
       snapshot: {
         packName: 'Silver',
         tierBv: scenario.snapshotTierBv ?? SILVER.tierBv,
-        directCommissionBv: 500,
-        indirectCommissionBv: 250,
-        weeklyCapBv: 10000,
+        priceDt: '2200.000',
+        directCommissionDt: '500.000',
+        indirectCommissionDt: '250.000',
+        weeklyCapDt: '10000.000',
       },
       baselineLeft: 0,
       baselineRight: 0,
@@ -144,7 +163,7 @@ function makeService(scenario: Scenario = {}) {
   );
   const activation = { activateInTx } as unknown as ActivationService;
 
-  const consumeInTx = jest.fn(async () => ({ ecardId: 42, valueBv: 1000 }));
+  const consumeInTx = jest.fn(async () => ({ ecardId: 42, valueDt: money(120) }));
   const activationPayment = jest.fn(() => ({ settleInTx: jest.fn() }));
   const ecards = {
     consumeInTx,
@@ -170,11 +189,17 @@ function makeService(scenario: Scenario = {}) {
   };
 }
 
-describe('CheckoutService — activation (D-006, D-007)', () => {
-  it('panier ≠ palier → REFUSÉ avant toute transaction (aucune branche verrouillée)', async () => {
+/** Le `dueDt` d'un appel à `consumeInTx`, en chaîne pour comparaison exacte. */
+function dueOf(consumeInTx: jest.Mock, call = 0): string {
+  const arg = consumeInTx.mock.calls[call][1] as { dueDt: Prisma.Decimal };
+  return arg.dueDt.toString();
+}
+
+describe('CheckoutService — activation (D-006, D-007, D-029)', () => {
+  it('panier ≠ palier (POINTS) → REFUSÉ avant toute transaction (aucune branche verrouillée)', async () => {
     const { service, transaction, activateInTx } = makeService();
 
-    // 250 + 500 = 750 BV ≠ 1000 (Silver).
+    // 250 + 500 = 750 points ≠ 1000 (Silver).
     await expect(
       service.activationCheckout({
         memberId: 1,
@@ -191,11 +216,12 @@ describe('CheckoutService — activation (D-006, D-007)', () => {
     expect(activateInTx).not.toHaveBeenCalled();
   });
 
-  it('panier = palier → activation par E-CARD, commande PAID en contexte ACTIVATION', async () => {
+  it('panier = palier → activation par E-CARD, commande PAID ; totalDt = PRIX DU PACK, totalPoints = palier', async () => {
     const { service, activateInTx, activationPayment, orderCreate } =
       makeService();
 
-    // 2 × 250 + 1 × 500 = 1000 BV = palier Silver.
+    // 2 × 250 + 1 × 500 = 1000 points = palier Silver. Les prix des produits (2×39.9 + 40 =
+    // 119.8 DT) n'ont AUCUNE incidence : l'activation paie les 2200 DT du pack (D-029).
     const order = await service.activationCheckout({
       memberId: 1,
       packId: 1,
@@ -210,7 +236,8 @@ describe('CheckoutService — activation (D-006, D-007)', () => {
     expect(activateInTx).toHaveBeenCalledTimes(1);
     expect(order.context).toBe(OrderContext.ACTIVATION);
     expect(order.status).toBe(OrderStatus.PAID);
-    expect(order.totalBv).toBe(1000);
+    expect(order.totalDt).toBe('2200.000'); // le prix du pack, pas 119.8
+    expect(order.totalPoints).toBe(1000); // le palier
     expect(order.ecardId).toBe(42);
     expect(orderCreate.mock.calls[0][0].data.shipmentStatus).toBe(
       'PREPARATION',
@@ -219,38 +246,36 @@ describe('CheckoutService — activation (D-006, D-007)', () => {
 
   it('le palier qui FAIT FOI est celui du snapshot : pack modifié sous verrou → tout est annulé', async () => {
     // Le pré-contrôle voit 1000 (panier conforme), mais l'activation fige un palier de 2000 :
-    // l'e-card a payé 2000 et l'arbre reçu 2000 — un panier à 1000 activerait à rabais.
+    // l'arbre a reçu 2000 — un panier à 1000 activerait à rabais.
     const { service } = makeService({ snapshotTierBv: 2000 });
 
     await expect(
       service.activationCheckout({
         memberId: 1,
         packId: 1,
-        items: [{ productId: 10, quantity: 4 }], // 1000 BV
+        items: [{ productId: 10, quantity: 4 }], // 1000 points
         ecardCode: 'AAA-BBB-CCC-DDD',
       }),
     ).rejects.toBeInstanceOf(CartTierMismatchError);
   });
 });
 
-describe('CheckoutService — achat libre (D-005, D-025)', () => {
-  it('e-card = somme EXACTE des BV → commande FREE, sans jamais toucher à l’arbre', async () => {
+describe('CheckoutService — achat libre (D-005, D-025, D-028)', () => {
+  it('e-card = somme EXACTE des PRIX → commande FREE, sans jamais toucher à l’arbre', async () => {
     const { service, activateInTx, consumeInTx, orderCreate } = makeService();
 
     const order = await service.freeCheckout({
       memberId: 1,
-      items: [{ productId: 20, quantity: 3 }], // 3 × 500 = 1500 BV (VIRTUEL)
+      items: [{ productId: 20, quantity: 3 }], // 3 × 40 DT = 120 DT (VIRTUEL), 3 × 500 = 1500 points
       ecardCode: 'AAA-BBB-CCC-DDD',
     });
 
-    expect(consumeInTx).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ dueBv: 1500, memberId: 1 }),
-    );
+    expect(dueOf(consumeInTx)).toBe('120'); // Σ des prix, en DINARS
     // Aucune activation, donc aucune propagation de points : l'achat libre est neutre (D-005).
     expect(activateInTx).not.toHaveBeenCalled();
     expect(order.context).toBe(OrderContext.FREE);
-    expect(order.totalBv).toBe(1500);
+    expect(order.totalDt).toBe('120.000'); // payé en DT
+    expect(order.totalPoints).toBe(1500); // points du panier (ne vont nulle part)
     // Commande 100 % virtuelle : rien à expédier.
     expect(orderCreate.mock.calls[0][0].data.shipmentStatus).toBeNull();
   });
@@ -289,25 +314,22 @@ describe('CheckoutService — achat libre (D-005, D-025)', () => {
   });
 });
 
-describe('CheckoutService — le montant dû est la somme des BV, et rien d’autre', () => {
-  it('les frais de livraison n’entrent JAMAIS dans le montant BV dû', async () => {
+describe('CheckoutService — le montant dû (achat libre) est la somme des PRIX, et rien d’autre', () => {
+  it('les frais de livraison n’entrent JAMAIS dans le montant DT dû', async () => {
     const { service, consumeInTx } = makeService();
 
-    // 4 × 250 BV = 1000 BV. Le produit porte 7 DT de frais de livraison, l'e-card doit
-    // valoir 1000 — pas un BV de plus : les frais se règlent hors système.
+    // 4 × 39.9 DT = 159.6 DT. Le produit porte 7 DT de frais de livraison, l'e-card doit valoir
+    // 159.6 — pas un millime de plus : les frais se règlent hors système.
     await service.freeCheckout({
       memberId: 1,
       items: [{ productId: 10, quantity: 4 }],
       ecardCode: 'AAA-BBB-CCC-DDD',
     });
 
-    expect(consumeInTx).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ dueBv: 1000 }),
-    );
+    expect(dueOf(consumeInTx)).toBe('159.6');
   });
 
-  it('promo : le prix DT snapshoté baisse, la valeur BV ne bouge pas (D-002)', async () => {
+  it('promo : le prix effectif est le prix promo, la valeur BV ne bouge pas (D-002)', async () => {
     const { service, consumeInTx, orderCreate } = makeService();
 
     await service.freeCheckout({
@@ -317,12 +339,9 @@ describe('CheckoutService — le montant dû est la somme des BV, et rien d’au
     });
 
     const line = orderCreate.mock.calls[0][0].data.lines.create[0];
-    expect(line.unitValueBv).toBe(250); // valeur BV : inchangée par la promo
-    expect(line.unitPriceDt.toString()).toBe('39.9'); // prix affiché : le prix promo
-    expect(consumeInTx).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ dueBv: 500 }), // 2 × 250, jamais un calcul en dinars
-    );
+    expect(line.unitValueBv).toBe(250); // POINTS : inchangés par la promo
+    expect(line.unitPriceDt.toString()).toBe('39.9'); // DINARS : le prix promo
+    expect(dueOf(consumeInTx)).toBe('79.8'); // 2 × 39.9, en dinars
   });
 
   it('quantités d’un même produit fusionnées en une seule ligne', async () => {

@@ -15,10 +15,13 @@ import {
 import { ProductType } from '@prisma/client';
 
 /**
- * Produit (spec §5.7). Deux montants de nature TOTALEMENT différente :
- *  - `valueBv`  : la seule valeur transactionnelle (D-002). Entier, strictement positif.
- *  - `priceDt`, `promoPriceDt`, `shippingFeeDt` : de l'AFFICHAGE. La plateforme n'encaisse
- *    rien en dinars ; une promo baisse le prix affiché sans jamais toucher au BV.
+ * Produit (spec §5.7). Deux dimensions de nature TOTALEMENT différente, sans conversion (D-028) :
+ *  - `valueBv` : des POINTS. Ils composent le palier d'un pack à l'activation (D-006) et
+ *    n'ont aucune valeur monétaire. Entier, strictement positif.
+ *  - `priceDt`, `promoPriceDt` : des DINARS — ce que le produit COÛTE. En achat libre, c'est le
+ *    prix effectif (promo comprise) qui fait le montant dû. Une promo baisse le prix sans jamais
+ *    toucher aux points (D-002 révisée).
+ *  - `shippingFeeDt` : affiché, réglé HORS système (espèces) — n'entre dans aucun montant dû.
  */
 export class CreateProductDto {
   @ApiProperty({ example: 'Huile d’olive extra-vierge 1 L' })
@@ -40,7 +43,8 @@ export class CreateProductDto {
 
   @ApiProperty({
     example: 45.0,
-    description: 'Prix de référence en DT — AFFICHAGE seul (D-002).',
+    description:
+      'Prix en DINARS — montant dû en achat libre (le prix promo prime s’il existe).',
   })
   @IsNumber({ maxDecimalPlaces: 3 })
   @Min(0)
@@ -48,7 +52,8 @@ export class CreateProductDto {
 
   @ApiProperty({
     example: 250,
-    description: 'Valeur BV — la seule valeur transactionnelle.',
+    description:
+      'Valeur en POINTS (BV) — compose le palier d’un pack à l’activation. Sans valeur monétaire.',
   })
   @IsInt()
   @Min(1)

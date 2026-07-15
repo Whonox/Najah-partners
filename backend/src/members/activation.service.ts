@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { MemberStatus, Prisma } from '@prisma/client';
+import { money, moneyToApi } from '../common/money';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   InvalidSettingError,
@@ -29,9 +30,15 @@ export interface ActivateInput {
 }
 
 /**
- * Activation INSCRIT → ACTIF (spec §5.3, §5.4, §9.1) : la SEULE opération qui injecte du BV
- * dans l'arbre. Tout se fait dans une transaction unique — statut, snapshot, débit BV,
+ * Activation INSCRIT → ACTIF (spec §5.3, §5.4, §9.1) : la SEULE opération qui injecte des
+ * POINTS dans l'arbre. Tout se fait dans une transaction unique — statut, snapshot, règlement,
  * baseline et propagation committent ensemble ou pas du tout.
+ *
+ * LES DEUX DIMENSIONS SE CROISENT ICI, ET NULLE PART AILLEURS (D-028) — sans se convertir :
+ *   on FAIT PAYER `snapshot.priceDt`  (DINARS — le prix du pack, D-029) à la stratégie de paiement ;
+ *   on CRÉDITE   `snapshot.tierBv`    (POINTS — le palier) aux ancêtres dans l'arbre.
+ * Le prix ne se déduit pas du palier, et le palier ne vaut pas le prix : ce sont deux grandeurs
+ * indépendantes, toutes deux figées au snapshot.
  *
  * Aucune route HTTP n'expose ce service (D-023) : la seule porte d'entrée en ACTIF est
  * l'achat par e-card finalisé — le checkout de la Tranche 6, qui compose sa propre
@@ -97,21 +104,24 @@ export class ActivationService {
     }
     const snapshot: ActivationSnapshot = {
       packName: pack.name,
-      tierBv: pack.tierBv,
-      directCommissionBv: pack.directCommissionBv,
-      indirectCommissionBv: pack.indirectCommissionBv,
-      weeklyCapBv: pack.weeklyCapBv,
+      tierBv: pack.tierBv, // POINTS — pour l'arbre
+      priceDt: moneyToApi(pack.priceDt), // DINARS — pour le paiement (D-029)
+      directCommissionDt: moneyToApi(pack.directCommissionDt),
+      indirectCommissionDt: moneyToApi(pack.indirectCommissionDt),
+      weeklyCapDt: moneyToApi(pack.weeklyCapDt),
     };
 
-    // 4. RÈGLEMENT du palier, délégué à la stratégie de paiement (D-025) — elle règle
-    //    intégralement, ou elle lève (et toute l'activation est annulée) :
+    // 4. RÈGLEMENT du PRIX DU PACK (en DINARS — D-029), délégué à la stratégie de paiement
+    //    (D-025) — elle règle intégralement, ou elle lève (et toute l'activation est annulée) :
     //      - solde  : débit ACTIVATION du membre (grand livre) ;
     //      - e-card : la carte est brûlée, AUCUN solde n'est touché.
+    //    Ce n'est PAS le palier qu'on fait payer : le palier est en points, et un point ne se
+    //    paie pas. C'est le prix du pack, figé au snapshot comme le reste.
     //    L'ordre de verrouillage (D-024) est respecté : la chaîne `Member` est déjà
     //    verrouillée (étape 1), l'`Ecard` ne l'est qu'ici — Member → Ecard, jamais l'inverse.
     const settlement = await payment.settleInTx(tx, {
       memberId: member.id,
-      amountBv: snapshot.tierBv,
+      amountDt: money(snapshot.priceDt),
     });
 
     // 5. Passage à ACTIF + baseline figée. `baselineLeft = leftPoints` est calculé EN SQL,
@@ -139,7 +149,8 @@ export class ActivationService {
       throw new MemberNotRegisteredError(member.id, member.status);
     }
 
-    // 6. Propagation du palier SNAPSHOTÉ à tous les ancêtres, sur la bonne jambe (D-020).
+    // 6. Propagation du palier SNAPSHOTÉ — en POINTS — à tous les ancêtres, sur la bonne jambe
+    //    (D-020). L'arbre ne voit jamais un dinar : ce qui monte, ce sont les points du palier.
     await this.placement.propagateInTx(
       tx,
       member.id,

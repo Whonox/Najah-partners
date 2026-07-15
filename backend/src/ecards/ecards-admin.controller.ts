@@ -5,6 +5,7 @@ import type { AuthenticatedActor } from '../auth/auth.types';
 import { RequireActor } from '../auth/decorators/actor-type.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { money } from '../common/money';
 import { ExtendEcardDto } from './dto/extend-ecard.dto';
 import { GenesisEcardDto } from './dto/genesis-ecard.dto';
 import { EcardsService } from './ecards.service';
@@ -39,7 +40,7 @@ export class EcardsAdminController {
   ) {
     return this.ecards.genesis({
       adminId: admin.id,
-      valueBv: dto.valueBv,
+      valueDt: money(dto.valueDt),
       expirationDays: dto.expirationDays,
       reason: dto.reason,
     });

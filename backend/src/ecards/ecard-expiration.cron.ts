@@ -1,10 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
+import { moneyToApi } from '../common/money';
 import { EcardsService } from './ecards.service';
 
 /**
  * Balayage QUOTIDIEN des e-cards échues (D-008) : `ACTIVE` + échéance dépassée → `EXPIRED`,
- * BV recrédité au créateur.
+ * valeur (en DT) recréditée au créateur.
  *
  * 03:00, heure de Tunis : creux d'activité, loin de la clôture des commissions du vendredi
  * 23:59 (§5.8) — les deux crons ne se disputent pas les verrous de lignes `Member`.
@@ -28,7 +29,8 @@ export class EcardExpirationCron {
     const result = await this.ecards.expireDue();
     if (result.expired > 0 || result.skipped > 0) {
       this.logger.log(
-        `Expiration e-cards : ${result.expired} expirée(s), ${result.refundedBv} BV recrédité(s), ${result.skipped} ignorée(s) (consommée(s) pendant le balayage).`,
+        `Expiration e-cards : ${result.expired} expirée(s), ${moneyToApi(result.refundedDt)} DT recrédité(s), ` +
+          `${result.skipped} ignorée(s) (consommée(s) pendant le balayage).`,
       );
     }
   }

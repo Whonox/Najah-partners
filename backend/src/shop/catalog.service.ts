@@ -123,8 +123,8 @@ export class CatalogService {
   }
 
   /**
-   * Mise à jour partielle. Changer `valueBv` ou `priceDt` n'affecte AUCUNE commande passée :
-   * chaque `OrderLine` porte son propre snapshot (D-002, spec §5.8).
+   * Mise à jour partielle. Changer `valueBv` (points) ou `priceDt` (dinars) n'affecte AUCUNE
+   * commande passée : chaque `OrderLine` porte son propre snapshot des deux (spec §5.8, D-028).
    */
   async updateProduct(
     adminId: number,

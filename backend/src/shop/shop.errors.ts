@@ -43,7 +43,10 @@ export class EmptyCartError extends BadRequestException {
   }
 }
 
-/** Produit inexistant, désactivé, ou dont la valeur BV a changé pendant le checkout. */
+/**
+ * Produit inexistant, désactivé, ou dont la valeur BV (points) ou le prix effectif (dinars) a
+ * changé pendant le checkout — les deux dimensions sont épinglées au chiffrage.
+ */
 export class ProductUnavailableError extends ConflictException {
   constructor(productId: number) {
     super(`Produit ${productId} indisponible : il a été retiré ou modifié.`);
@@ -59,13 +62,14 @@ export class OutOfStockError extends ConflictException {
 }
 
 /**
- * Composition du pack (D-006) : la somme des BV du panier doit égaler EXACTEMENT le palier.
- * Ni plus (le surplus serait du BV offert), ni moins (le membre serait activé à rabais).
+ * Composition du pack (D-006) : la somme des POINTS du panier doit égaler EXACTEMENT le palier.
+ * Ni plus (le surplus serait des points offerts à l'arbre), ni moins (le membre entrerait dans
+ * l'arbre à rabais). Le PRIX, lui, ne dépend pas du panier : c'est celui du pack (D-029).
  */
 export class CartTierMismatchError extends ConflictException {
-  constructor(cartBv: number, tierBv: number, packName?: string) {
+  constructor(cartPoints: number, tierBv: number, packName?: string) {
     super(
-      `Le panier totalise ${cartBv} BV : le pack ${packName ?? ''} exige exactement ${tierBv} BV.`.replace(
+      `Le panier totalise ${cartPoints} points : le pack ${packName ?? ''} exige exactement ${tierBv} points.`.replace(
         /\s+/g,
         ' ',
       ),

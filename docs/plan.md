@@ -47,6 +47,14 @@ Ordre par dépendance. Chaque tranche est testable et se termine par un commit. 
 - [x] Achat libre (sans effet arbre).
 - [x] Commandes + statuts d'expédition.
 
+## Tranche 6.5 — Refactor d'unité monétaire (réf. D-028, D-029)
+- [x] Modèle à deux dimensions : POINTS (`Int`) pour palier + arbre ; DINARS (`Decimal(12,3)`) pour tout l'argent. Aucune conversion.
+- [x] Schéma + migration en place (rename/cast, `BvLedgerEntry→LedgerEntry`, `…Bv→…Dt` monétaires), `src/common/money.ts`.
+- [x] Services : grand livre, e-cards (valeur DT), checkout (`dueDt` = prix du pack en activation, Σ prix DT en libre), activation (paie le prix, propage le palier en points), endpoints admin.
+- [x] Seed recalé sur la table cliente (paliers points / prix + plan de rémunération DT).
+- [x] Vérifié : aucune conversion points↔dinars dans le code.
+- [x] Docs (spec §5.1/§6, decisions D-028/D-029 + révision D-002 + point ouvert e-card, rules, CLAUDE.md) ; tests des 2 suites adaptés (build OK, typecheck 0, migrate status propre, 126 unit + 63 int verts).
+
 ## Tranche 7 — Moteur de commissions (réf. rules/commission-engine.md) — LE joyau
 - [ ] Cron hebdo (vendredi 23:59 Tunis), run + supervision.
 - [ ] Cycles équilibrés, bonus de démarrage, carry-over, plafond, snapshot.

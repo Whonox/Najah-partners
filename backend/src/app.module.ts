@@ -6,7 +6,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
-import { BvLedgerModule } from './bv-ledger/bv-ledger.module';
+import { LedgerModule } from './ledger/ledger.module';
 import { EcardsModule } from './ecards/ecards.module';
 import { MembersModule } from './members/members.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -21,7 +21,7 @@ import { ShopModule } from './shop/shop.module';
     ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
-    BvLedgerModule,
+    LedgerModule,
     MembersModule,
     EcardsModule,
     ShopModule,

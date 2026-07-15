@@ -1,11 +1,7 @@
-import {
-  BvMovementType,
-  EcardOrigin,
-  EcardStatus,
-  Prisma,
-} from '@prisma/client';
-import { InsufficientBalanceError } from '../bv-ledger/bv-ledger.errors';
-import { BvLedgerService } from '../bv-ledger/bv-ledger.service';
+import { EcardOrigin, EcardStatus, LedgerMovementType, Prisma } from '@prisma/client';
+import { money } from '../common/money';
+import { InsufficientBalanceError } from '../ledger/ledger.errors';
+import { LedgerService } from '../ledger/ledger.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   EcardAlreadyConsumedError,
@@ -23,6 +19,9 @@ import { EcardsService } from './ecards.service';
  * Règles de l'e-card, Prisma mocké : ce qui est vérifié ici, ce sont les DÉCISIONS (refuser,
  * débiter, ne PAS créditer) et l'ORDRE des écritures. L'atomicité réelle, la concurrence et
  * le rollback sont couverts par `ecards.int-spec.ts`, contre un vrai Postgres.
+ *
+ * UNITÉ : le DINAR (D-028). Une e-card est de l'argent — sa valeur est un `Decimal`, et les
+ * montants brûlés/comparés le sont en DT.
  */
 
 const DAY_MS = 86_400_000;
@@ -35,7 +34,7 @@ const DAY_MS = 86_400_000;
 type EcardRow = {
   id: number;
   code: string;
-  valueBv: number;
+  valueDt: Prisma.Decimal;
   status: EcardStatus;
   origin: EcardOrigin;
   creatorId: number | null;
@@ -50,7 +49,7 @@ type EcardRow = {
 const ACTIVE_ECARD: EcardRow = {
   id: 7,
   code: 'HHD-7Z7-JJD-77D',
-  valueBv: 1000,
+  valueDt: money(2200),
   status: EcardStatus.ACTIVE,
   origin: EcardOrigin.MEMBER,
   creatorId: 42,
@@ -86,7 +85,7 @@ function makeService(scenario: Scenario = {}) {
   );
   const queryRaw = jest.fn(
     async (..._args: unknown[]) =>
-      scenario.guardedRows ?? [{ id: 7, valueBv: 1000 }],
+      scenario.guardedRows ?? [{ id: 7, valueDt: '2200.000' }],
   );
   const ledgerEntryUpdate = jest.fn(async (..._args: unknown[]) => ({}));
   const auditCreate = jest.fn(async (..._args: unknown[]) => ({}));
@@ -94,7 +93,7 @@ function makeService(scenario: Scenario = {}) {
   const tx = {
     $queryRaw: queryRaw,
     ecard: { findUnique: ecardFindUnique, create: ecardCreate },
-    bvLedgerEntry: { update: ledgerEntryUpdate },
+    ledgerEntry: { update: ledgerEntryUpdate },
     auditLog: { create: auditCreate },
   };
 
@@ -117,9 +116,9 @@ function makeService(scenario: Scenario = {}) {
     if (scenario.ledgerThrows) {
       throw scenario.ledgerThrows;
     }
-    return { id: 55, balanceAfter: 0 };
+    return { id: 55, balanceAfterDt: money(0) };
   });
-  const ledger = { recordMovementInTx } as unknown as BvLedgerService;
+  const ledger = { recordMovementInTx } as unknown as LedgerService;
 
   return {
     service: new EcardsService(prisma, ledger),
@@ -132,46 +131,67 @@ function makeService(scenario: Scenario = {}) {
   };
 }
 
-describe('EcardsService.create — création plafonnée au solde', () => {
-  it('débite le créateur du montant EXACT, en mouvement ECARD_CREATION', async () => {
-    const s = makeService();
-    await s.service.create({ creatorId: 42, valueBv: 1000 });
+/** Le montant `amountDt` d'un appel à `recordMovementInTx`, en chaîne pour comparaison exacte. */
+function movementAmount(
+  recordMovementInTx: jest.Mock,
+  call = 0,
+): { memberId: number; type: string; amount: string; ecardId?: number } {
+  const arg = recordMovementInTx.mock.calls[call][1] as {
+    memberId: number;
+    type: string;
+    amountDt: Prisma.Decimal;
+    ecardId?: number;
+  };
+  return {
+    memberId: arg.memberId,
+    type: arg.type,
+    amount: arg.amountDt.toString(),
+    ecardId: arg.ecardId,
+  };
+}
 
-    expect(s.recordMovementInTx).toHaveBeenCalledWith(expect.anything(), {
+describe('EcardsService.create — création plafonnée au solde', () => {
+  it('débite le créateur du montant EXACT (en DT), en mouvement ECARD_CREATION', async () => {
+    const s = makeService();
+    await s.service.create({ creatorId: 42, valueDt: money(2200) });
+
+    expect(movementAmount(s.recordMovementInTx)).toEqual({
       memberId: 42,
-      type: BvMovementType.ECARD_CREATION,
-      amountBv: -1000,
+      type: LedgerMovementType.ECARD_CREATION,
+      amount: '-2200',
+      ecardId: undefined,
     });
   });
 
   it('crée l’e-card ACTIVE, d’origine MEMBER, au montant demandé', async () => {
     const s = makeService();
-    const view = await s.service.create({ creatorId: 42, valueBv: 1000 });
+    const view = await s.service.create({ creatorId: 42, valueDt: money(2200) });
 
     const data = s.ecardCreate.mock.calls[0][0].data;
     expect(data).toMatchObject({
-      valueBv: 1000,
       status: EcardStatus.ACTIVE,
       origin: EcardOrigin.MEMBER,
       creatorId: 42,
     });
+    expect((data.valueDt as Prisma.Decimal).toString()).toBe('2200');
     expect(view.status).toBe(EcardStatus.ACTIVE);
+    expect(view.valueDt).toBe('2200.000');
   });
 
   it('création > solde → REFUSÉE : le grand livre lève, aucune e-card n’est créée', async () => {
     const s = makeService({
-      ledgerThrows: new InsufficientBalanceError(42, 300, -1000),
+      ledgerThrows: new InsufficientBalanceError(42, money(300), money(-2200)),
     });
 
     await expect(
-      s.service.create({ creatorId: 42, valueBv: 1000 }),
+      s.service.create({ creatorId: 42, valueDt: money(2200) }),
     ).rejects.toBeInstanceOf(InsufficientBalanceError);
     expect(s.ecardCreate).not.toHaveBeenCalled();
   });
 
   it('débite AVANT d’insérer l’e-card (ordre Member → Ecard, D-024)', async () => {
     const s = makeService();
-    await s.service.create({ creatorId: 42, valueBv: 1000 });
+    await s.service.create({ creatorId: 42, valueDt: money(2200) });
 
     expect(s.recordMovementInTx.mock.invocationCallOrder[0]).toBeLessThan(
       s.ecardCreate.mock.invocationCallOrder[0],
@@ -180,7 +200,7 @@ describe('EcardsService.create — création plafonnée au solde', () => {
 
   it('rattache la ligne de mouvement à l’e-card (piste d’audit complète)', async () => {
     const s = makeService();
-    await s.service.create({ creatorId: 42, valueBv: 1000 });
+    await s.service.create({ creatorId: 42, valueDt: money(2200) });
 
     expect(s.ledgerEntryUpdate).toHaveBeenCalledWith({
       where: { id: 55 },
@@ -190,7 +210,7 @@ describe('EcardsService.create — création plafonnée au solde', () => {
 
   it('expiration paramétrée à 180 j → échéance à +180 j', async () => {
     const s = makeService({ expirationDays: '180' });
-    await s.service.create({ creatorId: 42, valueBv: 1000 });
+    await s.service.create({ creatorId: 42, valueDt: money(2200) });
 
     const expiresAt = s.ecardCreate.mock.calls[0][0].data.expiresAt as Date;
     const days = (expiresAt.getTime() - Date.now()) / DAY_MS;
@@ -200,7 +220,7 @@ describe('EcardsService.create — création plafonnée au solde', () => {
 
   it('expiration paramétrée à -1 → e-card sans échéance (illimitée, D-008)', async () => {
     const s = makeService({ expirationDays: '-1' });
-    await s.service.create({ creatorId: 42, valueBv: 1000 });
+    await s.service.create({ creatorId: 42, valueDt: money(2200) });
 
     expect(s.ecardCreate.mock.calls[0][0].data.expiresAt).toBeNull();
   });
@@ -208,7 +228,7 @@ describe('EcardsService.create — création plafonnée au solde', () => {
   it('paramètre corrompu → refuse d’émettre plutôt que d’écrire une échéance absurde', async () => {
     const s = makeService({ expirationDays: 'cent-quatre-vingts' });
     await expect(
-      s.service.create({ creatorId: 42, valueBv: 1000 }),
+      s.service.create({ creatorId: 42, valueDt: money(2200) }),
     ).rejects.toThrow(/ecard_expiration_days/);
     expect(s.recordMovementInTx).not.toHaveBeenCalled();
   });
@@ -220,13 +240,14 @@ describe('EcardsService.consumeInTx — consommation (D-025)', () => {
     const consumed = await s.service.consumeInTx(s.tx, {
       code: 'HHD-7Z7-JJD-77D',
       memberId: 9,
-      dueBv: 1000,
+      dueDt: money(2200),
     });
 
-    expect(consumed).toEqual({ ecardId: 7, valueBv: 1000 });
+    expect(consumed.ecardId).toBe(7);
+    expect(consumed.valueDt.toString()).toBe('2200');
     expect(String(s.queryRaw.mock.calls[0][0])).toContain("'USED'");
     // LE point du modèle : l'e-card PAIE, elle ne recharge pas. Un crédit ici ferait
-    // transiter du BV par un solde qui n'a jamais eu à le porter.
+    // transiter de l'argent par un solde qui n'a jamais eu à le porter.
     expect(s.recordMovementInTx).not.toHaveBeenCalled();
   });
 
@@ -236,7 +257,7 @@ describe('EcardsService.consumeInTx — consommation (D-025)', () => {
       s.service.consumeInTx(s.tx, {
         code: 'HHD-7Z7-JJD-77D',
         memberId: 9,
-        dueBv: 2000, // palier Gold contre une carte de 1000
+        dueDt: money(3350), // prix Gold contre une carte de 2200
       }),
     ).rejects.toBeInstanceOf(EcardValueMismatchError);
     expect(s.queryRaw).not.toHaveBeenCalled();
@@ -250,7 +271,7 @@ describe('EcardsService.consumeInTx — consommation (D-025)', () => {
       s.service.consumeInTx(s.tx, {
         code: 'HHD-7Z7-JJD-77D',
         memberId: 9,
-        dueBv: 1000,
+        dueDt: money(2200),
       }),
     ).rejects.toBeInstanceOf(EcardNotActiveError);
     expect(s.queryRaw).not.toHaveBeenCalled();
@@ -264,7 +285,7 @@ describe('EcardsService.consumeInTx — consommation (D-025)', () => {
       s.service.consumeInTx(s.tx, {
         code: 'HHD-7Z7-JJD-77D',
         memberId: 9,
-        dueBv: 1000,
+        dueDt: money(2200),
       }),
     ).rejects.toBeInstanceOf(EcardNotActiveError);
   });
@@ -277,7 +298,7 @@ describe('EcardsService.consumeInTx — consommation (D-025)', () => {
       s.service.consumeInTx(s.tx, {
         code: 'HHD-7Z7-JJD-77D',
         memberId: 9,
-        dueBv: 1000,
+        dueDt: money(2200),
       }),
     ).rejects.toBeInstanceOf(EcardExpiredError);
   });
@@ -288,7 +309,7 @@ describe('EcardsService.consumeInTx — consommation (D-025)', () => {
       s.service.consumeInTx(s.tx, {
         code: 'AAA-BBB-CCC-DDD',
         memberId: 9,
-        dueBv: 1000,
+        dueDt: money(2200),
       }),
     ).rejects.toBeInstanceOf(EcardNotFoundError);
   });
@@ -299,20 +320,20 @@ describe('EcardsService.consumeInTx — consommation (D-025)', () => {
       s.service.consumeInTx(s.tx, {
         code: 'HHD-7Z7-JJD-77D',
         memberId: 9,
-        dueBv: 1000,
+        dueDt: money(2200),
       }),
     ).rejects.toBeInstanceOf(EcardAlreadyConsumedError);
   });
 
   it('e-card sans échéance (illimitée) → consommable', async () => {
     const s = makeService({ ecard: { ...ACTIVE_ECARD, expiresAt: null } });
-    await expect(
-      s.service.consumeInTx(s.tx, {
-        code: 'HHD-7Z7-JJD-77D',
-        memberId: 9,
-        dueBv: 1000,
-      }),
-    ).resolves.toEqual({ ecardId: 7, valueBv: 1000 });
+    const consumed = await s.service.consumeInTx(s.tx, {
+      code: 'HHD-7Z7-JJD-77D',
+      memberId: 9,
+      dueDt: money(2200),
+    });
+    expect(consumed.ecardId).toBe(7);
+    expect(consumed.valueDt.toString()).toBe('2200');
   });
 });
 
@@ -367,7 +388,7 @@ describe('EcardsService.extend — prolongation (D-026)', () => {
     ).rejects.toBeInstanceOf(EcardAlreadyUnlimitedError);
   });
 
-  it('e-card EXPIRED (déjà remboursée) → NON prolongeable : la ressusciter créerait du BV', async () => {
+  it('e-card EXPIRED (déjà remboursée) → NON prolongeable : la ressusciter créerait de la valeur', async () => {
     const s = makeService({
       ecard: { ...ACTIVE_ECARD, status: EcardStatus.EXPIRED },
     });
@@ -397,7 +418,7 @@ describe('EcardsService.extend — prolongation (D-026)', () => {
 });
 
 describe('EcardsService.revoke — révocation admin', () => {
-  it('rembourse le créateur du montant exact (ECARD_REFUND) et passe la carte REVOKED', async () => {
+  it('rembourse le créateur du montant exact (ECARD_REFUND, en DT) et passe la carte REVOKED', async () => {
     const s = makeService();
     const view = await s.service.revoke({
       ecardId: 7,
@@ -405,10 +426,10 @@ describe('EcardsService.revoke — révocation admin', () => {
       reason: 'Litige',
     });
 
-    expect(s.recordMovementInTx).toHaveBeenCalledWith(expect.anything(), {
+    expect(movementAmount(s.recordMovementInTx)).toEqual({
       memberId: 42,
-      type: BvMovementType.ECARD_REFUND,
-      amountBv: 1000,
+      type: LedgerMovementType.ECARD_REFUND,
+      amount: '2200',
       ecardId: 7,
     });
     expect(view.status).toBe(EcardStatus.REVOKED);
@@ -465,34 +486,35 @@ describe('EcardsService.revoke — révocation admin', () => {
 describe('EcardsService.genesis — création de valeur ex nihilo', () => {
   it('crée une e-card GENESIS sans créateur ni débit d’aucun solde', async () => {
     const s = makeService();
-    await s.service.genesis({ adminId: 3, valueBv: 1000 });
+    await s.service.genesis({ adminId: 3, valueDt: money(2200) });
 
-    expect(s.ecardCreate.mock.calls[0][0].data).toMatchObject({
-      valueBv: 1000,
+    const data = s.ecardCreate.mock.calls[0][0].data;
+    expect(data).toMatchObject({
       origin: EcardOrigin.GENESIS,
       creatorId: null,
       createdByAdminId: 3,
     });
+    expect((data.valueDt as Prisma.Decimal).toString()).toBe('2200');
     expect(s.recordMovementInTx).not.toHaveBeenCalled();
   });
 
   it('durée de validité explicite -1 → illimitée', async () => {
     const s = makeService();
-    await s.service.genesis({ adminId: 3, valueBv: 1000, expirationDays: -1 });
+    await s.service.genesis({ adminId: 3, valueDt: money(2200), expirationDays: -1 });
     expect(s.ecardCreate.mock.calls[0][0].data.expiresAt).toBeNull();
   });
 
   it('durée de validité absurde (0 jour) → 400, pas une e-card mort-née', async () => {
     const s = makeService();
     await expect(
-      s.service.genesis({ adminId: 3, valueBv: 1000, expirationDays: 0 }),
+      s.service.genesis({ adminId: 3, valueDt: money(2200), expirationDays: 0 }),
     ).rejects.toBeInstanceOf(InvalidExpirationDaysError);
     expect(s.ecardCreate).not.toHaveBeenCalled();
   });
 
   it('trace la genèse (création de valeur) dans l’AuditLog', async () => {
     const s = makeService();
-    await s.service.genesis({ adminId: 3, valueBv: 1000, reason: 'Promo' });
+    await s.service.genesis({ adminId: 3, valueDt: money(2200), reason: 'Promo' });
 
     const data = s.auditCreate.mock.calls[0][0] as {
       data: Record<string, unknown>;

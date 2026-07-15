@@ -12,6 +12,7 @@ import { ActorType } from '@prisma/client';
 import type { AuthenticatedActor } from '../auth/auth.types';
 import { RequireActor } from '../auth/decorators/actor-type.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { money } from '../common/money';
 import { CreateEcardDto } from './dto/create-ecard.dto';
 import { ExtendEcardDto } from './dto/extend-ecard.dto';
 import { VerifyEcardDto } from './dto/verify-ecard.dto';
@@ -33,13 +34,16 @@ export class EcardsController {
   @Post()
   @ApiOperation({
     summary:
-      'Créer une e-card (valeur ≤ solde disponible ; le solde est débité immédiatement).',
+      'Créer une e-card en DT (valeur ≤ solde disponible ; le solde est débité immédiatement).',
   })
   create(
     @Body() dto: CreateEcardDto,
     @CurrentUser() actor: AuthenticatedActor,
   ) {
-    return this.ecards.create({ creatorId: actor.id, valueBv: dto.valueBv });
+    return this.ecards.create({
+      creatorId: actor.id,
+      valueDt: money(dto.valueDt),
+    });
   }
 
   @Get('mine')

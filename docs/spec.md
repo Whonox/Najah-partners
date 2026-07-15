@@ -75,23 +75,23 @@ dans le document a exactement le sens défini ici.
 
 | **Terme**                               | **Définition**                                                                                                                                                                                                 |
 |-----------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| BV (Business Volume)                    | Unité de valeur interne unique de la plateforme, exprimée en points. Toutes les valeurs (soldes, commissions, e-cards, paliers, plafonds) sont en BV. Le BV n'est jamais converti en argent par la plateforme. |
-| DT (dinar tunisien)                     | Devise d'affichage uniquement (prix de référence des produits en boutique). La plateforme ne traite aucun paiement en DT ; le règlement en espèces se fait hors système.                                       |
+| BV / Points                             | Grandeur de l'ARBRE (D-028), en points entiers, SANS valeur monétaire. Sert uniquement à composer le palier d'un pack et à alimenter les jambes binaires. Ne se convertit jamais en dinars, ne se dépense pas. |
+| DT (dinar tunisien)                     | Grandeur de l'ARGENT (D-028) : TOUT le monétaire — soldes, e-cards, grand livre, commissions, plafonds, prix des produits ET des packs. Transactionnel (3 décimales, le millime). Aucune passerelle : le règlement se fait hors système via e-cards. |
 | Affilié / Membre                        | Personne inscrite au réseau, identifiée par un code membre unique. Peut parrainer, être placée dans l'arbre, acheter des produits et percevoir des commissions.                                                |
 | Sponsor (parrain)                       | Membre qui a référé un nouvel affilié. Déclenche la commission directe. Lien logique, distinct du placement.                                                                                                   |
 | Upline de placement                     | Membre sous lequel le nouvel affilié est physiquement rattaché dans l'arbre binaire (jambe gauche ou droite). Détermine la circulation des points. Peut être différent du sponsor.                             |
 | Jambe (gauche / droite)                 | Chacune des deux branches sous un nœud binaire. Les points s'accumulent séparément par jambe.                                                                                                                  |
 | Downline                                | Ensemble des affiliés situés sous un membre dans l'arbre.                                                                                                                                                      |
-| Pack (Silver / Gold / Safari / Diamond) | Palier d'activation défini par une valeur en BV (le « palier »). L'affilié active son compte en achetant des produits dont la somme des BV égale exactement le palier.                                         |
-| Palier                                  | Valeur en BV requise pour activer un pack (Silver 1000, Gold 2000, Safari 3000, Diamond 4000). Valeur paramétrable par l'admin.                                                                                |
-| E-card                                  | Instrument de valeur à usage unique, libellé en BV, au format XXX-XXX-XXX-XXX. Créé depuis le solde BV d'un membre, transférable, brûlé après utilisation.                                                     |
-| Commission directe                      | Montant (BV) versé au sponsor lorsqu'un filleul active un pack.                                                                                                                                                |
-| Commission indirecte                    | Montant (BV) versé au titre de l'équilibre des points entre jambe gauche et jambe droite (mécanique binaire par cycles).                                                                                       |
+| Pack (Silver / Gold / Safari / Diamond) | Deux dimensions (D-028, D-029) : un PALIER en points (composé par le panier, injecté dans l'arbre) et un PRIX en DT (ce que l'activation fait payer). Le prix n'est pas la conversion du palier ni la somme des prix du panier. |
+| Palier                                  | Valeur en POINTS requise pour composer un pack (Silver 1000, Gold 2000, Safari 3000, Diamond 4000). Paramétrable par l'admin.                                                                                  |
+| E-card                                  | Instrument de paiement à usage unique, libellé en DT (D-028), au format XXX-XXX-XXX-XXX. Créé depuis le solde DT d'un membre, transférable, brûlé après utilisation.                                            |
+| Commission directe                      | Montant (DT) versé au sponsor lorsqu'un filleul active un pack.                                                                                                                                                |
+| Commission indirecte                    | Montant (DT) versé au titre de l'équilibre des points entre jambe gauche et jambe droite (mécanique binaire par cycles).                                                                                       |
 | Cycle / équilibre                       | Un cycle est atteint lorsque chaque jambe accumule un multiple du palier du membre. Chaque cycle complet paie la commission indirecte.                                                                         |
-| Plafond hebdomadaire                    | Montant maximal de commission (BV) qu'un membre peut percevoir sur une semaine, selon son pack. Le dépassement est perdu.                                                                                      |
+| Plafond hebdomadaire                    | Montant maximal de commission (DT) qu'un membre peut percevoir sur une semaine, selon son pack. Le dépassement est perdu.                                                                                      |
 | Carry-over (report)                     | Points de la jambe forte non appariés à la fin de la semaine : ils sont reportés à la semaine suivante (jamais perdus).                                                                                        |
 | Run de commissions                      | Exécution hebdomadaire (cron) qui calcule et crédite les commissions. Reset le vendredi à 23:59, heure de Tunis.                                                                                               |
-| Snapshot                                | Figement des valeurs paramétrables (palier, commissions, plafonds, BV produit) au moment d'une transaction, pour préserver l'intégrité historique.                                                             |
+| Snapshot                                | Figement des valeurs paramétrables (palier en points, prix et commissions/plafonds en DT, valeur BV produit) au moment d'une transaction, pour préserver l'intégrité historique.                               |
 
 **5. Règles de gestion (spécification normative)**
 
@@ -99,24 +99,38 @@ Cette section est le cœur de la spécification. Elle décrit le
 comportement attendu du système. En cas de doute, elle prime sur les
 descriptions fonctionnelles des écrans.
 
-**5.1 Principes monétaires**
+**5.1 Principes monétaires — modèle à DEUX dimensions (D-028)**
 
-- **BV = unité unique.** Tous les montants internes sont en BV. Le
-  système ne calcule, ne stocke et ne valide jamais de montant en dinars
-  pour une transaction.
+Le système manipule deux grandeurs de natures totalement différentes, qui **ne se croisent
+jamais** et entre lesquelles **aucune conversion n'existe** nulle part.
 
-- **Aucun fiat dans le système.** La plateforme n'intègre aucune
-  passerelle de paiement. Elle génère, valide et « brûle » des e-cards ;
-  l'argent liquide correspondant change de main hors plateforme, entre
-  les personnes concernées.
+- **POINTS (BV) — l'arbre.** Des entiers, sans valeur monétaire. Ils servent à exactement deux
+  choses : (1) composer le panier au **palier** d'un pack à l'activation, (2) alimenter les
+  **jambes** de l'arbre binaire. Un point ne vaut jamais de l'argent, ne se dépense pas, ne se
+  crédite pas à un solde.
 
-- **DT d'affichage.** Un produit possède un prix de référence en DT
-  (affichage boutique) et une valeur BV attribuée par l'admin. Seul le
-  BV est transactionnel.
+- **DINARS (DT) — le portefeuille.** **Tout l'argent** du système : solde d'un membre, valeur
+  d'une e-card, grand livre, commissions, plafond hebdomadaire, prix des produits, prix des
+  packs. Le dinar est **transactionnel** (révision de D-002). Précision : 3 décimales, le
+  millime (`Decimal(12,3)`).
 
-|                                                                                                                                                                                                                                                                                                                                                                                                                  |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **\[À CONFIRMER\] Unité du plan de commissions —** Le plan de rémunération initial (section 6) exprime les commissions et plafonds en DT (ex. Silver : directe 500, indirecte 250, plafond 10000). Comme l'unité interne est le BV, ces valeurs numériques sont reprises telles quelles mais interprétées en BV. Si un taux de conversion BV↔DT différent doit s'appliquer aux commissions, il faut le préciser. |
+  > **Règle mnémotechnique : l'arbre compte des points, le portefeuille compte des dinars.**
+
+- **Aucun fiat dans le système** (D-001 inchangé au fond). La plateforme n'intègre aucune
+  passerelle de paiement. Elle génère, valide et « brûle » des e-cards — libellées en DT ;
+  l'argent liquide correspondant change de main **hors plateforme**, entre les personnes
+  concernées.
+
+- **Le pack porte les deux dimensions, sans lien entre elles.** Un Silver, c'est **1000 points**
+  (ce que l'arbre reçoit) pour **2200 DT** (ce que l'activation fait payer, D-029). Ces deux
+  nombres n'ont aucun rapport arithmétique : chercher un « taux » entre eux est un contresens.
+
+- **Le produit aussi.** Sa **valeur BV** (points) compose les paliers ; son **prix DT** est ce
+  qu'il coûte en achat libre. Deux produits de même valeur BV peuvent avoir des prix différents.
+
+*Historique : la section 6 exprimait le plan de rémunération en nombres (Silver : directe 500,
+indirecte 250, plafond 10000) sous un encadré « à confirmer ». Faute de confirmation, ils
+avaient d'abord été repris en BV. La cliente a tranché : ce sont des **DINARS** (D-028).*
 
 **5.2 Structure du réseau binaire**
 
@@ -164,13 +178,14 @@ en jambe gauche.
   n'a pas encore activé.
 
 - Le nouvel affilié accède à son compte, compose un panier de produits
-  dont la somme des BV égale exactement le palier de son pack (ex.
-  Silver = 1000 BV), saisit une e-card (émise par n'importe quel membre)
-  et finalise.
+  dont la somme des **points (BV)** égale exactement le palier de son pack
+  (ex. Silver = 1000 points), saisit une e-card dont la valeur en **DT**
+  égale exactement le **prix du pack** (ex. Silver = 2200 DT — D-029, ce
+  n'est pas la somme des prix des produits du panier) et finalise.
 
 - L'achat étant finalisé, le compte devient ACTIF automatiquement, sans
-  validation administrateur. Le BV du palier est injecté vers ses
-  uplines. Le compteur de commissions du membre démarre à cet instant :
+  validation administrateur. Les **points** du palier sont injectés vers ses
+  uplines (l'arbre ne voit jamais de dinar). Le compteur de commissions du membre démarre à cet instant :
   une baseline (instantané) des points déjà présents sur ses deux jambes
   est figée, de sorte que seuls les points arrivés APRÈS l'activation
   comptent pour ses propres commissions (voir 5.8).
@@ -187,13 +202,14 @@ supprimé et occupe sa place définitivement. L'adhésion suit trois états.
 - **INSCRIT —** créé à la soumission du formulaire : code attribué,
   placement définitif (sponsor + upline + jambe). Le membre existe dans
   l'arbre et peut recevoir des downlines à gauche et à droite. Il
-  persiste indéfiniment, même s'il n'active jamais. Aucun BV injecté et
+  persiste indéfiniment, même s'il n'active jamais. Aucun point injecté et
   aucune commission tant qu'il n'est pas ACTIF ; le run hebdomadaire ne
   lui verse rien.
 
-- **ACTIF —** l'achat par e-card est finalisé (panier au palier exact).
-  Le BV du palier est injecté vers ses uplines actifs, sa baseline est
-  figée et son compteur de commissions démarre. Il entre dans le calcul
+- **ACTIF —** l'achat par e-card est finalisé (panier au palier exact en
+  points, e-card au prix du pack en DT). Les points du palier sont injectés
+  vers ses uplines, sa baseline est figée et son compteur de commissions
+  démarre. Il entre dans le calcul
   des commissions (pour les points postérieurs à l'activation
   uniquement).
 
@@ -370,22 +386,23 @@ supprimé et occupe sa place définitivement. L'adhésion suit trois états.
 
 **6.1 Packs et paliers**
 
-Toutes les valeurs de commission et de plafond ci-dessous sont exprimées
-en BV (voir la note de la section 5.1). Le prix de référence en DT est
-indicatif (affichage boutique).
+Deux dimensions par pack (D-028, D-029), sans conversion entre elles : le **palier** est en
+**POINTS** (ce que le panier compose et ce que l'arbre reçoit) ; le **prix** et tout le plan de
+rémunération (commissions, plafond) sont en **DINARS**. Le prix est ce que l'activation fait
+**payer** — pas la conversion du palier, pas la somme des prix des produits du panier.
 
-| **Pack** | **Palier (BV)** | **Prix réf. (DT)** | **Comm. directe (BV)** | **Comm. indirecte (BV)** | **Plafond / sem. (BV)** |
-|----------|-----------------|--------------------|------------------------|--------------------------|-------------------------|
-| Silver   | 1000            | 2200               | 500                    | 250                      | 10000                   |
-| Gold     | 2000            | 3350               | 700                    | 400                      | 16000                   |
-| Safari   | 3000            | 5400               | 900                    | 600                      | 24000                   |
-| Diamond  | 4000            | 8350               | 1200                   | 900                      | 36000                   |
+| **Pack** | **Palier (points)** | **Prix du pack (DT)** | **Comm. directe (DT)** | **Comm. indirecte (DT)** | **Plafond / sem. (DT)** |
+|----------|---------------------|-----------------------|------------------------|--------------------------|-------------------------|
+| Silver   | 1000                | 2200                  | 500                    | 250                      | 10000                   |
+| Gold     | 2000                | 3350                  | 700                    | 400                      | 16000                   |
+| Safari   | 3000                | 5400                  | 900                    | 600                      | 24000                   |
+| Diamond  | 4000                | 8350                  | 1200                   | 900                      | 36000                   |
 
 **6.2 Commissions directes**
 
 Lorsqu'un affilié parraine une personne qui active un pack, il perçoit
 une commission directe selon le pack du filleul : Silver 500, Gold 700,
-Safari 900, Diamond 1200 (BV). Cette commission compte dans le plafond
+Safari 900, Diamond 1200 (**DT**). Cette commission compte dans le plafond
 hebdomadaire du sponsor.
 
 **6.3 Commissions indirectes**
@@ -395,7 +412,7 @@ gauche et jambe droite. Pour chaque cycle complet — le palier du membre
 atteint sur chacune des deux jambes — le membre perçoit le montant
 indirect de son pack.
 
-| **Pack** | **Condition (équilibre par cycle)**   | **Gain par cycle (BV)** |
+| **Pack** | **Condition (équilibre par cycle)**   | **Gain par cycle (DT)** |
 |----------|---------------------------------------|-------------------------|
 | Silver   | 1000 points à gauche ET 1000 à droite | 250                     |
 | Gold     | 2000 à gauche ET 2000 à droite        | 400                     |
@@ -414,7 +431,7 @@ sont rémunérés à la commission indirecte, sans exiger l'équilibre.
 Chaque membre dispose d'une réserve à vie de 6 paliers (au total, toutes
 jambes confondues ; paramétrable). Exemple Silver : les 6 premières
 tranches de 1000 points reçues sur la jambe forte, avant tout équilibre,
-rapportent 250 BV chacune. Les points payés à ce titre sont consommés
+rapportent 250 DT chacune. Les points payés à ce titre sont consommés
 (ils ne comptent plus pour un futur équilibre). Une fois la réserve
 épuisée, le membre revient au régime normal. Le bonus démarre à
 l'activation et compte dans le plafond hebdomadaire.
@@ -423,7 +440,7 @@ l'activation et compte dans le plafond hebdomadaire.
 
 La commission totale hebdomadaire (directe + indirecte + bonus de
 démarrage) est plafonnée : Silver 10000, Gold 16000, Safari 24000,
-Diamond 36000 (BV). Au-delà, la commission excédentaire de la semaine
+Diamond 36000 (**DT**). Au-delà, la commission excédentaire de la semaine
 est perdue (non reportée). À distinguer du report des points de la jambe
 forte, qui, lui, est conservé.
 

@@ -1,16 +1,18 @@
-import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsOptional, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsInt, IsNumber, IsOptional, IsPositive, Min } from 'class-validator';
+import { MONEY_SCALE } from '../../common/money';
 
 export class GenesisEcardDto {
   @ApiProperty({
     description:
-      'Valeur en BV de l’e-card générée ex nihilo (amorçage du réseau / promotion). Aucun solde n’est débité.',
-    example: 1000,
-    minimum: 1,
+      'Valeur en DINARS de l’e-card générée ex nihilo (amorçage du réseau / promotion). Aucun solde ' +
+      'n’est débité. 3 décimales au maximum (le millime).',
+    example: 2200,
+    minimum: 0.001,
   })
-  @IsInt()
-  @Min(1)
-  valueBv!: number;
+  @IsNumber({ maxDecimalPlaces: MONEY_SCALE })
+  @IsPositive()
+  valueDt!: number;
 
   @ApiPropertyOptional({
     description:

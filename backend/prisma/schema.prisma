@@ -1,6 +1,13 @@
 // Najah Partners — schéma de données (Prisma 6 / PostgreSQL)
 // Convention : code & nommage en anglais. Voir ../CLAUDE.md et ../../docs/spec.md §8.
-// Unités : BV = Int partout ; DT = Decimal(12,3) (millimes tunisiens), affichage uniquement.
+//
+// DEUX DIMENSIONS QUI NE SE CROISENT JAMAIS (D-028) — aucune conversion n'existe nulle part :
+//   suffixe …Bv / …Points → POINTS, `Int` : composer le panier au palier d'un pack, alimenter
+//                            les jambes de l'arbre. Un point ne vaut jamais de l'argent.
+//   suffixe …Dt           → DINARS, `Decimal(12,3)` (millimes) : TOUT l'argent — solde d'un
+//                            membre, valeur d'une e-card, grand livre, commissions, plafond
+//                            hebdomadaire, prix. Le DT est transactionnel (D-002 révisée).
+// « L'arbre compte des points, le portefeuille compte des dinars. »
 
 generator client {
   provider = "prisma-client-js"
@@ -45,11 +52,13 @@ enum CommissionType {
   STARTUP_BONUS
 }
 
+// Mouvements du grand livre — le journal des SOLDES, donc des DINARS (D-028).
+//
 // D-025 : PAS de valeur `ECARD_USE`. L'e-card est un instrument de PAIEMENT consommé au point
 // de transaction, jamais une recharge de solde : l'utiliser ne crédite RIEN au bénéficiaire.
 // La valeur sort du solde à la création (ECARD_CREATION) et quitte le système à la
 // consommation (l'e-card est brûlée). Réintroduire ECARD_USE ramènerait le modèle recharge.
-enum BvMovementType {
+enum LedgerMovementType {
   ECARD_CREATION // débit du créateur
   ECARD_REFUND // recrédit créateur (EXPIRED / REVOKED)
   COMMISSION // crédit issu d'un run
@@ -132,8 +141,11 @@ model Member {
   // les paramètres applicables »). Le moteur de commissions lit CES valeurs, jamais Pack en
   // direct : modifier un palier ne doit jamais réécrire l'historique. `packId` reste la FK
   // d'affichage. activationTierBv est sorti du Json car le calcul des cycles s'en sert.
-  activationTierBv   Int?
-  activationSnapshot Json? // { packName, tierBv, directCommissionBv, indirectCommissionBv, weeklyCapBv }
+  //
+  // activationTierBv est en POINTS : c'est le palier injecté dans l'arbre. Le PRIX payé (DT)
+  // vit dans le Json (`priceDt`) — les deux dimensions coexistent sans jamais se convertir.
+  activationTierBv   Int? // POINTS
+  activationSnapshot Json? // { packName, tierBv (pts), priceDt, directCommissionDt, indirectCommissionDt, weeklyCapDt }
 
   // Deux liens distincts (self-relations). onDelete: Restrict — le défaut Prisma
   // (SET NULL) réenracinerait le sous-arbre d'un membre supprimé : placement immuable.
@@ -146,12 +158,14 @@ model Member {
   downlines Member[] @relation("Placement")
   leg       Leg? // position sous l'upline
 
-  // Solde & dates
-  bvBalance    Int       @default(0)
+  // Solde — DINARS (D-028). Le portefeuille du membre : commissions perçues, e-cards émises,
+  // ajustements admin. Jamais des points : un point ne se dépense pas.
+  balanceDt    Decimal   @default(0) @db.Decimal(12, 3)
   registeredAt DateTime  @default(now())
   activatedAt  DateTime?
   renewalAt    DateTime?
 
+  // ── Ci-dessous : POINTS uniquement (l'arbre) ──
   // Baseline figée à l'activation (points antérieurs exclus du calcul propre)
   baselineLeft  Int @default(0)
   baselineRight Int @default(0)
@@ -176,9 +190,9 @@ model Member {
   updatedAt DateTime @updatedAt
 
   // Relations inverses
-  createdEcards  Ecard[]         @relation("EcardCreator")
-  receivedEcards Ecard[]         @relation("EcardUser")
-  ledgerEntries  BvLedgerEntry[]
+  createdEcards  Ecard[]       @relation("EcardCreator")
+  receivedEcards Ecard[]       @relation("EcardUser")
+  ledgerEntries  LedgerEntry[]
   commissions    Commission[]
   orders         Order[]
 
@@ -196,35 +210,41 @@ model Member {
 
 // ─────────────────────────── Pack (palier) ───────────────────────────
 
+// Le pack porte les DEUX dimensions, sans passerelle entre elles (D-028) :
+//   `tierBv`  — POINTS : ce que le panier doit totaliser (D-006) et ce que l'arbre reçoit (D-005) ;
+//   `priceDt` — DINARS : ce que l'activation FAIT PAYER (D-029). Ce n'est pas la somme des prix
+//               des produits du panier, et ce n'est la conversion de rien.
 model Pack {
   id                   Int     @id @default(autoincrement())
   name                 String  @unique
-  tierBv               Int
-  refPriceDt           Decimal @db.Decimal(12, 3)
-  directCommissionBv   Int
-  indirectCommissionBv Int
-  weeklyCapBv          Int
+  tierBv               Int // POINTS — palier
+  priceDt              Decimal @db.Decimal(12, 3) // DINARS — prix payé à l'activation (D-029)
+  directCommissionDt   Decimal @db.Decimal(12, 3) // DINARS
+  indirectCommissionDt Decimal @db.Decimal(12, 3) // DINARS — par cycle
+  weeklyCapDt          Decimal @db.Decimal(12, 3) // DINARS — plafond hebdomadaire
   active               Boolean @default(true)
 
   members Member[]
 }
 
-// ─────────────────────────── Grand livre BV ───────────────────────────
+// ─────────────────────────── Grand livre (DINARS) ───────────────────────────
+// Le grand livre est le journal des SOLDES, donc des DINARS (D-028). Aucun point n'y entre :
+// les points de l'arbre ne sont pas un avoir, ils ne se dépensent pas et ne se créditent pas.
 
-model BvLedgerEntry {
-  id           Int            @id @default(autoincrement())
-  memberId     Int
-  member       Member         @relation(fields: [memberId], references: [id])
-  type         BvMovementType
-  amountBv     Int // signé : + crédit / − débit
-  balanceAfter Int
+model LedgerEntry {
+  id             Int                @id @default(autoincrement())
+  memberId       Int
+  member         Member             @relation(fields: [memberId], references: [id])
+  type           LedgerMovementType
+  amountDt       Decimal            @db.Decimal(12, 3) // signé : + crédit / − débit
+  balanceAfterDt Decimal            @db.Decimal(12, 3)
   // Références nullables selon la source du mouvement
-  ecardId      Int?
-  ecard        Ecard?         @relation(fields: [ecardId], references: [id])
-  commissionId Int?
-  commission   Commission?    @relation(fields: [commissionId], references: [id])
-  reason       String? // obligatoire pour ADMIN_ADJUSTMENT (contrôlé en code)
-  createdAt    DateTime       @default(now())
+  ecardId        Int?
+  ecard          Ecard?             @relation(fields: [ecardId], references: [id])
+  commissionId   Int?
+  commission     Commission?        @relation(fields: [commissionId], references: [id])
+  reason         String? // obligatoire pour ADMIN_ADJUSTMENT (contrôlé en code)
+  createdAt      DateTime           @default(now())
 
   @@index([memberId])
   @@index([memberId, createdAt])
@@ -235,7 +255,7 @@ model BvLedgerEntry {
 model Ecard {
   id      Int         @id @default(autoincrement())
   code    String      @unique // XXX-XXX-XXX-XXX
-  valueBv Int
+  valueDt Decimal     @db.Decimal(12, 3) // DINARS — une e-card est de l'argent (D-028)
   status  EcardStatus @default(ACTIVE)
   origin  EcardOrigin @default(MEMBER)
 
@@ -262,7 +282,7 @@ model Ecard {
   // unique). L'unicité est tenue en base par `Order.ecardId @unique` — d'où `Order?` et non
   // `Order[]` : deux commandes ne peuvent pas se réclamer de la même carte.
   order         Order?
-  ledgerEntries BvLedgerEntry[]
+  ledgerEntries LedgerEntry[]
 
   @@index([creatorId])
   @@index([userId])
@@ -272,6 +292,9 @@ model Ecard {
 
 // ─────────────────────────── Commissions ───────────────────────────
 
+// Une commission est de l'ARGENT (DINARS, D-028) : elle rémunère des cycles comptés en points,
+// mais elle n'est la conversion d'aucun point — le montant vient du plan de rémunération figé
+// au snapshot (`indirectCommissionDt` par cycle, etc.). Tranche 7.
 model Commission {
   id             Int            @id @default(autoincrement())
   memberId       Int
@@ -279,13 +302,13 @@ model Commission {
   runId          Int
   run            CommissionRun  @relation(fields: [runId], references: [id])
   type           CommissionType
-  amountBv       Int
-  appliedCapBv   Int? // plafond figé si écrêtage
-  cycles         Int            @default(0)
-  snapshotParams Json // palier / commissions / plafond figés
+  amountDt       Decimal        @db.Decimal(12, 3) // DINARS
+  appliedCapDt   Decimal?       @db.Decimal(12, 3) // DINARS — plafond figé si écrêtage
+  cycles         Int            @default(0) // nombre de cycles (sans unité)
+  snapshotParams Json // palier (pts) / commissions (DT) / plafond (DT) figés
   createdAt      DateTime       @default(now())
 
-  ledgerEntries BvLedgerEntry[]
+  ledgerEntries LedgerEntry[]
 
   @@index([memberId, runId])
   @@index([runId])
@@ -297,7 +320,7 @@ model CommissionRun {
   periodStart   DateTime
   periodEnd     DateTime
   memberCount   Int       @default(0)
-  distributedBv Int       @default(0)
+  distributedDt Decimal   @default(0) @db.Decimal(12, 3) // DINARS versés sur le run
   status        RunStatus @default(IN_PROGRESS)
   log           String?   @db.Text
 
@@ -314,18 +337,21 @@ model Category {
   products    Product[]
 }
 
+// Le produit porte les deux dimensions, sans lien entre elles (D-028) : `valueBv` compose le
+// palier d'un pack (POINTS), `priceDt` est ce qu'il coûte (DINARS). Deux produits de même
+// valeur BV peuvent avoir des prix différents — et c'est normal, l'un n'est pas l'autre.
 model Product {
   id            Int         @id @default(autoincrement())
   name          String
   description   String?     @db.Text
   categoryId    Int
   category      Category    @relation(fields: [categoryId], references: [id])
-  priceDt       Decimal     @db.Decimal(12, 3)
-  valueBv       Int
+  priceDt       Decimal     @db.Decimal(12, 3) // DINARS — montant dû en achat LIBRE
+  valueBv       Int // POINTS — compose le palier (activation)
   type          ProductType
   stock         Int? // null pour VIRTUAL
-  shippingFeeDt Decimal     @default(0) @db.Decimal(12, 3)
-  promoPriceDt  Decimal?    @db.Decimal(12, 3)
+  shippingFeeDt Decimal     @default(0) @db.Decimal(12, 3) // DINARS — affiché, réglé HORS système
+  promoPriceDt  Decimal?    @db.Decimal(12, 3) // DINARS — prix effectif s'il existe ; le BV ne bouge pas
   images        String[]
   active        Boolean     @default(true)
   visibleOnSite Boolean     @default(true)
@@ -339,12 +365,21 @@ model Product {
 // Le checkout est atomique : une commande naît déjà PAID (e-card brûlée dans la même
 // transaction). PENDING ne décrit donc aucun état réel du parcours — une commande qui
 // n'aboutit pas est annulée par le rollback, elle n'existe jamais.
+//
+// LES DEUX TOTAUX NE SE DÉDUISENT PAS L'UN DE L'AUTRE (D-028) :
+//   `totalDt`     — DINARS payés (le montant que l'e-card a couvert exactement) :
+//                     ACTIVATION → le PRIX DU PACK (D-029), PAS la somme des prix des produits
+//                                  du panier (un panier Silver à 380 DT de produits paie 2200 DT) ;
+//                     LIBRE      → Σ (prix effectif × quantité).
+//   `totalPoints` — POINTS du panier, Σ (valeur BV × quantité) : en ACTIVATION, la preuve figée
+//                   que le panier faisait EXACTEMENT le palier, et ce que l'arbre a reçu.
 model Order {
-  id       Int          @id @default(autoincrement())
-  memberId Int
-  member   Member       @relation(fields: [memberId], references: [id])
-  context  OrderContext
-  totalBv  Int
+  id          Int          @id @default(autoincrement())
+  memberId    Int
+  member      Member       @relation(fields: [memberId], references: [id])
+  context     OrderContext
+  totalDt     Decimal      @db.Decimal(12, 3) // DINARS — montant payé
+  totalPoints Int // POINTS — Σ des valeurs BV du panier
   // @unique : une e-card règle au plus une commande (D-007). Nullable pour ne pas fermer la
   // porte à une commande non réglée par e-card, mais le CHECK `Order_paid_ecard_ck` interdit
   // qu'une commande PAID soit sans e-card : aucun achat ne peut échapper au paiement.
@@ -370,8 +405,11 @@ model OrderLine {
   productId   Int
   product     Product @relation(fields: [productId], references: [id])
   quantity    Int
-  unitValueBv Int // snapshot BV — figé au checkout, jamais relu depuis Product
-  unitPriceDt Decimal @db.Decimal(12, 3) // snapshot du prix EFFECTIF affiché (promo appliquée). Affichage seul (D-002).
+  unitValueBv Int // POINTS — snapshot figé au checkout, jamais relu depuis Product
+  // DINARS — snapshot du prix EFFECTIF (promo appliquée). TRANSACTIONNEL depuis D-028/D-002
+  // révisée : en achat LIBRE, c'est lui qui compose le montant dû. Une revalorisation du
+  // produit demain ne réécrit donc aucune commande passée.
+  unitPriceDt Decimal @db.Decimal(12, 3)
 
   // Un produit = une ligne : le checkout fusionne les quantités d'un même produit. Deux
   // lignes pour un même produit feraient diverger le contrôle de stock du total BV.

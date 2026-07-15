@@ -1,5 +1,6 @@
-import { BvMovementType, MemberStatus } from '@prisma/client';
-import { BvLedgerService } from '../bv-ledger/bv-ledger.service';
+import { LedgerMovementType, MemberStatus, Prisma } from '@prisma/client';
+import { money } from '../common/money';
+import { LedgerService } from '../ledger/ledger.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivationService } from './activation.service';
 import {
@@ -14,17 +15,19 @@ import { PlacementService } from './placement.service';
 /**
  * Séquence de la transaction d'activation, Prisma mocké. Ce qui est vérifié ici, c'est
  * l'ORDRE et les VALEURS : le verrou d'abord, le paiement avant le débit, le palier
- * SNAPSHOTÉ propagé (jamais le palier vivant du pack). La propagation réelle, le verrou
- * et l'atomicité sont couverts par `members.int-spec.ts`.
+ * SNAPSHOTÉ (en POINTS) propagé, le PRIX (en DINARS) réglé. Les deux dimensions se croisent ici
+ * sans se convertir (D-028). La propagation réelle, le verrou et l'atomicité sont couverts par
+ * `members.int-spec.ts`.
  */
 
 const PACK = {
   id: 3,
   name: 'Silver',
-  tierBv: 1000,
-  directCommissionBv: 500,
-  indirectCommissionBv: 250,
-  weeklyCapBv: 10000,
+  tierBv: 1000, // POINTS
+  priceDt: money(2200), // DINARS — le prix payé (D-029)
+  directCommissionDt: money(500),
+  indirectCommissionDt: money(250),
+  weeklyCapDt: money(10000),
   active: true,
 };
 
@@ -74,8 +77,11 @@ function makeService(scenario: Scenario = {}) {
     $transaction: jest.fn(async (cb: (t: unknown) => unknown) => cb(tx)),
   } as unknown as PrismaService;
 
-  const recordMovementInTx = jest.fn(async () => ({ id: 77, balanceAfter: 0 }));
-  const ledger = { recordMovementInTx } as unknown as BvLedgerService;
+  const recordMovementInTx = jest.fn(async (..._args: unknown[]) => ({
+    id: 77,
+    balanceAfterDt: money(0),
+  }));
+  const ledger = { recordMovementInTx } as unknown as LedgerService;
 
   const lockChainInTx = jest.fn(async () => ({
     ids: [1, 2, 42],
@@ -122,15 +128,19 @@ describe('ActivationService.activate — séquence', () => {
     expect(settle).toBeLessThan(propagate);
   });
 
-  it('règlement sur le solde : débite exactement le palier, en mouvement ACTIVATION', async () => {
+  it('règlement sur le solde : débite exactement le PRIX DU PACK (en DT), en mouvement ACTIVATION', async () => {
     const s = makeService();
     const result = await s.service.activate({ memberId: 42, packId: PACK.id });
 
-    expect(s.recordMovementInTx).toHaveBeenCalledWith(expect.anything(), {
-      memberId: 42,
-      type: BvMovementType.ACTIVATION,
-      amountBv: -PACK.tierBv,
-    });
+    const call = s.recordMovementInTx.mock.calls[0][1] as {
+      memberId: number;
+      type: string;
+      amountDt: Prisma.Decimal;
+    };
+    expect(call.memberId).toBe(42);
+    expect(call.type).toBe(LedgerMovementType.ACTIVATION);
+    // Le PRIX (2200 DT), pas le palier (1000 points) : un point ne se paie pas (D-029).
+    expect(call.amountDt.toString()).toBe('-2200');
     expect(result.payment).toEqual({
       method: 'BALANCE',
       ledgerEntryId: 77,
@@ -164,10 +174,11 @@ describe('ActivationService.activate — séquence', () => {
     expect(s.propagateInTx).toHaveBeenCalled(); // l'arbre est bien alimenté
   });
 
-  it('propage le palier SNAPSHOTÉ à tous les ancêtres verrouillés', async () => {
+  it('propage le palier SNAPSHOTÉ (en POINTS) à tous les ancêtres verrouillés', async () => {
     const s = makeService();
     const result = await s.service.activate({ memberId: 42, packId: PACK.id });
 
+    // L'arbre reçoit le palier en points (1000), jamais le prix en dinars (2200).
     expect(s.propagateInTx).toHaveBeenCalledWith(
       expect.anything(),
       42,
@@ -178,9 +189,10 @@ describe('ActivationService.activate — séquence', () => {
     expect(result.snapshot).toEqual({
       packName: 'Silver',
       tierBv: 1000,
-      directCommissionBv: 500,
-      indirectCommissionBv: 250,
-      weeklyCapBv: 10000,
+      priceDt: '2200.000',
+      directCommissionDt: '500.000',
+      indirectCommissionDt: '250.000',
+      weeklyCapDt: '10000.000',
     });
   });
 

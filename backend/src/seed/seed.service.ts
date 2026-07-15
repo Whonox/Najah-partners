@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Leg, MemberStatus, Prisma, ProductType } from '@prisma/client';
+import { Leg, MemberStatus, ProductType } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
-import { BvAdminService } from '../bv-ledger/bv-admin.service';
+import { money } from '../common/money';
+import { LedgerAdminService } from '../ledger/ledger-admin.service';
 import { ActivationService } from '../members/activation.service';
 import {
   MemberCodeService,
@@ -69,7 +70,7 @@ export class SeedService {
     private readonly config: ConfigService,
     private readonly members: MembersService,
     private readonly activation: ActivationService,
-    private readonly bvAdmin: BvAdminService,
+    private readonly ledgerAdmin: LedgerAdminService,
     private readonly memberCode: MemberCodeService,
   ) {}
 
@@ -81,13 +82,17 @@ export class SeedService {
   }
 
   /**
-   * Catalogue d'amorçage (spec §5.7). Les valeurs BV sont choisies pour se COMBINER
+   * Catalogue d'amorçage (spec §5.7). Les valeurs en POINTS sont choisies pour se COMBINER
    * exactement vers chaque palier (D-006) — sans quoi aucun panier d'activation ne serait
    * composable : 250 / 500 / 1000 / 2000 couvrent 1000, 2000, 3000 et 4000.
    *
+   * Les PRIX (DT) n'ont, eux, aucun rapport avec les points : un panier Silver de 1000 points
+   * peut coûter 380 DT de produits, l'activation n'en fera pas moins payer les 2200 DT du pack
+   * (D-029). C'est le modèle à deux dimensions, et c'est voulu.
+   *
    * On y trouve les cas qui comptent : un VIRTUEL (stock illimité, `null`), un physique en
-   * promotion (le prix DT baisse, le BV ne bouge pas — D-002), et des frais de livraison
-   * (affichés, réglés hors système, jamais dans le montant BV dû).
+   * promotion (le prix baisse, les points ne bougent pas — D-002), et des frais de livraison
+   * (affichés, réglés hors système, jamais dans un montant dû).
    */
   private async catalog(): Promise<void> {
     const categories = [
@@ -196,15 +201,15 @@ export class SeedService {
       const data = {
         name: product.name,
         categoryId: ids.get(product.category)!,
-        priceDt: new Prisma.Decimal(product.priceDt),
+        priceDt: money(product.priceDt),
         valueBv: product.valueBv,
         type: product.type,
         stock: product.stock,
-        shippingFeeDt: new Prisma.Decimal(product.shippingFeeDt ?? 0),
+        shippingFeeDt: money(product.shippingFeeDt ?? 0),
         promoPriceDt:
           product.promoPriceDt === undefined
             ? null
-            : new Prisma.Decimal(product.promoPriceDt),
+            : money(product.promoPriceDt),
       };
       // `Product.name` n'est pas unique en base (deux produits peuvent porter le même nom) :
       // pas d'upsert possible, on cherche puis on écrit — le seed reste idempotent.
@@ -220,44 +225,55 @@ export class SeedService {
     }
 
     this.logger.log(
-      `Catalogue : ${categories.length} catégories, ${products.length} produits (BV 250/500/1000/2000 → paliers 1000/2000/3000/4000).`,
+      `Catalogue : ${categories.length} catégories, ${products.length} produits ` +
+        '(points 250/500/1000/2000 → paliers 1000/2000/3000/4000).',
     );
   }
 
-  /** Packs, paramètres système, admin initial — idempotents par upsert. */
+  /**
+   * Packs, paramètres système, admin initial — idempotents par upsert.
+   *
+   * Table du plan de rémunération, telle que la cliente l'a arrêtée (D-028, D-029). Les deux
+   * dimensions y coexistent sans se convertir :
+   *   POINTS  → `tierBv` : ce que le panier doit composer, ce que l'arbre reçoit ;
+   *   DINARS  → `priceDt` (le prix payé à l'activation) et le plan de rémunération
+   *             (commission directe, indirecte par cycle, plafond hebdomadaire).
+   * Un Silver, c'est 1000 points d'arbre pour 2200 DT — et ces deux nombres n'ont aucun rapport
+   * arithmétique entre eux. Chercher un « taux » ici serait un contresens.
+   */
   private async referenceData(): Promise<void> {
     const packs = [
       {
         name: 'Silver',
-        tierBv: 1000,
-        refPriceDt: 2200,
-        directCommissionBv: 500,
-        indirectCommissionBv: 250,
-        weeklyCapBv: 10000,
+        tierBv: 1000, // points
+        priceDt: money(2200), // dinars
+        directCommissionDt: money(500),
+        indirectCommissionDt: money(250),
+        weeklyCapDt: money(10000),
       },
       {
         name: 'Gold',
         tierBv: 2000,
-        refPriceDt: 3350,
-        directCommissionBv: 700,
-        indirectCommissionBv: 400,
-        weeklyCapBv: 16000,
+        priceDt: money(3350),
+        directCommissionDt: money(700),
+        indirectCommissionDt: money(400),
+        weeklyCapDt: money(16000),
       },
       {
         name: 'Safari',
         tierBv: 3000,
-        refPriceDt: 5400,
-        directCommissionBv: 900,
-        indirectCommissionBv: 600,
-        weeklyCapBv: 24000,
+        priceDt: money(5400),
+        directCommissionDt: money(900),
+        indirectCommissionDt: money(600),
+        weeklyCapDt: money(24000),
       },
       {
         name: 'Diamond',
         tierBv: 4000,
-        refPriceDt: 8350,
-        directCommissionBv: 1200,
-        indirectCommissionBv: 900,
-        weeklyCapBv: 36000,
+        priceDt: money(8350),
+        directCommissionDt: money(1200),
+        indirectCommissionDt: money(900),
+        weeklyCapDt: money(36000),
       },
     ];
     for (const pack of packs) {
@@ -282,10 +298,10 @@ export class SeedService {
           'Durée de validité des e-cards en jours (-1 = illimité) — 180 j À CONFIRMER avec la cliente (D-008)',
       },
       {
-        key: 'annual_renewal_bv',
+        key: 'annual_renewal_dt',
         value: '0',
         description:
-          'Valeur BV du renouvellement annuel (à confirmer avec la cliente)',
+          'Montant en DT du renouvellement annuel (100 DT réglés en espèces, hors système — à confirmer)',
       },
       {
         key: 'commission_cron_day',
@@ -308,9 +324,10 @@ export class SeedService {
         description: 'Préfixe du code membre auto-incrémenté',
       },
       {
-        key: 'display_currency',
+        key: 'currency',
         value: 'DT',
-        description: 'Devise d’affichage (jamais transactionnelle)',
+        description:
+          'Devise de TOUS les montants (dinar tunisien, 3 décimales — le millime). Les points (BV) ne sont pas une devise.',
       },
     ];
     for (const setting of settings) {
@@ -392,12 +409,15 @@ export class SeedService {
     }
 
     // ── Activations, feuilles → racine ──
+    // On dote chaque compte du PRIX DU PACK en dinars (D-029), puis on active : la stratégie de
+    // paiement par solde débite exactement ce prix. L'arbre, lui, reçoit le palier en POINTS —
+    // les deux dimensions se croisent dans l'activation sans jamais se convertir (D-028).
     for (const node of [...NETWORK].reverse()) {
       const memberId = ids.get(node.code)!;
-      await this.bvAdmin.genesis({
+      await this.ledgerAdmin.genesis({
         adminId: await this.adminId(),
         memberId,
-        amountBv: pack.tierBv,
+        amountDt: pack.priceDt,
         reason: `Amorçage du réseau (D-019) — ${node.code}`,
       });
       await this.activation.activate({ memberId, packId: pack.id });
