@@ -12,6 +12,7 @@ function row(
   depth: number,
   uplineId: number | null,
   leg: Leg | null,
+  children: { left?: boolean; right?: boolean } = {},
 ): TreeRow {
   return {
     id,
@@ -26,6 +27,8 @@ function row(
     activatedAt: null,
     leftPoints: 0,
     rightPoints: 0,
+    hasLeftChild: children.left ?? false,
+    hasRightChild: children.right ?? false,
   };
 }
 
@@ -59,5 +62,24 @@ describe('buildTree', () => {
     const tree = buildTree([row(1, 0, null, null)]);
     expect(tree!.left).toBeNull();
     expect(tree!.right).toBeNull();
+  });
+
+  /**
+   * LA distinction que les deux drapeaux existent pour porter : une feuille RAMENÉE (rien
+   * en dessous) et une feuille TRONQUÉE par la borne de profondeur ont exactement la même
+   * forme imbriquée. Sans `hasLeftChild`/`hasRightChild`, la généalogie ne saurait pas où
+   * proposer de descendre — et devrait charger l'arbre entier pour le découvrir.
+   */
+  it('distingue une feuille réelle d’une feuille tronquée par la profondeur', () => {
+    const tree = buildTree([
+      row(1, 0, null, null, { left: true, right: true }),
+      row(2, 1, 1, Leg.LEFT, { left: true }), // a un downline HORS du sous-arbre ramené
+      row(3, 1, 1, Leg.RIGHT), // vraie feuille
+    ]);
+
+    expect(tree!.left!.left).toBeNull();
+    expect(tree!.left!.hasLeftChild).toBe(true); // tronquée : on peut descendre
+    expect(tree!.right!.hasLeftChild).toBe(false); // réelle : rien en dessous
+    expect(tree!.right!.hasRightChild).toBe(false);
   });
 });

@@ -6,6 +6,7 @@ import { ActivationService } from './activation.service';
 import { IdentityDocumentService } from './identity-document.service';
 import { MemberCodeService } from './member-code.service';
 import { MembersAdminController } from './members-admin.controller';
+import { MembersAdminService } from './members-admin.service';
 import { MembersController } from './members.controller';
 import { MembersFacade } from './members.facade';
 import { MembersService } from './members.service';
@@ -45,6 +46,8 @@ import { RenewalsAdminController } from './renewals-admin.controller';
     BalanceActivationPayment,
     MembershipFeeService,
     RenewalService,
+    // Lecture seule pour le back-office (T8b) : ne participe à aucune transaction métier.
+    MembersAdminService,
   ],
   exports: [
     MembersService,

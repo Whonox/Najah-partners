@@ -330,7 +330,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberBalanceResponseDto"
+                }
+              }
+            }
           }
         },
         "summary": "Solde courant d’un membre (DT)",
@@ -379,7 +386,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/LedgerHistoryPageDto"
                 }
               }
             }
@@ -517,6 +524,228 @@
         ]
       }
     },
+    "/admin/members": {
+      "get": {
+        "operationId": "MembersAdminController_list",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Recherche sur le code membre, le nom, le prénom, l’e-mail ou le téléphone (insensible à la casse).",
+            "schema": {
+              "maxLength": 120,
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "REGISTERED",
+                "ACTIVE",
+                "INACTIVE"
+              ]
+            }
+          },
+          {
+            "name": "packId",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer sur le pack d’activation.",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "verificationStatus",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "VERIFIED",
+                "REJECTED"
+              ]
+            }
+          },
+          {
+            "name": "registeredFrom",
+            "required": false,
+            "in": "query",
+            "description": "Période d’inscription — borne basse, incluse (ISO 8601).",
+            "schema": {
+              "example": "2026-01-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "registeredTo",
+            "required": false,
+            "in": "query",
+            "description": "Période d’inscription — borne haute, incluse (ISO 8601).",
+            "schema": {
+              "example": "2026-12-31",
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "id",
+              "type": "string",
+              "enum": [
+                "id",
+                "memberCode",
+                "lastName",
+                "status",
+                "balanceDt",
+                "registeredAt",
+                "activatedAt"
+              ]
+            }
+          },
+          {
+            "name": "direction",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "desc",
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberPageDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Lister les membres (recherche, filtres pack / statut / vérification / période, tri, pagination).",
+        "tags": [
+          "members-admin"
+        ]
+      }
+    },
+    "/admin/members/{memberId}": {
+      "get": {
+        "operationId": "MembersAdminController_one",
+        "parameters": [
+          {
+            "name": "memberId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Fiche membre : identité, position (sponsor ET upline de placement), points par jambe, carry-over, solde, compteurs du moteur.",
+        "tags": [
+          "members-admin"
+        ]
+      }
+    },
+    "/admin/members/{memberId}/id-document": {
+      "get": {
+        "operationId": "MembersAdminController_idDocument",
+        "parameters": [
+          {
+            "name": "memberId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Image de la pièce d’identité déposée à l’inscription (à comparer au numéro saisi — D-039).",
+        "tags": [
+          "members-admin"
+        ]
+      }
+    },
     "/admin/members/{memberId}/tree": {
       "get": {
         "operationId": "MembersAdminController_tree",
@@ -548,13 +777,13 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/TreeNodeDto"
                 }
               }
             }
           }
         },
-        "summary": "Sous-arbre binaire d’un membre (généalogie).",
+        "summary": "Sous-arbre binaire d’un membre (généalogie), BORNÉ en profondeur — l’arbre entier n’est jamais chargé.",
         "tags": [
           "members-admin"
         ]
@@ -949,7 +1178,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryResponseDto"
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "Lister les catégories.",
@@ -971,8 +1210,15 @@
           }
         },
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryResponseDto"
+                }
+              }
+            }
           }
         },
         "summary": "Créer une catégorie.",
@@ -1006,7 +1252,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryResponseDto"
+                }
+              }
+            }
           }
         },
         "summary": "Modifier une catégorie.",
@@ -1054,7 +1307,17 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProductResponseDto"
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "Lister TOUS les produits (y compris inactifs et masqués).",
@@ -1076,8 +1339,15 @@
           }
         },
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponseDto"
+                }
+              }
+            }
           }
         },
         "summary": "Créer un produit (valeur BV > 0 ; stock obligatoire si PHYSIQUE, interdit si VIRTUEL).",
@@ -1101,7 +1371,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponseDto"
+                }
+              }
+            }
           }
         },
         "summary": "Détail d’un produit (vue admin).",
@@ -1133,7 +1410,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponseDto"
+                }
+              }
+            }
           }
         },
         "summary": "Modifier un produit (désactiver = retirer de la vente ; les commandes passées gardent leur snapshot).",
@@ -1362,7 +1646,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/OrderPageResponseDto"
                 }
               }
             }
@@ -1393,7 +1677,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/OrderResponseDto"
                 }
               }
             }
@@ -1434,7 +1718,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/OrderResponseDto"
                 }
               }
             }
@@ -1443,6 +1727,131 @@
         "summary": "Avancer le suivi d’expédition : PREPARATION → SHIPPED → DELIVERED (produits physiques ; la livraison se règle hors système).",
         "tags": [
           "orders-admin"
+        ]
+      }
+    },
+    "/admin/packs": {
+      "get": {
+        "operationId": "PacksAdminController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PackResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Lister les packs (actifs ET inactifs), par palier croissant.",
+        "tags": [
+          "packs-admin"
+        ]
+      },
+      "post": {
+        "operationId": "PacksAdminController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePackDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Créer un pack (palier en POINTS ; prix, commissions et plafond en DINARS — plafond ≥ commissions).",
+        "tags": [
+          "packs-admin"
+        ]
+      }
+    },
+    "/admin/packs/{id}": {
+      "get": {
+        "operationId": "PacksAdminController_one",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Détail d’un pack.",
+        "tags": [
+          "packs-admin"
+        ]
+      },
+      "patch": {
+        "operationId": "PacksAdminController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePackDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Modifier un pack — n’affecte QUE les activations futures (snapshot, §5.8). Désactiver = retirer de la vente, jamais supprimer.",
+        "tags": [
+          "packs-admin"
         ]
       }
     },
@@ -1742,6 +2151,109 @@
           "amountDt"
         ]
       },
+      "MemberBalanceResponseDto": {
+        "type": "object",
+        "properties": {
+          "memberId": {
+            "type": "number"
+          },
+          "balanceDt": {
+            "type": "string",
+            "example": "1250.500",
+            "description": "DINARS — solde courant."
+          }
+        },
+        "required": [
+          "memberId",
+          "balanceDt"
+        ]
+      },
+      "LedgerEntryResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "memberId": {
+            "type": "number"
+          },
+          "type": {
+            "enum": [
+              "ECARD_CREATION",
+              "ECARD_REFUND",
+              "COMMISSION",
+              "ACTIVATION",
+              "ADMIN_ADJUSTMENT",
+              "ADMIN_GENESIS"
+            ],
+            "type": "string",
+            "description": "Il n’existe PAS de valeur `ECARD_USE` (D-025) : consommer une e-card ne bouge aucun solde, donc n’écrit aucune ligne ici."
+          },
+          "amountDt": {
+            "type": "string",
+            "example": "-100.000",
+            "description": "DINARS, SIGNÉ : + crédit, − débit."
+          },
+          "balanceAfterDt": {
+            "type": "string",
+            "example": "1150.500",
+            "description": "DINARS — solde du membre APRÈS le mouvement."
+          },
+          "ecardId": {
+            "type": "number",
+            "nullable": true,
+            "description": "E-card à l’origine du mouvement."
+          },
+          "commissionId": {
+            "type": "number",
+            "nullable": true,
+            "description": "Run de commissions à l’origine du mouvement."
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "description": "Motif — OBLIGATOIRE pour un ADMIN_ADJUSTMENT."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "memberId",
+          "type",
+          "amountDt",
+          "balanceAfterDt",
+          "createdAt"
+        ]
+      },
+      "LedgerHistoryPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LedgerEntryResponseDto"
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "page": {
+            "type": "number"
+          },
+          "pageSize": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ]
+      },
       "RegisterMemberDto": {
         "type": "object",
         "properties": {
@@ -1856,6 +2368,520 @@
         },
         "required": [
           "ecardCodes"
+        ]
+      },
+      "MemberRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "memberCode": {
+            "type": "string",
+            "example": "NP000042"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "REGISTERED",
+              "ACTIVE",
+              "INACTIVE"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "memberCode",
+          "firstName",
+          "lastName",
+          "status"
+        ]
+      },
+      "MemberListItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "memberCode": {
+            "type": "string",
+            "example": "NP000042"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "REGISTERED",
+              "ACTIVE",
+              "INACTIVE"
+            ],
+            "type": "string"
+          },
+          "packName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pack d’activation."
+          },
+          "balanceDt": {
+            "type": "string",
+            "example": "1250.500",
+            "description": "DINARS — solde courant, sérialisé en string."
+          },
+          "leftDownline": {
+            "nullable": true,
+            "description": "Downline de la jambe GAUCHE — null si la position est libre.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MemberRefDto"
+              }
+            ]
+          },
+          "rightDownline": {
+            "nullable": true,
+            "description": "Downline de la jambe DROITE — null si la position est libre.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MemberRefDto"
+              }
+            ]
+          },
+          "registeredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "activatedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "null tant que le membre est INSCRIT."
+          },
+          "verificationStatus": {
+            "enum": [
+              "PENDING",
+              "VERIFIED",
+              "REJECTED"
+            ],
+            "type": "string",
+            "description": "Vérification d’identité (D-018) — INFORMATIF : ne bloque ni l’inscription, ni l’activation, ni les commissions."
+          }
+        },
+        "required": [
+          "id",
+          "memberCode",
+          "firstName",
+          "lastName",
+          "status",
+          "balanceDt",
+          "registeredAt",
+          "verificationStatus"
+        ]
+      },
+      "MemberPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemberListItemDto"
+            }
+          },
+          "total": {
+            "type": "number",
+            "description": "Nombre total de membres correspondant au filtre."
+          },
+          "page": {
+            "type": "number"
+          },
+          "pageSize": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ]
+      },
+      "ActivationSnapshotDto": {
+        "type": "object",
+        "properties": {
+          "packName": {
+            "type": "string"
+          },
+          "tierBv": {
+            "type": "number",
+            "example": 1000,
+            "description": "POINTS — palier injecté dans l’arbre."
+          },
+          "priceDt": {
+            "type": "string",
+            "example": "2200.000",
+            "description": "DINARS — tarif du pack (D-029)."
+          },
+          "registrationCreditDt": {
+            "type": "string",
+            "example": "100.000",
+            "description": "DINARS — acompte d’inscription déduit (D-037)."
+          },
+          "amountDueDt": {
+            "type": "string",
+            "example": "2100.000",
+            "description": "DINARS — ce que l’activation a réellement fait payer."
+          },
+          "directCommissionDt": {
+            "type": "string",
+            "example": "500.000"
+          },
+          "indirectCommissionDt": {
+            "type": "string",
+            "example": "250.000"
+          },
+          "weeklyCapDt": {
+            "type": "string",
+            "example": "10000.000"
+          }
+        },
+        "required": [
+          "packName",
+          "tierBv",
+          "priceDt",
+          "registrationCreditDt",
+          "amountDueDt",
+          "directCommissionDt",
+          "indirectCommissionDt",
+          "weeklyCapDt"
+        ]
+      },
+      "MemberDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "memberCode": {
+            "type": "string",
+            "example": "NP000042"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "enum": [
+              "REGISTERED",
+              "ACTIVE",
+              "INACTIVE"
+            ],
+            "type": "string"
+          },
+          "registeredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "activatedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "renewalAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "Échéance du renouvellement annuel (D-038)."
+          },
+          "idDocumentType": {
+            "nullable": true,
+            "enum": [
+              "ID_CARD",
+              "DRIVING_LICENSE",
+              "PASSPORT"
+            ],
+            "type": "string"
+          },
+          "idDocumentNumber": {
+            "type": "string",
+            "nullable": true,
+            "description": "Numéro SAISI À LA MAIN par le membre : l’admin le compare à l’image."
+          },
+          "hasIdDocument": {
+            "type": "boolean",
+            "description": "Un document a été déposé — son image se lit sur GET /admin/members/{id}/id-document. Le chemin de stockage n’est jamais exposé."
+          },
+          "verificationStatus": {
+            "enum": [
+              "PENDING",
+              "VERIFIED",
+              "REJECTED"
+            ],
+            "type": "string"
+          },
+          "packId": {
+            "type": "number",
+            "nullable": true
+          },
+          "packName": {
+            "type": "string",
+            "nullable": true
+          },
+          "activationTierBv": {
+            "type": "number",
+            "nullable": true,
+            "example": 1000,
+            "description": "POINTS — palier figé à l’activation, celui que l’arbre a reçu."
+          },
+          "activationSnapshot": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ActivationSnapshotDto"
+              }
+            ]
+          },
+          "sponsor": {
+            "nullable": true,
+            "description": "SPONSOR (parrain) — déclenche la commission DIRECTE. Rien à voir avec l’upline.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MemberRefDto"
+              }
+            ]
+          },
+          "upline": {
+            "nullable": true,
+            "description": "UPLINE DE PLACEMENT — position dans l’arbre binaire, déclenche le BINAIRE. Immuable (D-023).",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MemberRefDto"
+              }
+            ]
+          },
+          "leg": {
+            "nullable": true,
+            "enum": [
+              "LEFT",
+              "RIGHT"
+            ],
+            "type": "string",
+            "description": "Jambe occupée SOUS l’upline de placement."
+          },
+          "leftDownline": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MemberRefDto"
+              }
+            ]
+          },
+          "rightDownline": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MemberRefDto"
+              }
+            ]
+          },
+          "leftPoints": {
+            "type": "number",
+            "description": "POINTS — cumul À VIE de la jambe gauche (D-020)."
+          },
+          "rightPoints": {
+            "type": "number",
+            "description": "POINTS — cumul À VIE de la jambe droite (D-020)."
+          },
+          "baselineLeft": {
+            "type": "number",
+            "description": "POINTS — baseline gauche figée à l’activation et à chaque réactivation (D-034). Documentaire (audit)."
+          },
+          "baselineRight": {
+            "type": "number",
+            "description": "POINTS — baseline droite (idem)."
+          },
+          "carriedLeftPoints": {
+            "type": "number",
+            "description": "POINTS — pool appariable gauche = CARRY-OVER courant (D-035). Jamais perdu, sans échéance."
+          },
+          "carriedRightPoints": {
+            "type": "number",
+            "description": "POINTS — pool appariable droite (idem)."
+          },
+          "balanceDt": {
+            "type": "string",
+            "example": "1250.500",
+            "description": "DINARS — solde courant."
+          },
+          "registrationPaidDt": {
+            "type": "string",
+            "example": "100.000",
+            "description": "DINARS — frais d’inscription réellement versés, figés (D-036). C’est l’acompte déduit du prix du pack à l’activation (D-037)."
+          },
+          "lifetimeBalanceCount": {
+            "type": "number",
+            "description": "Nombre d’équilibres À VIE, jamais remis à zéro (D-032). Bonus inclus."
+          },
+          "startupBonusUsed": {
+            "type": "boolean",
+            "description": "Bonus de démarrage déjà consommé — une seule fois à vie (D-031)."
+          },
+          "rewardPoints": {
+            "type": "number",
+            "description": "Points Fidélité — TROISIÈME unité (D-032) : ni points BV, ni dinars. 1 par 6ᵉ équilibre."
+          },
+          "activatedDescendants": {
+            "type": "number",
+            "description": "Membres ACTIVÉS dans le sous-arbre (déclencheur du bonus, D-031)."
+          }
+        },
+        "required": [
+          "id",
+          "memberCode",
+          "firstName",
+          "lastName",
+          "status",
+          "registeredAt",
+          "hasIdDocument",
+          "verificationStatus",
+          "leftPoints",
+          "rightPoints",
+          "baselineLeft",
+          "baselineRight",
+          "carriedLeftPoints",
+          "carriedRightPoints",
+          "balanceDt",
+          "registrationPaidDt",
+          "lifetimeBalanceCount",
+          "startupBonusUsed",
+          "rewardPoints",
+          "activatedDescendants"
+        ]
+      },
+      "TreeNodeDto": {
+        "type": "object",
+        "properties": {
+          "depth": {
+            "type": "number",
+            "description": "Profondeur relative à la racine demandée (0 = elle-même)."
+          },
+          "id": {
+            "type": "number"
+          },
+          "memberCode": {
+            "type": "string",
+            "example": "NP000042"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "REGISTERED",
+              "ACTIVE",
+              "INACTIVE"
+            ],
+            "type": "string"
+          },
+          "leg": {
+            "nullable": true,
+            "enum": [
+              "LEFT",
+              "RIGHT"
+            ],
+            "type": "string",
+            "description": "Jambe occupée sous l’upline. null pour la racine de l’arbre global."
+          },
+          "uplineId": {
+            "type": "number",
+            "nullable": true
+          },
+          "packName": {
+            "type": "string",
+            "nullable": true
+          },
+          "activatedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "leftPoints": {
+            "type": "number",
+            "example": 3000,
+            "description": "POINTS — cumul à vie de la jambe gauche."
+          },
+          "rightPoints": {
+            "type": "number",
+            "example": 2000,
+            "description": "POINTS — cumul à vie de la jambe droite."
+          },
+          "hasLeftChild": {
+            "type": "boolean",
+            "description": "Un downline gauche existe, MÊME au-delà de la profondeur ramenée : c’est ce qui distingue une feuille réelle d’une feuille tronquée par la borne."
+          },
+          "hasRightChild": {
+            "type": "boolean",
+            "description": "Idem à droite."
+          },
+          "left": {
+            "nullable": true,
+            "description": "Sous-arbre gauche RAMENÉ. null si absent ou au-delà de `depth`.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TreeNodeDto"
+              }
+            ]
+          },
+          "right": {
+            "nullable": true,
+            "description": "Sous-arbre droit RAMENÉ. null si absent ou au-delà de `depth`.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TreeNodeDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "depth",
+          "id",
+          "memberCode",
+          "firstName",
+          "lastName",
+          "status",
+          "leftPoints",
+          "rightPoints",
+          "hasLeftChild",
+          "hasRightChild"
         ]
       },
       "CreateEcardDto": {
@@ -2315,6 +3341,149 @@
           "ecardCodes"
         ]
       },
+      "OrderLineResponseDto": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "number"
+          },
+          "productName": {
+            "type": "string",
+            "description": "Nom du produit, relu en direct (seul champ non figé)."
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "unitValueBv": {
+            "type": "number",
+            "example": 250,
+            "description": "POINTS — valeur BV unitaire FIGÉE au checkout."
+          },
+          "unitPriceDt": {
+            "type": "string",
+            "example": "39.900",
+            "description": "DINARS — prix unitaire EFFECTIF (promo comprise) FIGÉ au checkout."
+          }
+        },
+        "required": [
+          "productId",
+          "productName",
+          "quantity",
+          "unitValueBv",
+          "unitPriceDt"
+        ]
+      },
+      "OrderResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "memberId": {
+            "type": "number"
+          },
+          "context": {
+            "enum": [
+              "ACTIVATION",
+              "FREE"
+            ],
+            "type": "string",
+            "description": "ACTIVATION (le panier vaut exactement le palier en points) ou FREE (achat libre, sans effet sur l’arbre)."
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "PAID",
+              "CANCELLED"
+            ],
+            "type": "string",
+            "description": "Une commande naît PAID : sans passerelle, le paiement est instantané (D-027)."
+          },
+          "totalDt": {
+            "type": "string",
+            "example": "2100.000",
+            "description": "DINARS payés : prix du pack MOINS l’acompte d’inscription (ACTIVATION — D-029 + D-037), ou Σ des prix effectifs (FREE). Jamais les frais de livraison."
+          },
+          "totalPoints": {
+            "type": "number",
+            "example": 1000,
+            "description": "POINTS du panier — le palier, en ACTIVATION."
+          },
+          "ecardIds": {
+            "description": "Identifiants des e-cards qui ont réglé la commande (1..n — D-030/D-041). JAMAIS leurs codes : un code est de la valeur au porteur.",
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "shippingAddress": {
+            "type": "string",
+            "nullable": true
+          },
+          "shipmentStatus": {
+            "nullable": true,
+            "enum": [
+              "PREPARATION",
+              "SHIPPED",
+              "DELIVERED"
+            ],
+            "type": "string",
+            "description": "null si la commande ne contient AUCUN produit PHYSICAL — rien à expédier."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "paidAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderLineResponseDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "memberId",
+          "context",
+          "status",
+          "totalDt",
+          "totalPoints",
+          "ecardIds",
+          "createdAt",
+          "lines"
+        ]
+      },
+      "OrderPageResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderResponseDto"
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "page": {
+            "type": "number"
+          },
+          "pageSize": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ]
+      },
       "UpdateShipmentDto": {
         "type": "object",
         "properties": {
@@ -2326,6 +3495,159 @@
             ],
             "type": "string",
             "description": "Étape suivante : PREPARATION → SHIPPED → DELIVERED (jamais en arrière)."
+          }
+        }
+      },
+      "PackResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string",
+            "example": "Silver"
+          },
+          "tierBv": {
+            "type": "number",
+            "example": 1000,
+            "description": "POINTS — palier."
+          },
+          "priceDt": {
+            "type": "string",
+            "example": "2200.000",
+            "description": "DINARS."
+          },
+          "directCommissionDt": {
+            "type": "string",
+            "example": "500.000",
+            "description": "DINARS."
+          },
+          "indirectCommissionDt": {
+            "type": "string",
+            "example": "250.000",
+            "description": "DINARS — par équilibre."
+          },
+          "weeklyCapDt": {
+            "type": "string",
+            "example": "10000.000",
+            "description": "DINARS — plafond hebdomadaire."
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "memberCount": {
+            "type": "number",
+            "description": "Nombre de membres ACTIVÉS sur ce pack. Rappel visuel que l’historique existe : le désactiver ne le réécrit pas, et le supprimer est impossible."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "tierBv",
+          "priceDt",
+          "directCommissionDt",
+          "indirectCommissionDt",
+          "weeklyCapDt",
+          "active",
+          "memberCount"
+        ]
+      },
+      "CreatePackDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 60,
+            "example": "Silver"
+          },
+          "tierBv": {
+            "type": "number",
+            "minimum": 1,
+            "example": 1000,
+            "description": "POINTS — palier du pack : total exact du panier à l’activation, et points injectés dans l’arbre."
+          },
+          "priceDt": {
+            "type": "number",
+            "minimum": 0.001,
+            "example": 2200,
+            "description": "DINARS — prix du pack (D-029). L’acompte d’inscription en est déduit à l’activation (D-037)."
+          },
+          "directCommissionDt": {
+            "type": "number",
+            "minimum": 0.001,
+            "example": 500,
+            "description": "DINARS — commission DIRECTE versée au sponsor du filleul activé."
+          },
+          "indirectCommissionDt": {
+            "type": "number",
+            "minimum": 0.001,
+            "example": 250,
+            "description": "DINARS — commission INDIRECTE, versée PAR équilibre (cycle) complété."
+          },
+          "weeklyCapDt": {
+            "type": "number",
+            "minimum": 0.001,
+            "example": 10000,
+            "description": "DINARS — plafond HEBDOMADAIRE. Au-delà, la commission est PERDUE, jamais reportée (D-033)."
+          },
+          "active": {
+            "type": "boolean",
+            "default": true,
+            "description": "Un pack désactivé ne peut plus être choisi à l’activation. Jamais supprimé."
+          }
+        },
+        "required": [
+          "name",
+          "tierBv",
+          "priceDt",
+          "directCommissionDt",
+          "indirectCommissionDt",
+          "weeklyCapDt"
+        ]
+      },
+      "UpdatePackDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 60,
+            "example": "Silver"
+          },
+          "tierBv": {
+            "type": "number",
+            "minimum": 1,
+            "example": 1000,
+            "description": "POINTS — palier du pack : total exact du panier à l’activation, et points injectés dans l’arbre."
+          },
+          "priceDt": {
+            "type": "number",
+            "minimum": 0.001,
+            "example": 2200,
+            "description": "DINARS — prix du pack (D-029). L’acompte d’inscription en est déduit à l’activation (D-037)."
+          },
+          "directCommissionDt": {
+            "type": "number",
+            "minimum": 0.001,
+            "example": 500,
+            "description": "DINARS — commission DIRECTE versée au sponsor du filleul activé."
+          },
+          "indirectCommissionDt": {
+            "type": "number",
+            "minimum": 0.001,
+            "example": 250,
+            "description": "DINARS — commission INDIRECTE, versée PAR équilibre (cycle) complété."
+          },
+          "weeklyCapDt": {
+            "type": "number",
+            "minimum": 0.001,
+            "example": 10000,
+            "description": "DINARS — plafond HEBDOMADAIRE. Au-delà, la commission est PERDUE, jamais reportée (D-033)."
+          },
+          "active": {
+            "type": "boolean",
+            "default": true,
+            "description": "Un pack désactivé ne peut plus être choisi à l’activation. Jamais supprimé."
           }
         }
       },

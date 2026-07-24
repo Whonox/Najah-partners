@@ -10,6 +10,7 @@ import { CommissionsModule } from './commissions/commissions.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { EcardsModule } from './ecards/ecards.module';
 import { MembersModule } from './members/members.module';
+import { PacksModule } from './packs/packs.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { SettingsModule } from './settings/settings.module';
 import { ShopModule } from './shop/shop.module';
@@ -38,6 +39,7 @@ import { ShopModule } from './shop/shop.module';
     MembersModule,
     EcardsModule,
     ShopModule,
+    PacksModule,
     SettingsModule,
   ],
   controllers: [AppController],

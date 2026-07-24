@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
-import { mkdir, unlink, writeFile } from 'fs/promises';
-import { dirname, isAbsolute, join, resolve } from 'path';
+import { mkdir, readFile, unlink, writeFile } from 'fs/promises';
+import { dirname, extname, isAbsolute, join, resolve, sep } from 'path';
 import { InvalidIdDocumentError } from './members.errors';
 
 /** Taille maximale acceptée pour une image de pièce d'identité. */
@@ -103,6 +103,49 @@ export class IdentityDocumentService {
     await writeFile(absolute, file.buffer, { flag: 'wx' }); // wx : jamais d'écrasement
 
     return { relativePath, mime: signature.mime };
+  }
+
+  /**
+   * Relit un document déposé, pour la route admin qui le sert (T8b — la vérification
+   * d'identité, D-018). Le chemin vient TOUJOURS de la base, jamais d'un paramètre de
+   * requête ; on le revérifie tout de même contre la racine de stockage, parce qu'un
+   * `..` arrivé là par une migration ratée ou une donnée corrompue ferait sortir la lecture
+   * du répertoire d'uploads — et une lecture de fichier arbitraire ne se rattrape pas.
+   *
+   * Le MIME est déduit de l'extension, elle-même posée par `store()` d'après les OCTETS du
+   * fichier : ce n'est pas le client qui l'a choisie.
+   */
+  async read(
+    relativePath: string,
+  ): Promise<{ buffer: Buffer; mime: string } | null> {
+    const absolute = resolve(this.absolutePath(relativePath));
+    const root = resolve(this.root());
+    if (absolute !== root && !absolute.startsWith(root + sep)) {
+      this.logger.error(
+        `Chemin de pièce d'identité hors du répertoire de stockage, lecture refusée : ${relativePath}`,
+      );
+      return null;
+    }
+
+    const ext = extname(absolute).slice(1).toLowerCase();
+    const signature = SIGNATURES.find((s) => s.ext === ext);
+    if (!signature) {
+      this.logger.error(
+        `Extension de pièce d'identité inattendue, lecture refusée : ${relativePath}`,
+      );
+      return null;
+    }
+
+    try {
+      return { buffer: await readFile(absolute), mime: signature.mime };
+    } catch (error) {
+      // Fichier absent : la ligne existe mais le stockage a bougé. On le signale et on rend
+      // un 404 — pas une 500 : le back-office doit pouvoir afficher la fiche sans l'image.
+      this.logger.warn(
+        `Pièce d'identité illisible (${relativePath}) : ${String(error)}`,
+      );
+      return null;
+    }
   }
 
   /** Compensation : supprime un fichier dont la transaction d'inscription a échoué. */

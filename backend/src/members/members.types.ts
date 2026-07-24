@@ -168,6 +168,13 @@ export interface TreeRow {
   activatedAt: Date | null;
   leftPoints: number;
   rightPoints: number;
+  /**
+   * Le nœud a-t-il un downline gauche / droit — Y COMPRIS au-delà de la profondeur ramenée ?
+   * C'est ce qui distingue une feuille RÉELLE d'une feuille tronquée par la borne : sans lui,
+   * la généalogie devrait charger tout l'arbre pour savoir où l'on peut descendre.
+   */
+  hasLeftChild: boolean;
+  hasRightChild: boolean;
 }
 
 /** Arbre imbriqué renvoyé par l'API (assemblé en mémoire depuis les lignes plates). */

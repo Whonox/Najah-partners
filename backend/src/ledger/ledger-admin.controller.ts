@@ -7,7 +7,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ActorType, AdminRole } from '@prisma/client';
 import type { AuthenticatedActor } from '../auth/auth.types';
 import { RequireActor } from '../auth/decorators/actor-type.decorator';
@@ -17,6 +17,10 @@ import { money, moneyToApi } from '../common/money';
 import { AdjustBalanceDto } from './dto/adjust-balance.dto';
 import { GenesisBalanceDto } from './dto/genesis-balance.dto';
 import { HistoryQueryDto } from './dto/history-query.dto';
+import {
+  LedgerHistoryPageDto,
+  MemberBalanceResponseDto,
+} from './dto/ledger-response.dto';
 import { LedgerAdminService } from './ledger-admin.service';
 import { LedgerService } from './ledger.service';
 
@@ -77,6 +81,7 @@ export class LedgerAdminController {
   @Get('members/:memberId/balance')
   @Roles(AdminRole.SUPER_ADMIN, AdminRole.MANAGER, AdminRole.SUPPORT)
   @ApiOperation({ summary: 'Solde courant d’un membre (DT)' })
+  @ApiOkResponse({ type: MemberBalanceResponseDto })
   async balance(@Param('memberId', ParseIntPipe) memberId: number) {
     const balance = await this.ledger.getBalance(memberId);
     return { memberId, balanceDt: moneyToApi(balance) };
@@ -87,6 +92,7 @@ export class LedgerAdminController {
   @ApiOperation({
     summary: 'Historique paginé des mouvements de solde d’un membre (DT)',
   })
+  @ApiOkResponse({ type: LedgerHistoryPageDto })
   history(
     @Param('memberId', ParseIntPipe) memberId: number,
     @Query() query: HistoryQueryDto,

@@ -7,12 +7,16 @@ import {
   Patch,
   Query,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ActorType, AdminRole } from '@prisma/client';
 import type { AuthenticatedActor } from '../auth/auth.types';
 import { RequireActor } from '../auth/decorators/actor-type.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
+import {
+  OrderPageResponseDto,
+  OrderResponseDto,
+} from './dto/order-response.dto';
 import { AdminOrdersQueryDto, UpdateShipmentDto } from './dto/orders-query.dto';
 import { OrdersService } from './orders.service';
 
@@ -34,6 +38,7 @@ export class OrdersAdminController {
     summary:
       'Lister les commandes (filtres : membre, contexte, statut, étape d’expédition).',
   })
+  @ApiOkResponse({ type: OrderPageResponseDto })
   list(@Query() query: AdminOrdersQueryDto) {
     return this.orders.listAll(query);
   }
@@ -43,6 +48,7 @@ export class OrdersAdminController {
   @ApiOperation({
     summary: 'Détail d’une commande (lignes + snapshots BV/DT).',
   })
+  @ApiOkResponse({ type: OrderResponseDto })
   one(@Param('id', ParseIntPipe) id: number) {
     return this.orders.getOne(id);
   }
@@ -53,6 +59,7 @@ export class OrdersAdminController {
     summary:
       'Avancer le suivi d’expédition : PREPARATION → SHIPPED → DELIVERED (produits physiques ; la livraison se règle hors système).',
   })
+  @ApiOkResponse({ type: OrderResponseDto })
   shipment(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateShipmentDto,

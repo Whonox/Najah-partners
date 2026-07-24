@@ -11,13 +11,17 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiNoContentResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ActorType, AdminRole } from '@prisma/client';
 import type { AuthenticatedActor } from '../auth/auth.types';
 import { RequireActor } from '../auth/decorators/actor-type.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CatalogService } from './catalog.service';
+import {
+  CategoryResponseDto,
+  ProductResponseDto,
+} from './dto/catalog-response.dto';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 import { ProductsQueryDto } from './dto/orders-query.dto';
 import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
@@ -41,6 +45,7 @@ export class CatalogAdminController {
   @Get('categories')
   @Roles(AdminRole.SUPER_ADMIN, AdminRole.MANAGER, AdminRole.SUPPORT)
   @ApiOperation({ summary: 'Lister les catégories.' })
+  @ApiOkResponse({ type: CategoryResponseDto, isArray: true })
   listCategories() {
     return this.catalog.listCategories();
   }
@@ -48,6 +53,7 @@ export class CatalogAdminController {
   @Post('categories')
   @Roles(AdminRole.SUPER_ADMIN, AdminRole.MANAGER)
   @ApiOperation({ summary: 'Créer une catégorie.' })
+  @ApiOkResponse({ type: CategoryResponseDto })
   createCategory(
     @Body() dto: CreateCategoryDto,
     @CurrentUser() admin: AuthenticatedActor,
@@ -58,6 +64,7 @@ export class CatalogAdminController {
   @Patch('categories/:id')
   @Roles(AdminRole.SUPER_ADMIN, AdminRole.MANAGER)
   @ApiOperation({ summary: 'Modifier une catégorie.' })
+  @ApiOkResponse({ type: CategoryResponseDto })
   updateCategory(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateCategoryDto,
@@ -70,6 +77,7 @@ export class CatalogAdminController {
   @Roles(AdminRole.SUPER_ADMIN, AdminRole.MANAGER)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Supprimer une catégorie VIDE (sinon refusée).' })
+  @ApiNoContentResponse()
   deleteCategory(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() admin: AuthenticatedActor,
@@ -84,6 +92,7 @@ export class CatalogAdminController {
   @ApiOperation({
     summary: 'Lister TOUS les produits (y compris inactifs et masqués).',
   })
+  @ApiOkResponse({ type: ProductResponseDto, isArray: true })
   listProducts(@Query() query: ProductsQueryDto) {
     return this.catalog.listProductsAdmin(query.categoryId);
   }
@@ -91,6 +100,7 @@ export class CatalogAdminController {
   @Get('products/:id')
   @Roles(AdminRole.SUPER_ADMIN, AdminRole.MANAGER, AdminRole.SUPPORT)
   @ApiOperation({ summary: 'Détail d’un produit (vue admin).' })
+  @ApiOkResponse({ type: ProductResponseDto })
   getProduct(@Param('id', ParseIntPipe) id: number) {
     return this.catalog.getProductAdmin(id);
   }
@@ -101,6 +111,7 @@ export class CatalogAdminController {
     summary:
       'Créer un produit (valeur BV > 0 ; stock obligatoire si PHYSIQUE, interdit si VIRTUEL).',
   })
+  @ApiOkResponse({ type: ProductResponseDto })
   createProduct(
     @Body() dto: CreateProductDto,
     @CurrentUser() admin: AuthenticatedActor,
@@ -114,6 +125,7 @@ export class CatalogAdminController {
     summary:
       'Modifier un produit (désactiver = retirer de la vente ; les commandes passées gardent leur snapshot).',
   })
+  @ApiOkResponse({ type: ProductResponseDto })
   updateProduct(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateProductDto,

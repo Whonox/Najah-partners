@@ -253,6 +253,13 @@ export class PlacementService {
    * tuplestore de la récursion ; les données sont jointes à la fin, en liste blanche
    * (jamais de hash de mot de passe, de solde ni de chemin de pièce d'identité).
    * `path` (suite de L/R) donne un tri stable et déterministe.
+   *
+   * `hasLeftChild` / `hasRightChild` disent si le nœud a un downline AU-DELÀ de la profondeur
+   * demandée. Sans eux, une feuille TRONQUÉE par `depth` est indistinguable d'une vraie
+   * feuille : le back-office ne saurait pas où proposer de descendre, et n'aurait d'autre
+   * choix que de charger l'arbre entier — exactement ce que la borne interdit (§7.2.3). Les
+   * deux `EXISTS` frappent l'index unique `(uplineId, leg)`, donc coûtent une recherche par
+   * nœud ramené, jamais un parcours.
    */
   async descendants(memberId: number, depth: number): Promise<TreeRow[]> {
     return this.prisma.$queryRaw<TreeRow[]>`
@@ -270,7 +277,15 @@ export class PlacementService {
       SELECT d.depth,
              m."id", m."memberCode", m."firstName", m."lastName", m."status",
              m."leg", m."uplineId", p."name" AS "packName", m."activatedAt",
-             m."leftPoints", m."rightPoints"
+             m."leftPoints", m."rightPoints",
+             EXISTS (
+               SELECT 1 FROM "Member" c
+               WHERE c."uplineId" = m."id" AND c."leg" = 'LEFT'::"Leg"
+             ) AS "hasLeftChild",
+             EXISTS (
+               SELECT 1 FROM "Member" c
+               WHERE c."uplineId" = m."id" AND c."leg" = 'RIGHT'::"Leg"
+             ) AS "hasRightChild"
       FROM down d
       JOIN "Member" m ON m."id" = d."id"
       LEFT JOIN "Pack" p ON p."id" = m."packId"
