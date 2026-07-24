@@ -11,6 +11,7 @@ import { LedgerModule } from './ledger/ledger.module';
 import { EcardsModule } from './ecards/ecards.module';
 import { MembersModule } from './members/members.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { SettingsModule } from './settings/settings.module';
 import { ShopModule } from './shop/shop.module';
 
 @Module({
@@ -37,6 +38,7 @@ import { ShopModule } from './shop/shop.module';
     MembersModule,
     EcardsModule,
     ShopModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

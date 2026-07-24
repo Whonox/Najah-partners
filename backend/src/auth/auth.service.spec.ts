@@ -110,4 +110,37 @@ describe('AuthService — connexion admin', () => {
       service.validateAdmin('admin@najah.local', PASSWORD),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
+
+  it('expose le profil admin (nom, e-mail, rôle) sans le drapeau `active`', async () => {
+    const prisma = makeAdminPrisma({
+      id: 1,
+      name: 'Amine Trabelsi',
+      email: 'admin@najah.local',
+      role: 'SUPER_ADMIN',
+      active: true,
+    });
+    const service = new AuthService(prisma);
+
+    await expect(service.getAdminProfile(1)).resolves.toEqual({
+      id: 1,
+      name: 'Amine Trabelsi',
+      email: 'admin@najah.local',
+      role: 'SUPER_ADMIN',
+    });
+  });
+
+  it('refuse le profil d’un admin désactivé, même avec un token encore valide', async () => {
+    const prisma = makeAdminPrisma({
+      id: 1,
+      name: 'Amine Trabelsi',
+      email: 'admin@najah.local',
+      role: 'MANAGER',
+      active: false,
+    });
+    const service = new AuthService(prisma);
+
+    await expect(service.getAdminProfile(1)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
 });

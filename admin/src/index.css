@@ -1,1 +1,274 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   THÈME NAJAH — BACK-OFFICE ADMINISTRATEUR
+   ═══════════════════════════════════════════════════════════════════════════════════════
+
+   CE FICHIER EST LE SEUL À ÉDITER POUR CHANGER L'IDENTITÉ VISUELLE (admin/CLAUDE.md).
+   Aucun composant ne porte de couleur en dur : ils n'utilisent que les variables
+   sémantiques déclarées ici (bg-background, text-muted-foreground, bg-primary…).
+   La palette n'est pas définitive — le logo a déjà changé une fois.
+
+   Registre : outil de travail, dense, sobre (gris / blanc). LA COULEUR NE SERT QU'À
+   SIGNALER — l'or Najah marque ce qui est actif ou primaire, le rouge ce qui casse,
+   le vert ce qui aboutit. Rien d'autre n'est coloré.
+
+   Chaque variable porte son RÔLE en commentaire : à quoi elle sert, pas de quelle
+   couleur elle est. Changer une valeur ne doit jamais demander de relire un composant.
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+/* Le mode sombre est piloté par la classe `.dark` posée sur <html> par le ThemeProvider
+   (clair / sombre / système, persisté) — jamais par une media query seule, sinon le
+   choix explicite de l'utilisateur ne pourrait pas l'emporter sur celui du système. */
+@custom-variant dark (&:is(.dark *));
+
+/* ───────────────────────────────── MODE CLAIR ───────────────────────────────── */
+:root {
+  /* Arrondi de référence. Volontairement discret : un back-office dense supporte mal
+     les grands rayons, qui mangent de la place utile ligne après ligne. */
+  --radius: 0.5rem;
+
+  /* Fond de page — la surface la plus basse, sous les cartes et les tableaux. */
+  --background: #fafaf9;
+  /* Texte principal sur le fond de page : titres, valeurs, contenu des cellules. */
+  --foreground: #1c1917;
+
+  /* Surface d'une carte / d'un tableau : posée SUR le fond de page, donc plus claire. */
+  --card: #ffffff;
+  /* Texte à l'intérieur d'une carte. */
+  --card-foreground: #1c1917;
+
+  /* Surface flottante : menu déroulant, popover, infobulle, toast. */
+  --popover: #ffffff;
+  /* Texte à l'intérieur d'une surface flottante. */
+  --popover-foreground: #1c1917;
+
+  /* Couleur d'ACTION : bouton principal, élément de navigation actif, focus. C'est l'or
+     Najah — le seul endroit où l'identité entre dans l'interface. */
+  --primary: #8a6d1f;
+  /* Texte posé SUR la couleur d'action (contraste mesuré ≈ 5,5:1 sur l'or). */
+  --primary-foreground: #ffffff;
+
+  /* Action secondaire : bouton discret, puce, en-tête de tableau. */
+  --secondary: #f5f5f4;
+  /* Texte posé sur une surface secondaire. */
+  --secondary-foreground: #1c1917;
+
+  /* Surface atténuée : ligne survolée, zone désactivée, fond d'un état vide. */
+  --muted: #f5f5f4;
+  /* Texte secondaire : libellés, descriptions, unités, métadonnées. */
+  --muted-foreground: #78716c;
+
+  /* Surface de mise en évidence au survol / à la sélection (menus, listes). */
+  --accent: #f5f5f4;
+  /* Texte posé sur une surface mise en évidence. */
+  --accent-foreground: #1c1917;
+
+  /* Ce qui casse ou détruit : erreur, suppression, révocation. Défaut shadcn (D-016 :
+     l'admin manipule de la valeur — le rouge doit rester un rouge universellement lu). */
+  --destructive: oklch(0.577 0.245 27.325);
+  /* Texte posé sur un aplat destructif. */
+  --destructive-foreground: #ffffff;
+
+  /* Ce qui aboutit : validation d'un renouvellement, enregistrement réussi, e-card active.
+     Extension assumée à la palette shadcn, qui n'a pas de jeton de succès. */
+  --success: #15803d;
+  /* Texte posé sur un aplat de succès. */
+  --success-foreground: #ffffff;
+
+  /* Texte doré lisible sur fond clair (liens, mentions d'identité). L'or d'action
+     (--primary) est trop sombre en petit corps : celui-ci est réservé au TEXTE. */
+  --link: #9a8a2e;
+
+  /* Voile posé sous une surface flottante (panneau latéral mobile, boîte de dialogue). */
+  --overlay: #1c1917;
+
+  /* Trait de séparation : bordure de carte, filet de tableau, séparateur. */
+  --border: #e7e5e4;
+  /* Contour d'un champ de saisie au repos. */
+  --input: #e7e5e4;
+  /* Anneau de focus clavier — accessibilité : il doit rester visible et reconnaissable. */
+  --ring: #8a6d1f;
+
+  /* Séries de graphiques (tableau de bord, rapports — T8b/T8c). Or Najah puis verts olive
+     de la charte, puis gris : lisibles ensemble, distinguables en niveaux de gris. */
+  --chart-1: #8a6d1f;
+  --chart-2: #7b9455;
+  --chart-3: #5a6e3a;
+  --chart-4: #a8a29e;
+  --chart-5: #57534e;
+
+  /* Barre de navigation latérale. Elle PEUT porter l'identité ; la zone de travail, jamais. */
+  --sidebar: #ffffff;
+  /* Texte des entrées de navigation. */
+  --sidebar-foreground: #1c1917;
+  /* Entrée de navigation ACTIVE (la page courante). */
+  --sidebar-primary: #8a6d1f;
+  /* Texte posé sur l'entrée active. */
+  --sidebar-primary-foreground: #ffffff;
+  /* Entrée de navigation survolée. */
+  --sidebar-accent: #f5f5f4;
+  /* Texte d'une entrée survolée. */
+  --sidebar-accent-foreground: #1c1917;
+  /* Filet séparant la navigation de la zone de travail. */
+  --sidebar-border: #e7e5e4;
+  /* Anneau de focus dans la navigation. */
+  --sidebar-ring: #8a6d1f;
+}
+
+/* ───────────────────────────────── MODE SOMBRE ─────────────────────────────────
+   Mêmes rôles, mêmes noms : un composant écrit une fois fonctionne dans les deux modes.
+   L'or d'action passe au ton CLAIR (#C6B23E) — l'or foncé du mode clair disparaîtrait
+   sur un fond quasi noir. */
+.dark {
+  /* Fond de page — le noir Najah. */
+  --background: #0e0e0c;
+  /* Texte principal sur le fond de page. */
+  --foreground: #fafaf9;
+
+  /* Surface d'une carte / d'un tableau : posée SUR le fond, donc plus CLAIRE que lui. */
+  --card: #1c1917;
+  /* Texte à l'intérieur d'une carte. */
+  --card-foreground: #fafaf9;
+
+  /* Surface flottante : menu déroulant, popover, infobulle, toast. */
+  --popover: #1c1917;
+  /* Texte à l'intérieur d'une surface flottante. */
+  --popover-foreground: #fafaf9;
+
+  /* Couleur d'ACTION : or clair, lisible sur sombre. */
+  --primary: #c6b23e;
+  /* Texte posé SUR la couleur d'action — sombre, car l'or clair est une couleur claire. */
+  --primary-foreground: #0e0e0c;
+
+  /* Action secondaire : bouton discret, puce, en-tête de tableau. */
+  --secondary: #292524;
+  /* Texte posé sur une surface secondaire. */
+  --secondary-foreground: #fafaf9;
+
+  /* Surface atténuée : ligne survolée, zone désactivée, fond d'un état vide. */
+  --muted: #292524;
+  /* Texte secondaire : libellés, descriptions, unités, métadonnées. */
+  --muted-foreground: #a8a29e;
+
+  /* Surface de mise en évidence au survol / à la sélection. */
+  --accent: #292524;
+  /* Texte posé sur une surface mise en évidence. */
+  --accent-foreground: #fafaf9;
+
+  /* Ce qui casse ou détruit. Défaut shadcn, version sombre (plus lumineuse). */
+  --destructive: oklch(0.704 0.191 22.216);
+  /* Texte posé sur un aplat destructif. */
+  --destructive-foreground: #0e0e0c;
+
+  /* Ce qui aboutit. */
+  --success: #4ade80;
+  /* Texte posé sur un aplat de succès. */
+  --success-foreground: #0e0e0c;
+
+  /* Texte doré : sur fond sombre, c'est l'or clair qui est lisible. */
+  --link: #c6b23e;
+
+  /* Voile posé sous une surface flottante : noir pur, seul à assombrir un fond déjà sombre. */
+  --overlay: #000000;
+
+  /* Trait de séparation : bordure de carte, filet de tableau, séparateur. */
+  --border: #292524;
+  /* Contour d'un champ de saisie au repos. */
+  --input: #292524;
+  /* Anneau de focus clavier. */
+  --ring: #c6b23e;
+
+  /* Séries de graphiques — variantes claires, sur fond sombre. */
+  --chart-1: #c6b23e;
+  --chart-2: #7b9455;
+  --chart-3: #a8a29e;
+  --chart-4: #5a6e3a;
+  --chart-5: #78716c;
+
+  /* Barre de navigation latérale. */
+  --sidebar: #1c1917;
+  /* Texte des entrées de navigation. */
+  --sidebar-foreground: #fafaf9;
+  /* Entrée de navigation ACTIVE (la page courante). */
+  --sidebar-primary: #c6b23e;
+  /* Texte posé sur l'entrée active. */
+  --sidebar-primary-foreground: #0e0e0c;
+  /* Entrée de navigation survolée. */
+  --sidebar-accent: #292524;
+  /* Texte d'une entrée survolée. */
+  --sidebar-accent-foreground: #fafaf9;
+  /* Filet séparant la navigation de la zone de travail. */
+  --sidebar-border: #292524;
+  /* Anneau de focus dans la navigation. */
+  --sidebar-ring: #c6b23e;
+}
+
+/* ─────────────── Exposition à Tailwind (bg-background, text-muted-foreground…) ───────────────
+   C'est cette table qui transforme les variables ci-dessus en classes utilitaires. Aucun
+   composant ne lit une variable directement : il écrit `bg-card`, `text-link`, `border`. */
+@theme inline {
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  /* Chasse fixe : clés de paramètres, codes membres, codes e-cards — tout ce qui se compare
+     caractère par caractère. Les MONTANTS, eux, restent en police normale mais en chiffres
+     tabulaires (voir `font-variant-numeric` plus bas). */
+  --font-mono: ui-monospace, "SFMono-Regular", "Consolas", monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-link: var(--link);
+  --color-overlay: var(--overlay);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    /* Chiffres tabulaires PARTOUT : montants en dinars et points s'alignent en colonne
+       sans réglage local (voir components/format/). */
+    font-variant-numeric: tabular-nums;
+  }
+}

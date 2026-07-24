@@ -72,9 +72,20 @@ Ordre par dépendance. Chaque tranche est testable et se termine par un commit. 
 - [x] Docs (spec §5.3/§5.4/§5.9, decisions D-036→D-041, rules inscription/ecard/tree/shop/moteur) ; build OK, typecheck 0, migrate status propre, **157 unit + 86 int verts**.
 - [ ] **Point ouvert** : que devient la valeur si l'admin REFUSE un renouvellement (e-cards déjà brûlées) ? Aucun chemin de refus tant que la cliente n'a pas tranché.
 
-## Tranche 8 — Back-office admin (réf. spec §7.2) — 12 modules
+## Tranche 8a — Back-office : fondations (réf. spec §7.2, admin/CLAUDE.md)
+- [x] **Thème** (`admin/src/index.css`) : palette Najah en clair ET sombre, une variable = un rôle commenté, seul fichier à éditer pour changer l'identité. Sélecteur clair / sombre / système persisté, `system` suivi en direct. Zéro couleur en dur (y compris le voile du panneau latéral, passé en variable `--overlay`).
+- [x] **Auth admin (D-016)** : écran de connexion, access token **en mémoire seule** (vérifié : `localStorage` et `sessionStorage` vides), refresh silencieux au chargement, rejeu automatique d'un 401 après UN rafraîchissement, **une seule requête `/auth/refresh` pour N appels concurrents** (vérifié : 5 → 1, même token — sans quoi la détection de réutilisation D-016b révoquerait la famille de jetons), déconnexion qui purge la mémoire et vide le cache.
+- [x] **Layout & navigation** : sidebar (identité) + header (nom, e-mail, rôle, thème, déconnexion), zone de travail neutre, les **12 modules** de §7.2 déclarés une seule fois (`src/lib/nav.ts`), pages « À venir » pour les 11 non construits, sidebar repliée en panneau coulissant sous `lg`.
+- [x] **Routing protégé + RBAC (D-017b)** : `ProtectedRoute` (attend la fin du refresh silencieux avant de rediriger) et `RoleRoute` réutilisable, appliqué aux routes ET au menu. Vérifié avec un compte GESTIONNAIRE : « Comptes admin » masqué, URL forcée → « Accès refusé », et mutation forcée → **403 du backend** (le front masque, le backend autorise).
+- [x] **Écran « Paramètres système » (§7.2.11)** de bout en bout : liste + édition de valeur, invalidation après succès, toast, lecture seule hors SUPER_ADMIN (**D-042**).
+- [x] **Transverses** : `DataState` (chargement / erreur + réessai / vide), formatage **DT à 3 décimales par découpage de chaîne** (jamais de flottant) et **points entiers** visuellement distincts (D-028), i18n structurée (dictionnaire FR à clés typées, `dir` posé pour l'AR/RTL — rien de traduit).
+- [x] **Backend, en appui** : DTO de réponse + `@ApiOkResponse` sur `/auth/admin/login`, `/auth/refresh`, `/auth/logout`, `/auth/me` (ils sortaient sans schéma → `unknown` côté client généré) ; nouveau `GET /auth/admin/me` (nom, e-mail, rôle — l'en-tête ne peut pas les tirer du JWT) ; **module `settings/`** (liste + modification tracée dans `AuditLog`, RBAC D-042). OpenAPI réexporté, client TS régénéré.
+- [x] Vérifications : `npm run build` + `npm run lint` verts dans `admin/` ; backend build + typecheck 0 + **162 unit + 86 int verts** ; parcours réel piloté au navigateur (connexion → paramètres → modification → thème → rechargement → responsive → déconnexion), aucune erreur console.
+
+## Tranche 8b/8c — Back-office : les 12 modules (réf. spec §7.2)
 - [ ] Dashboard, membres, généalogie, packs, produits, commandes.
-- [ ] Moteur de commissions (supervision), soldes BV, e-cards, rapports, paramètres, RBAC.
+- [ ] Moteur de commissions (supervision), soldes & mouvements, e-cards, rapports, comptes admin.
+- [ ] File d'attente des renouvellements à valider (D-038) et badge de vérification d'identité (D-018/D-039), reportés de T4/T7.5.
 
 ## Tranche 9 — Portail affilié (réf. spec §7.1)
 - [ ] Dashboard, e-cards, achat/activation, arbre, downlines, profil.

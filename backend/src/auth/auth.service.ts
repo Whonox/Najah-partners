@@ -1,5 +1,5 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { ActorType, Member } from '@prisma/client';
+import { ActorType, AdminRole, Member } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthenticatedActor } from './auth.types';
@@ -67,6 +67,34 @@ export class AuthService {
     }
     return { id: admin.id, actorType: ActorType.ADMIN, role: admin.role };
   }
+
+  /**
+   * Profil de l'admin connecté (nom, e-mail, rôle) — ce que le back-office affiche dans son
+   * en-tête. Le JWT ne porte que l'id et le rôle : l'identité lisible vient de la base, jamais
+   * du token (un token reste valide ~15 min après un renommage ou une désactivation).
+   *
+   * Un compte désactivé entre-temps se voit refusé ici, même si son access token n'a pas encore
+   * expiré : c'est la première requête de chaque chargement du back-office.
+   */
+  async getAdminProfile(adminId: number): Promise<AdminProfile> {
+    const admin = await this.prisma.adminUser.findUnique({
+      where: { id: adminId },
+      select: { id: true, name: true, email: true, role: true, active: true },
+    });
+    if (!admin || !admin.active) {
+      throw new UnauthorizedException('Compte administrateur indisponible');
+    }
+    const { active: _active, ...profile } = admin;
+    return profile;
+  }
+}
+
+/** Identité lisible d'un administrateur (jamais le hash, jamais les permissions brutes). */
+export interface AdminProfile {
+  id: number;
+  name: string;
+  email: string;
+  role: AdminRole;
 }
 
 /**

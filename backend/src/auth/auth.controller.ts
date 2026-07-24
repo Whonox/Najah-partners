@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ActorType, AdminRole } from '@prisma/client';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
@@ -21,6 +21,13 @@ import { Public } from './decorators/public.decorator';
 import { RequireActor } from './decorators/actor-type.decorator';
 import { Roles } from './decorators/roles.decorator';
 import { AdminLoginDto } from './dto/admin-login.dto';
+import {
+  AccessTokenResponseDto,
+  AdminLoginResponseDto,
+  AdminProfileResponseDto,
+  AuthenticatedActorDto,
+  SuccessResponseDto,
+} from './dto/auth-response.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { MemberLoginDto } from './dto/member-login.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -64,6 +71,7 @@ export class AuthController {
   @Post('admin/login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Connexion administrateur' })
+  @ApiOkResponse({ type: AdminLoginResponseDto })
   async adminLogin(
     @Body() dto: AdminLoginDto,
     @Req() req: Request,
@@ -80,6 +88,7 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Émet un nouvel access token à partir du cookie refresh' })
+  @ApiOkResponse({ type: AccessTokenResponseDto })
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
@@ -100,6 +109,7 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Déconnexion : révoque le refresh et efface le cookie' })
+  @ApiOkResponse({ type: SuccessResponseDto })
   async logout(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
@@ -138,8 +148,20 @@ export class AuthController {
 
   @Get('me')
   @ApiOperation({ summary: "Acteur authentifié (n'importe quel type)" })
+  @ApiOkResponse({ type: AuthenticatedActorDto })
   me(@CurrentUser() user: AuthenticatedActor) {
     return user;
+  }
+
+  @RequireActor(ActorType.ADMIN)
+  @Roles(AdminRole.SUPER_ADMIN, AdminRole.MANAGER, AdminRole.SUPPORT)
+  @Get('admin/me')
+  @ApiOperation({
+    summary: 'Profil de l’admin connecté (nom, e-mail, rôle) — en-tête du back-office',
+  })
+  @ApiOkResponse({ type: AdminProfileResponseDto })
+  adminMe(@CurrentUser() user: AuthenticatedActor) {
+    return this.authService.getAdminProfile(user.id);
   }
 
   @RequireActor(ActorType.ADMIN)

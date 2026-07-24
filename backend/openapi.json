@@ -63,7 +63,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLoginResponseDto"
+                }
+              }
+            }
           }
         },
         "summary": "Connexion administrateur",
@@ -78,7 +85,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTokenResponseDto"
+                }
+              }
+            }
           }
         },
         "summary": "Émet un nouvel access token à partir du cookie refresh",
@@ -93,7 +107,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponseDto"
+                }
+              }
+            }
           }
         },
         "summary": "Déconnexion : révoque le refresh et efface le cookie",
@@ -162,13 +183,35 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/AuthenticatedActorDto"
                 }
               }
             }
           }
         },
         "summary": "Acteur authentifié (n'importe quel type)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/admin/me": {
+      "get": {
+        "operationId": "AuthController_adminMe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminProfileResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Profil de l’admin connecté (nom, e-mail, rôle) — en-tête du back-office",
         "tags": [
           "auth"
         ]
@@ -1402,6 +1445,72 @@
           "orders-admin"
         ]
       }
+    },
+    "/admin/settings": {
+      "get": {
+        "operationId": "SettingsAdminController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SettingResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Lister les paramètres système (clé, valeur, description)",
+        "tags": [
+          "settings-admin"
+        ]
+      }
+    },
+    "/admin/settings/{key}": {
+      "patch": {
+        "operationId": "SettingsAdminController_update",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSettingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Modifier la valeur d’un paramètre (SUPER_ADMIN, tracé dans AuditLog)",
+        "tags": [
+          "settings-admin"
+        ]
+      }
     }
   },
   "info": {
@@ -1461,6 +1570,76 @@
           "password"
         ]
       },
+      "AuthenticatedActorDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "description": "id de l'acteur (Member.id ou AdminUser.id)"
+          },
+          "actorType": {
+            "enum": [
+              "MEMBER",
+              "ADMIN"
+            ],
+            "type": "string",
+            "description": "Cloisonnement strict MEMBER / ADMIN : un token MEMBER ne franchit jamais un guard ADMIN (D-016)."
+          },
+          "role": {
+            "enum": [
+              "SUPER_ADMIN",
+              "MANAGER",
+              "SUPPORT"
+            ],
+            "type": "string",
+            "description": "Présent uniquement pour un ADMIN (RBAC, D-017b)."
+          }
+        },
+        "required": [
+          "id",
+          "actorType"
+        ]
+      },
+      "AdminLoginResponseDto": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "Access token court (~15 min). À garder EN MÉMOIRE côté front, jamais en localStorage."
+          },
+          "actor": {
+            "$ref": "#/components/schemas/AuthenticatedActorDto"
+          }
+        },
+        "required": [
+          "accessToken",
+          "actor"
+        ]
+      },
+      "AccessTokenResponseDto": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "Nouvel access token issu du cookie refresh."
+          }
+        },
+        "required": [
+          "accessToken"
+        ]
+      },
+      "SuccessResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "success"
+        ]
+      },
       "ForgotPasswordDto": {
         "type": "object",
         "properties": {
@@ -1491,6 +1670,36 @@
         "required": [
           "token",
           "newPassword"
+        ]
+      },
+      "AdminProfileResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string",
+            "example": "Amine Trabelsi"
+          },
+          "email": {
+            "type": "string",
+            "example": "admin@najah.local"
+          },
+          "role": {
+            "enum": [
+              "SUPER_ADMIN",
+              "MANAGER",
+              "SUPPORT"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "role"
         ]
       },
       "AdjustBalanceDto": {
@@ -2119,6 +2328,42 @@
             "description": "Étape suivante : PREPARATION → SHIPPED → DELIVERED (jamais en arrière)."
           }
         }
+      },
+      "SettingResponseDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "example": "registration_fee_dt"
+          },
+          "value": {
+            "type": "string",
+            "example": "100",
+            "description": "Valeur brute, toujours en chaîne — jamais interprétée ici."
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ]
+      },
+      "UpdateSettingDto": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "maxLength": 255,
+            "example": "120",
+            "description": "Nouvelle valeur brute. Aucune interprétation par clé côté API."
+          }
+        },
+        "required": [
+          "value"
+        ]
       }
     }
   }
