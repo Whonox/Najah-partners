@@ -3,12 +3,17 @@ import { ConfigService } from '@nestjs/config';
 import { Leg, MemberStatus, ProductType } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { money } from '../common/money';
+import { EcardsService } from '../ecards/ecards.service';
 import { LedgerAdminService } from '../ledger/ledger-admin.service';
 import { ActivationService } from '../members/activation.service';
 import {
   MemberCodeService,
   SEED_LAST_MEMBER_NUMBER,
 } from '../members/member-code.service';
+import {
+  MembershipFeeService,
+  REGISTRATION_FEE_SETTING,
+} from '../members/membership-fee.service';
 import { MembersService } from '../members/members.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -72,6 +77,8 @@ export class SeedService {
     private readonly activation: ActivationService,
     private readonly ledgerAdmin: LedgerAdminService,
     private readonly memberCode: MemberCodeService,
+    private readonly fees: MembershipFeeService,
+    private readonly ecards: EcardsService,
   ) {}
 
   async run(): Promise<void> {
@@ -292,10 +299,16 @@ export class SeedService {
           'Durée de validité des e-cards en jours (-1 = illimité) — 180 j À CONFIRMER avec la cliente (D-008)',
       },
       {
-        key: 'annual_renewal_dt',
-        value: '0',
+        key: 'registration_fee_dt',
+        value: '100',
         description:
-          'Montant en DT du renouvellement annuel (100 DT réglés en espèces, hors système — à confirmer)',
+          'Frais d’inscription en DT, réglés par e-card(s) à l’inscription (D-036). Vaut ACOMPTE : déduit du prix du pack à l’activation (D-037)',
+      },
+      {
+        key: 'annual_renewal_dt',
+        value: '100',
+        description:
+          'Montant en DT du renouvellement annuel, réglé par e-card(s) puis validé par l’admin (D-038)',
       },
       {
         key: 'commission_cron_day',
@@ -404,15 +417,22 @@ export class SeedService {
     }
 
     // ── Activations, feuilles → racine ──
-    // On dote chaque compte du PRIX DU PACK en dinars (D-029), puis on active : la stratégie de
-    // paiement par solde débite exactement ce prix. L'arbre, lui, reçoit le palier en POINTS —
-    // les deux dimensions se croisent dans l'activation sans jamais se convertir (D-028).
+    // On dote chaque compte du MONTANT DÛ en dinars — prix du pack moins l'acompte déjà versé
+    // à l'inscription (D-029 + D-037) —, puis on active : la stratégie de paiement par solde
+    // débite exactement ce montant et le solde retombe à zéro. L'arbre, lui, reçoit le palier
+    // en POINTS : les deux dimensions se croisent dans l'activation sans jamais se convertir
+    // (D-028). La racine n'est pas passée par l'inscription : son acompte vaut 0, elle paie
+    // donc le prix plein — et c'est exact, elle n'a rien versé.
     for (const node of [...NETWORK].reverse()) {
       const memberId = ids.get(node.code)!;
+      const member = await this.prisma.member.findUniqueOrThrow({
+        where: { id: memberId },
+        select: { registrationPaidDt: true },
+      });
       await this.ledgerAdmin.genesis({
         adminId: await this.adminId(),
         memberId,
-        amountDt: pack.priceDt,
+        amountDt: pack.priceDt.minus(member.registrationPaidDt),
         reason: `Amorçage du réseau (D-019) — ${node.code}`,
       });
       await this.activation.activate({ memberId, packId: pack.id });
@@ -447,12 +467,25 @@ export class SeedService {
     });
   }
 
+  /**
+   * L'inscription se règle par e-card depuis D-036 : on génère pour chaque compte d'amorçage
+   * une e-card de GENÈSE du montant exact des frais. C'est cohérent avec l'esprit du seed —
+   * l'amorçage crée la valeur ex nihilo (D-017b), il ne la fait pas surgir dans un solde — et
+   * cela fait passer les comptes de seed par le VRAI chemin d'inscription, contrôles compris.
+   */
   private async registerSeedMember(
     code: string,
     firstName: string,
     uplineCode: string,
     leg: Leg,
   ): Promise<number> {
+    const feeDt = await this.fees.read(REGISTRATION_FEE_SETTING);
+    const ecard = await this.ecards.genesis({
+      adminId: await this.adminId(),
+      valueDt: feeDt,
+      reason: `Amorçage du réseau (D-019) — frais d’inscription ${code}`,
+    });
+
     const member = await this.members.register({
       lastName: 'Najah',
       firstName,
@@ -461,6 +494,7 @@ export class SeedService {
       sponsorCode: uplineCode, // le sponsor d'amorçage est aussi l'upline de placement
       uplineCode,
       leg,
+      ecardCodes: [ecard.code],
     });
     this.assertCode(member.memberCode, code);
     return member.id;

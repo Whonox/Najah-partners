@@ -39,8 +39,10 @@ Le run hebdomadaire ne fait plus qu'appliquer le plafond en chronologie et créd
   uplines ACTIFS au-dessus sont crédités normalement). Le **carry-over d'avant gel est
   conservé** (la pool n'est pas touchée par le gel ni par la réactivation). Aucun événement
   d'équilibre ne peut donc naître chez un gelé ; ses commissions DIRECTES naissent
-  `eligible=false` — tracées, jamais payées. Gel/réactivation : `RenewalService` (le circuit
-  admin du renouvellement 100 DT arrive en T8).
+  `eligible=false` — tracées, jamais payées. Gel/réactivation : `RenewalService`, dont le
+  circuit de renouvellement (paiement par e-card **puis** validation admin — D-038) est en
+  place depuis la Tranche 7.5 ; seul l'écran admin de la file d'attente reste à faire (T8).
+  Payer ne dégèle pas : tant que l'admin n'a pas validé, le membre ne perçoit toujours rien.
 
 ## Événements (`CommissionEvent`) — décidés à l'instant, figés pour toujours
 
@@ -73,6 +75,9 @@ Le run hebdomadaire ne fait plus qu'appliquer le plafond en chronologie et créd
 - Le plafond appliqué est `weeklyCapDt` du **snapshot d'activation du membre** — le moteur ne
   lit jamais `Pack` en direct (invariant T4/T6.5) : modifier un pack ne touche que les
   activations postérieures, jamais l'historique ni les membres déjà activés.
+- L'acompte d'inscription (D-037, T7.5) n'entre **nulle part** ici : il ne touche que le
+  montant encaissé à l'activation. Le palier propagé, les commissions et le plafond sont
+  inchangés — le moteur n'a pas bougé d'une ligne.
 
 ## Deux « débordements » à ne PAS confondre
 

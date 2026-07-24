@@ -33,10 +33,15 @@ export interface EcardVerification {
   reason: string | null;
 }
 
-/** Consommation d'une e-card : ce que la transaction appelante a réellement brûlé (en DT). */
-export interface ConsumedEcard {
-  ecardId: number;
-  valueDt: Money;
+/**
+ * Consommation d'un LOT d'e-cards (D-030 : cumulables sur un même paiement) : ce que la
+ * transaction appelante a réellement brûlé, en DT. `ecardIds` est trié par id croissant —
+ * c'est l'ordre dans lequel les cartes ont été verrouillées (D-024).
+ */
+export interface ConsumedEcards {
+  ecardIds: number[];
+  /** Somme des valeurs brûlées : égale, au millime, au montant dû. */
+  totalDt: Money;
 }
 
 /** Bilan d'un passage du cron d'expiration. */

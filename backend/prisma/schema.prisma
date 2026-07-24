@@ -76,6 +76,23 @@ enum ProductType {
   VIRTUAL
 }
 
+// Paiement d'ADHÉSION — l'argent qui achète le droit d'être membre, par opposition à la
+// boutique (`Order`), qui achète des produits. Deux occasions, une seule mécanique : des
+// e-cards brûlées pour un montant EXACT (D-036, D-038).
+enum MembershipPaymentType {
+  REGISTRATION // frais d'inscription (D-036) — ACOMPTE déduit du pack à l'activation (D-037)
+  RENEWAL // renouvellement annuel (D-038)
+}
+
+// L'inscription est acquise dès qu'elle est payée (D-010 : aucune validation admin) ; le
+// renouvellement, lui, ne vaut RIEN tant que l'admin ne l'a pas validé (D-038) — payer ne
+// dégèle pas. D'où deux points d'entrée distincts dans cette machine à états.
+enum MembershipPaymentStatus {
+  SETTLED // inscription : réglée, acquise, définitive
+  PENDING_VALIDATION // renouvellement : payé, en attente de l'admin
+  VALIDATED // renouvellement : validé par l'admin (réactivation appliquée)
+}
+
 enum RunStatus {
   IN_PROGRESS
   SUCCESS
@@ -191,36 +208,49 @@ model Member {
   // ── Moteur de commissions (D-031, D-032) ──
   // Bonus de démarrage : UNE commission indirecte quand le sous-arbre atteint 2 membres
   // activés — une seule fois à vie (D-031, annule la réserve de 6 paliers de D-012).
-  startupBonusUsed Boolean @default(false)
+  startupBonusUsed     Boolean @default(false)
   // Compteur d'équilibres À VIE, jamais remis à zéro (bonus inclus) : chaque multiple de 6
   // donne un Point Fidélité au lieu d'une commission (D-032).
-  lifetimeBalanceCount Int @default(0)
+  lifetimeBalanceCount Int     @default(0)
   // Points Fidélité — TROISIÈME unité, distincte des points BV et des dinars (D-032).
   // L'achat de produits avec ces points est hors scope (tranche ultérieure).
-  rewardPoints Int @default(0)
+  rewardPoints         Int     @default(0)
   // Nombre de membres ACTIVÉS (activatedAt non nul) dans le sous-arbre : maintenu par la
   // propagation d'activation, sous le verrou de chaîne — rend le déclencheur du bonus
   // (« exactement 2 ») O(1) et sérialisé, sans CTE de comptage par ancêtre.
-  activatedDescendants Int @default(0)
+  activatedDescendants Int     @default(0)
 
   // Vérification d'identité (D-018) — jamais bloquante. Le fichier est stocké hors du
   // dépôt (IDENTITY_UPLOAD_DIR) ; seul son chemin RELATIF est en base. Le badge admin
   // (VERIFIED / REJECTED) est apposé en Tranche 8.
   idDocumentType     IdDocumentType?
+  // Numéro de la pièce, SAISI À LA MAIN par le membre (D-039) : l'admin le compare à
+  // l'image. Informatif comme le reste de la vérification — un membre PENDING s'inscrit,
+  // s'active et perçoit normalement. Rien ici ne bloque quoi que ce soit.
+  idDocumentNumber   String?
   idDocumentPath     String?
   verificationStatus VerificationStatus @default(PENDING)
+
+  // DINARS — frais d'inscription RÉELLEMENT réglés par e-card(s) (D-036), figés à
+  // l'inscription. C'est l'ACOMPTE déduit du prix du pack à l'activation (D-037 :
+  // Silver = 2200 − 100 = 2100 DT dus). Le calcul lit CETTE colonne, jamais le paramètre
+  // `registration_fee_dt` courant : changer le tarif demain ne réécrit aucun acompte déjà
+  // versé. Vaut 0 pour les membres antérieurs à la Tranche 7.5 (racine d'amorçage
+  // comprise) — c'est la vérité historique : ils n'ont rien versé DANS le système.
+  registrationPaidDt Decimal @default(0) @db.Decimal(12, 3)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations inverses
-  createdEcards    Ecard[]           @relation("EcardCreator")
-  receivedEcards   Ecard[]           @relation("EcardUser")
-  ledgerEntries    LedgerEntry[]
-  commissions      Commission[]
-  commissionEvents CommissionEvent[] @relation("CommissionEventBeneficiary")
-  sourcedEvents    CommissionEvent[] @relation("CommissionEventSource")
-  orders           Order[]
+  createdEcards      Ecard[]             @relation("EcardCreator")
+  receivedEcards     Ecard[]             @relation("EcardUser")
+  ledgerEntries      LedgerEntry[]
+  commissions        Commission[]
+  commissionEvents   CommissionEvent[]   @relation("CommissionEventBeneficiary")
+  sourcedEvents      CommissionEvent[]   @relation("CommissionEventSource")
+  orders             Order[]
+  membershipPayments MembershipPayment[]
 
   // Auth (Tranche 2)
   refreshTokens       RefreshToken[]
@@ -251,6 +281,41 @@ model Pack {
   active               Boolean @default(true)
 
   members Member[]
+}
+
+// ─────────────────────────── Paiement d'adhésion (DINARS) ───────────────────────────
+
+// Ce qu'on paie pour ÊTRE membre — inscription (D-036) et renouvellement annuel (D-038) —
+// par opposition à `Order`, qui achète des produits. Réglé exclusivement par e-card(s) :
+// depuis la Tranche 7.5, plus AUCUN montant ne se règle « en espèces hors système » à
+// l'entrée du réseau. Plusieurs e-cards sont cumulables, leur somme doit égaler EXACTEMENT
+// `amountDt` (D-030).
+//
+// Ce modèle porte aussi la TRAÇABILITÉ des cartes brûlées : une e-card d'inscription n'a
+// aucune commande pour témoigner de ce qu'elle a payé. Sans ce lien, une carte `USED`
+// resterait un débit sans contrepartie lisible.
+model MembershipPayment {
+  id       Int                     @id @default(autoincrement())
+  memberId Int
+  member   Member                  @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  type     MembershipPaymentType
+  status   MembershipPaymentStatus
+  // DINARS — montant SNAPSHOTÉ au moment du paiement (spec §5.8) : modifier le paramètre
+  // `registration_fee_dt` / `annual_renewal_dt` ne réécrit jamais un paiement passé.
+  amountDt Decimal                 @db.Decimal(12, 3)
+  paidAt   DateTime                @default(now())
+
+  // Validation admin — renouvellement UNIQUEMENT (D-038). Une inscription naît SETTLED :
+  // elle n'attend personne (D-010). CHECK en base : VALIDATED ⇔ on sait qui et quand.
+  validatedAt        DateTime?
+  validatedByAdminId Int?
+  validatedByAdmin   AdminUser? @relation("MembershipPaymentValidator", fields: [validatedByAdminId], references: [id], onDelete: Restrict)
+
+  // Les e-cards brûlées pour ce paiement (1..n, D-030).
+  ecards Ecard[]
+
+  @@index([memberId])
+  @@index([status, type]) // file de validation admin (T8)
 }
 
 // ─────────────────────────── Grand livre (DINARS) ───────────────────────────
@@ -290,8 +355,8 @@ model Ecard {
   // onDelete: Restrict — le défaut Prisma (SET NULL) ferait passer l'e-card d'un membre
   // supprimé pour une e-card de GENÈSE (creatorId nul), donc non remboursable : la
   // suppression d'un membre falsifierait la comptabilité BV. Interdit.
-  creatorId Int?
-  creator   Member? @relation("EcardCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  creatorId        Int?
+  creator          Member?    @relation("EcardCreator", fields: [creatorId], references: [id], onDelete: Restrict)
   // Admin auteur de la genèse (SUPER_ADMIN, D-017b) — qui a créé de la valeur ex nihilo.
   createdByAdminId Int?
   createdByAdmin   AdminUser? @relation("EcardGenesisAdmin", fields: [createdByAdminId], references: [id], onDelete: Restrict)
@@ -304,16 +369,24 @@ model Ecard {
   expiresAt DateTime? // null = illimité (paramètre ecard_expiration_days = -1)
   closedAt  DateTime? // horodatage du passage EXPIRED / REVOKED
 
-  // Une e-card règle AU PLUS une commande (D-007 : une seule e-card par transaction, usage
-  // unique). L'unicité est tenue en base par `Order.ecardId @unique` — d'où `Order?` et non
-  // `Order[]` : deux commandes ne peuvent pas se réclamer de la même carte.
-  order         Order?
+  // CE QUE LA CARTE A PAYÉ — au plus UNE chose, jamais deux (usage unique, D-007). Depuis
+  // D-030 (cumul), le lien est porté ICI et non plus par `Order.ecardId` : une commande se
+  // règle avec 1..n cartes, une carte règle 0..1 commande. Le sens de la FK suit celui de
+  // la cardinalité, et l'unicité « une carte ne paie qu'une commande » devient structurelle
+  // — une colonne ne peut pas contenir deux valeurs.
+  orderId             Int?
+  order               Order?             @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  membershipPaymentId Int?
+  membershipPayment   MembershipPayment? @relation(fields: [membershipPaymentId], references: [id], onDelete: Restrict)
+
   ledgerEntries LedgerEntry[]
 
   @@index([creatorId])
   @@index([userId])
   @@index([status])
   @@index([status, expiresAt]) // balayage du cron quotidien d'expiration
+  @@index([orderId])
+  @@index([membershipPaymentId])
 }
 
 // ─────────────────────────── Commissions ───────────────────────────
@@ -325,27 +398,27 @@ model Ecard {
 //   `CommissionEvent_reward_zero_ck`   — REWARD_POINT ⇒ amountDt = 0 ;
 //   `CommissionEvent_balance_index_ck` — balanceIndex IS NULL ⇔ type = DIRECT.
 model CommissionEvent {
-  id       Int                 @id @default(autoincrement())
-  memberId Int // bénéficiaire de la commission
-  member   Member              @relation("CommissionEventBeneficiary", fields: [memberId], references: [id])
-  type     CommissionEventType
-  amountDt Decimal             @db.Decimal(12, 3) // DINARS — 0 pour REWARD_POINT
+  id             Int                 @id @default(autoincrement())
+  memberId       Int // bénéficiaire de la commission
+  member         Member              @relation("CommissionEventBeneficiary", fields: [memberId], references: [id])
+  type           CommissionEventType
+  amountDt       Decimal             @db.Decimal(12, 3) // DINARS — 0 pour REWARD_POINT
   // Horodatage RÉEL (timestamp de la transaction d'activation) : c'est lui, puis l'id,
   // qui portent la chronologie du plafond (D-033 — DIRECT inséré avant BALANCE).
-  occurredAt     DateTime @default(now())
+  occurredAt     DateTime            @default(now())
   sourceMemberId Int // le filleul dont l'activation a produit l'événement
-  sourceMember   Member   @relation("CommissionEventSource", fields: [sourceMemberId], references: [id])
+  sourceMember   Member              @relation("CommissionEventSource", fields: [sourceMemberId], references: [id])
   // Éligibilité évaluée AU MOMENT de l'événement (D-034) : un bénéficiaire gelé ou encore
   // INSCRIT donne eligible=false — l'événement est tracé mais ne sera JAMAIS payé.
-  eligible Boolean
+  eligible       Boolean
   // paid : l'événement a contribué (même partiellement) au versement d'un run. Un événement
   // réclamé (runId non nul) mais paid=false a été perdu : inéligible, ou au-delà du plafond.
-  paid     Boolean        @default(false)
-  runId    Int?
-  run      CommissionRun? @relation(fields: [runId], references: [id])
-  snapshot Json // paramètres figés au moment de l'événement (palier, montant, pack source…)
+  paid           Boolean             @default(false)
+  runId          Int?
+  run            CommissionRun?      @relation(fields: [runId], references: [id])
+  snapshot       Json // paramètres figés au moment de l'événement (palier, montant, pack source…)
   // N° d'équilibre à vie concerné (D-032) — null pour DIRECT, 1 pour le bonus (D-031).
-  balanceIndex Int?
+  balanceIndex   Int?
 
   @@index([memberId, occurredAt])
   @@index([runId])
@@ -356,21 +429,21 @@ model CommissionEvent {
 // période. Le détail (chronologie, perdu/payé) vit dans CommissionEvent ; l'argent versé
 // (DINARS, D-028) part au grand livre via la ligne liée.
 model Commission {
-  id       Int           @id @default(autoincrement())
-  memberId Int
-  member   Member        @relation(fields: [memberId], references: [id])
-  runId    Int
-  run      CommissionRun @relation(fields: [runId], references: [id])
-  grossDt  Decimal       @db.Decimal(12, 3) // DINARS — total éligible avant plafond
-  paidDt   Decimal       @db.Decimal(12, 3) // DINARS — versé = min(gross, plafond) ; l'écart est PERDU (D-033)
+  id                  Int           @id @default(autoincrement())
+  memberId            Int
+  member              Member        @relation(fields: [memberId], references: [id])
+  runId               Int
+  run                 CommissionRun @relation(fields: [runId], references: [id])
+  grossDt             Decimal       @db.Decimal(12, 3) // DINARS — total éligible avant plafond
+  paidDt              Decimal       @db.Decimal(12, 3) // DINARS — versé = min(gross, plafond) ; l'écart est PERDU (D-033)
   // Plafond appliqué, FIGÉ ici (snapshot) : celui du snapshot d'activation du membre — le
   // moteur ne lit jamais Pack en direct, un changement de pack ne touche que l'avenir.
-  appliedCapDt        Decimal  @db.Decimal(12, 3)
+  appliedCapDt        Decimal       @db.Decimal(12, 3)
   eventCount          Int
-  rewardPointsGranted Int      @default(0) // D-032 — Points Fidélité accordés sous le plafond
-  rewardPointsLost    Int      @default(0) // D-032 — survenus après le plafond : perdus
+  rewardPointsGranted Int           @default(0) // D-032 — Points Fidélité accordés sous le plafond
+  rewardPointsLost    Int           @default(0) // D-032 — survenus après le plafond : perdus
   snapshotParams      Json // palier (pts) / montants (DT) / plafond (DT) figés
-  createdAt           DateTime @default(now())
+  createdAt           DateTime      @default(now())
 
   ledgerEntries LedgerEntry[]
 
@@ -433,24 +506,27 @@ model Product {
 // n'aboutit pas est annulée par le rollback, elle n'existe jamais.
 //
 // LES DEUX TOTAUX NE SE DÉDUISENT PAS L'UN DE L'AUTRE (D-028) :
-//   `totalDt`     — DINARS payés (le montant que l'e-card a couvert exactement) :
-//                     ACTIVATION → le PRIX DU PACK (D-029), PAS la somme des prix des produits
-//                                  du panier (un panier Silver à 380 DT de produits paie 2200 DT) ;
+//   `totalDt`     — DINARS payés (le montant que les e-cards ont couvert exactement) :
+//                     ACTIVATION → PRIX DU PACK − ACOMPTE D'INSCRIPTION (D-029 + D-037), PAS la
+//                                  somme des prix des produits du panier (un panier Silver à
+//                                  380 DT de produits paie 2200 − 100 = 2100 DT) ;
 //                     LIBRE      → Σ (prix effectif × quantité).
 //   `totalPoints` — POINTS du panier, Σ (valeur BV × quantité) : en ACTIVATION, la preuve figée
 //                   que le panier faisait EXACTEMENT le palier, et ce que l'arbre a reçu.
 model Order {
-  id          Int          @id @default(autoincrement())
-  memberId    Int
-  member      Member       @relation(fields: [memberId], references: [id])
-  context     OrderContext
-  totalDt     Decimal      @db.Decimal(12, 3) // DINARS — montant payé
-  totalPoints Int // POINTS — Σ des valeurs BV du panier
-  // @unique : une e-card règle au plus une commande (D-007). Nullable pour ne pas fermer la
-  // porte à une commande non réglée par e-card, mais le CHECK `Order_paid_ecard_ck` interdit
-  // qu'une commande PAID soit sans e-card : aucun achat ne peut échapper au paiement.
-  ecardId         Int?            @unique
-  ecard           Ecard?          @relation(fields: [ecardId], references: [id])
+  id              Int             @id @default(autoincrement())
+  memberId        Int
+  member          Member          @relation(fields: [memberId], references: [id])
+  context         OrderContext
+  totalDt         Decimal         @db.Decimal(12, 3) // DINARS — montant payé
+  totalPoints     Int // POINTS — Σ des valeurs BV du panier
+  // Les e-cards qui ont réglé cette commande : 1..n depuis D-030 (cumul). Le lien vit du
+  // côté `Ecard` (`Ecard.orderId`) — c'est là qu'est la cardinalité 1.
+  ecards          Ecard[]
+  // Nombre de cartes brûlées, FIGÉ à la création. Dénormalisé pour une seule raison : garder
+  // en base l'invariant de D-027 « aucune commande PAID sans e-card », qu'un CHECK ne peut
+  // pas exprimer à travers une autre table. Écrit une fois, jamais mis à jour.
+  ecardCount      Int             @default(0)
   status          OrderStatus     @default(PENDING)
   shippingAddress String?
   shipmentStatus  ShipmentStatus? // null si la commande ne contient aucun produit PHYSICAL
@@ -501,6 +577,9 @@ model AdminUser {
 
   // E-cards de genèse générées par cet admin (Tranche 5)
   genesisEcards Ecard[] @relation("EcardGenesisAdmin")
+
+  // Renouvellements annuels validés par cet admin (Tranche 7.5, D-038)
+  validatedMembershipPayments MembershipPayment[] @relation("MembershipPaymentValidator")
 }
 
 // ─────────────────────────── Auth : refresh tokens (D-016) ───────────────────────────

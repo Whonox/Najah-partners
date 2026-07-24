@@ -4,16 +4,18 @@ import { InsufficientBalanceError } from '../ledger/ledger.errors';
 import { LedgerService } from '../ledger/ledger.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  DuplicateEcardCodeError,
   EcardAlreadyConsumedError,
   EcardAlreadyUnlimitedError,
   EcardExpiredError,
   EcardNotActiveError,
   EcardNotFoundError,
   EcardNotOwnedError,
-  EcardValueMismatchError,
+  EcardsTotalMismatchError,
   InvalidExpirationDaysError,
+  TooManyEcardsError,
 } from './ecards.errors';
-import { EcardsService } from './ecards.service';
+import { EcardsService, MAX_ECARDS_PER_PAYMENT } from './ecards.service';
 
 /**
  * Règles de l'e-card, Prisma mocké : ce qui est vérifié ici, ce sont les DÉCISIONS (refuser,
@@ -66,6 +68,8 @@ interface Scenario {
   expirationDays?: string | null;
   /** E-card renvoyée par les lookups (null = code inconnu). */
   ecard?: EcardRow | null;
+  /** Lot renvoyé par `findMany` lors d'une consommation cumulée (D-030). */
+  ecards?: EcardRow[];
   /** Lignes rendues par l'UPDATE gardé (0 ligne = la carte a changé d'état entre-temps). */
   guardedRows?: unknown[];
   /** Le grand livre refuse le mouvement (solde insuffisant). */
@@ -76,6 +80,13 @@ function makeService(scenario: Scenario = {}) {
   const ecardFindUnique = jest.fn(async () =>
     scenario.ecard === undefined ? ACTIVE_ECARD : scenario.ecard,
   );
+  // `findMany` sert la consommation cumulée (D-030) : par défaut, le lot est la carte du
+  // scénario — une carte inconnue rend un lot vide, comme la vraie requête.
+  const ecardFindMany = jest.fn(async (..._args: unknown[]) => {
+    if (scenario.ecards) return scenario.ecards;
+    const single = scenario.ecard === undefined ? ACTIVE_ECARD : scenario.ecard;
+    return single ? [single] : [];
+  });
   const ecardCreate = jest.fn(
     async (args: { data: Record<string, unknown> }) => ({
       ...ACTIVE_ECARD,
@@ -92,7 +103,11 @@ function makeService(scenario: Scenario = {}) {
 
   const tx = {
     $queryRaw: queryRaw,
-    ecard: { findUnique: ecardFindUnique, create: ecardCreate },
+    ecard: {
+      findUnique: ecardFindUnique,
+      findMany: ecardFindMany,
+      create: ecardCreate,
+    },
     ledgerEntry: { update: ledgerEntryUpdate },
     auditLog: { create: auditCreate },
   };
@@ -234,46 +249,82 @@ describe('EcardsService.create — création plafonnée au solde', () => {
   });
 });
 
-describe('EcardsService.consumeInTx — consommation (D-025)', () => {
-  it('valeur = montant dû → e-card brûlée USED, et AUCUN mouvement de solde', async () => {
-    const s = makeService();
-    const consumed = await s.service.consumeInTx(s.tx, {
-      code: 'HHD-7Z7-JJD-77D',
-      memberId: 9,
-      dueDt: money(2200),
-    });
+describe('EcardsService.consumeManyInTx — consommation cumulée (D-025, D-030)', () => {
+  const CODE = 'HHD-7Z7-JJD-77D';
+  const consume = (
+    s: ReturnType<typeof makeService>,
+    codes: string[],
+    dueDt: Prisma.Decimal,
+  ) => s.service.consumeManyInTx(s.tx, { codes, memberId: 9, dueDt });
 
-    expect(consumed.ecardId).toBe(7);
-    expect(consumed.valueDt.toString()).toBe('2200');
+  it('total = montant dû → e-cards brûlées USED, et AUCUN mouvement de solde', async () => {
+    const s = makeService();
+    const consumed = await consume(s, [CODE], money(2200));
+
+    expect(consumed.ecardIds).toEqual([7]);
+    expect(consumed.totalDt.toString()).toBe('2200');
     expect(String(s.queryRaw.mock.calls[0][0])).toContain("'USED'");
     // LE point du modèle : l'e-card PAIE, elle ne recharge pas. Un crédit ici ferait
     // transiter de l'argent par un solde qui n'a jamais eu à le porter.
     expect(s.recordMovementInTx).not.toHaveBeenCalled();
   });
 
-  it('valeur ≠ montant dû → REFUSÉE (couverture exacte, spec §5.5) : rien n’est brûlé', async () => {
+  it('PLUSIEURS cartes dont la SOMME fait le montant dû → toutes brûlées (D-030)', async () => {
+    const s = makeService({
+      ecards: [
+        { ...ACTIVE_ECARD, id: 3, code: 'AAA-AAA-AAA-AAA', valueDt: money(700) },
+        { ...ACTIVE_ECARD, id: 8, code: 'BBB-BBB-BBB-BBB', valueDt: money(1500) },
+      ],
+    });
+    const consumed = await consume(
+      s,
+      ['AAA-AAA-AAA-AAA', 'BBB-BBB-BBB-BBB'],
+      money(2200),
+    );
+
+    expect(consumed.totalDt.toString()).toBe('2200');
+    // Brûlées par id CROISSANT (D-024) : sans ordre total commun, deux paiements
+    // concurrents qui se recoupent s'interbloquent.
+    expect(consumed.ecardIds).toEqual([3, 8]);
+    expect(s.queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('total ≠ montant dû (dessous comme dessus) → REFUSÉ : rien n’est brûlé', async () => {
+    for (const dueDt of [money(3350), money(2100)]) {
+      const s = makeService();
+      await expect(consume(s, [CODE], dueDt)).rejects.toBeInstanceOf(
+        EcardsTotalMismatchError,
+      );
+      expect(s.queryRaw).not.toHaveBeenCalled();
+    }
+  });
+
+  it('même code deux fois → REFUSÉ : sinon sa valeur compterait double pour une seule carte', async () => {
     const s = makeService();
-    await expect(
-      s.service.consumeInTx(s.tx, {
-        code: 'HHD-7Z7-JJD-77D',
-        memberId: 9,
-        dueDt: money(3350), // prix Gold contre une carte de 2200
-      }),
-    ).rejects.toBeInstanceOf(EcardValueMismatchError);
+    await expect(consume(s, [CODE, CODE], money(4400))).rejects.toBeInstanceOf(
+      DuplicateEcardCodeError,
+    );
     expect(s.queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('au-delà du plafond de cartes par paiement → REFUSÉ (anti-brute-force, révise D-030)', async () => {
+    const s = makeService();
+    const codes = Array.from(
+      { length: MAX_ECARDS_PER_PAYMENT + 1 },
+      (_, i) => `AA${i % 10}-BBB-CCC-DDD`,
+    );
+    await expect(consume(s, codes, money(2200))).rejects.toBeInstanceOf(
+      TooManyEcardsError,
+    );
   });
 
   it('e-card déjà USED → non réutilisable (une utilisation est définitive)', async () => {
     const s = makeService({
       ecard: { ...ACTIVE_ECARD, status: EcardStatus.USED },
     });
-    await expect(
-      s.service.consumeInTx(s.tx, {
-        code: 'HHD-7Z7-JJD-77D',
-        memberId: 9,
-        dueDt: money(2200),
-      }),
-    ).rejects.toBeInstanceOf(EcardNotActiveError);
+    await expect(consume(s, [CODE], money(2200))).rejects.toBeInstanceOf(
+      EcardNotActiveError,
+    );
     expect(s.queryRaw).not.toHaveBeenCalled();
   });
 
@@ -281,59 +332,40 @@ describe('EcardsService.consumeInTx — consommation (D-025)', () => {
     const s = makeService({
       ecard: { ...ACTIVE_ECARD, status: EcardStatus.REVOKED },
     });
-    await expect(
-      s.service.consumeInTx(s.tx, {
-        code: 'HHD-7Z7-JJD-77D',
-        memberId: 9,
-        dueDt: money(2200),
-      }),
-    ).rejects.toBeInstanceOf(EcardNotActiveError);
+    await expect(consume(s, [CODE], money(2200))).rejects.toBeInstanceOf(
+      EcardNotActiveError,
+    );
   });
 
   it('échéance dépassée mais cron pas encore passé → refusée (l’échéance fait foi)', async () => {
     const s = makeService({
       ecard: { ...ACTIVE_ECARD, expiresAt: new Date(Date.now() - DAY_MS) },
     });
-    await expect(
-      s.service.consumeInTx(s.tx, {
-        code: 'HHD-7Z7-JJD-77D',
-        memberId: 9,
-        dueDt: money(2200),
-      }),
-    ).rejects.toBeInstanceOf(EcardExpiredError);
+    await expect(consume(s, [CODE], money(2200))).rejects.toBeInstanceOf(
+      EcardExpiredError,
+    );
   });
 
-  it('code inconnu → introuvable', async () => {
-    const s = makeService({ ecard: null });
+  it('code inconnu (même un seul du lot) → introuvable, rien n’est brûlé', async () => {
+    const s = makeService({ ecards: [ACTIVE_ECARD] }); // 1 rendue pour 2 demandées
     await expect(
-      s.service.consumeInTx(s.tx, {
-        code: 'AAA-BBB-CCC-DDD',
-        memberId: 9,
-        dueDt: money(2200),
-      }),
+      consume(s, [CODE, 'AAA-BBB-CCC-DDD'], money(2200)),
     ).rejects.toBeInstanceOf(EcardNotFoundError);
+    expect(s.queryRaw).not.toHaveBeenCalled();
   });
 
   it('carte consommée entre la lecture et l’UPDATE gardé → la perdante lève (course)', async () => {
     const s = makeService({ guardedRows: [] }); // 0 ligne : status n'est plus ACTIVE
-    await expect(
-      s.service.consumeInTx(s.tx, {
-        code: 'HHD-7Z7-JJD-77D',
-        memberId: 9,
-        dueDt: money(2200),
-      }),
-    ).rejects.toBeInstanceOf(EcardAlreadyConsumedError);
+    await expect(consume(s, [CODE], money(2200))).rejects.toBeInstanceOf(
+      EcardAlreadyConsumedError,
+    );
   });
 
   it('e-card sans échéance (illimitée) → consommable', async () => {
     const s = makeService({ ecard: { ...ACTIVE_ECARD, expiresAt: null } });
-    const consumed = await s.service.consumeInTx(s.tx, {
-      code: 'HHD-7Z7-JJD-77D',
-      memberId: 9,
-      dueDt: money(2200),
-    });
-    expect(consumed.ecardId).toBe(7);
-    expect(consumed.valueDt.toString()).toBe('2200');
+    const consumed = await consume(s, [CODE], money(2200));
+    expect(consumed.ecardIds).toEqual([7]);
+    expect(consumed.totalDt.toString()).toBe('2200');
   });
 });
 

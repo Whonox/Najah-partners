@@ -166,10 +166,22 @@ en jambe gauche.
 
 - Le membre clique sur « Inscription » et remplit le formulaire
   (informations du nouvel affilié, code sponsor, code upline de
-  placement, jambe gauche/droite).
+  placement, jambe gauche/droite, type ET **numéro** de la pièce
+  d'identité — D-039 — avec son image jointe).
 
-- Le nouvel affilié règle 100 DT de frais d'inscription en espèces, hors
-  système.
+- Le nouvel affilié règle **100 DT de frais d'inscription par e-card(s)**
+  saisies dans le formulaire (D-036, montant paramétrable). Plusieurs
+  e-cards sont cumulables : leur somme doit valoir **exactement** le
+  montant, ni appoint ni trop-perçu (D-030). Elles sont brûlées dans la
+  MÊME transaction que la création du membre — si l'inscription échoue
+  (position occupée, sponsor inconnu, upline hors du réseau), elles
+  restent `ACTIVE`. **Sans e-card valide, pas d'inscription** : plus rien
+  ne se règle en espèces hors système à l'entrée du réseau.
+
+- Ces 100 DT constituent un **ACOMPTE sur le pack** (D-037) : ils seront
+  déduits du montant dû à l'activation. Le montant réellement versé est
+  figé sur le membre — changer le tarif plus tard ne réécrit aucun
+  acompte déjà payé.
 
 - Le système attribue immédiatement un code membre auto-incrémenté
   (dernier NP001023 → nouveau NP001024). Le compte passe à l'état
@@ -180,9 +192,12 @@ en jambe gauche.
 
 - Le nouvel affilié accède à son compte, compose un panier de produits
   dont la somme des **points (BV)** égale exactement le palier de son pack
-  (ex. Silver = 1000 points), saisit une e-card dont la valeur en **DT**
-  égale exactement le **prix du pack** (ex. Silver = 2200 DT — D-029, ce
-  n'est pas la somme des prix des produits du panier) et finalise.
+  (ex. Silver = 1000 points) — cette règle-là ne change jamais —, saisit
+  une ou plusieurs e-cards dont la somme en **DT** égale exactement le
+  **prix du pack MOINS son acompte d'inscription** (ex. Silver :
+  2200 − 100 = **2100 DT** — D-029 + D-037 ; ce n'est pas la somme des prix
+  des produits du panier) et finalise. Au total, il aura déboursé le prix
+  du pack : 100 DT à l'inscription, 2100 DT à l'activation.
 
 - L'achat étant finalisé, le compte devient ACTIF automatiquement, sans
   validation administrateur. Les **points** du palier sont injectés vers ses
@@ -200,15 +215,17 @@ en jambe gauche.
 Décision cliente (confirmée) : un inscrit non finalisé n'est jamais
 supprimé et occupe sa place définitivement. L'adhésion suit trois états.
 
-- **INSCRIT —** créé à la soumission du formulaire : code attribué,
-  placement définitif (sponsor + upline + jambe). Le membre existe dans
-  l'arbre et peut recevoir des downlines à gauche et à droite. Il
-  persiste indéfiniment, même s'il n'active jamais. Aucun point injecté et
-  aucune commission tant qu'il n'est pas ACTIF ; le run hebdomadaire ne
-  lui verse rien.
+- **INSCRIT —** créé à la soumission du formulaire, **frais d'inscription
+  réglés par e-card(s)** (D-036) : code attribué, placement définitif
+  (sponsor + upline + jambe). Le membre existe dans l'arbre et peut
+  recevoir des downlines à gauche et à droite. Il persiste indéfiniment,
+  même s'il n'active jamais. Aucun point injecté et aucune commission tant
+  qu'il n'est pas ACTIF ; le run hebdomadaire ne lui verse rien. Aucun
+  solde non plus : l'e-card paie, elle ne recharge rien (D-025).
 
 - **ACTIF —** l'achat par e-card est finalisé (panier au palier exact en
-  points, e-card au prix du pack en DT). Les points du palier sont injectés
+  points, e-cards totalisant le prix du pack MOINS l'acompte
+  d'inscription, en DT — D-037). Les points du palier sont injectés
   vers ses uplines, sa baseline est figée et son compteur de commissions
   démarre. Il entre dans le calcul
   des commissions (pour les points postérieurs à l'activation
@@ -241,7 +258,7 @@ supprimé et occupe sa place définitivement. L'adhésion suit trois états.
 
 |                                                                                                                                                                                                                                                                                      |
 |--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Point d'attention —** Sans expiration, un membre peut payer les 100 DT uniquement pour occuper des positions stratégiques et recevoir des downlines sans jamais activer. C'est un choix assumé de la cliente ; les 100 DT de frais d'inscription constituent la barrière d'entrée. |
+| **Point d'attention —** Sans expiration, un membre peut payer les 100 DT (par e-card, D-036) uniquement pour occuper des positions stratégiques et recevoir des downlines sans jamais activer. C'est un choix assumé de la cliente ; les 100 DT de frais d'inscription constituent la barrière d'entrée — d'autant qu'ils ne sont pas perdus s'il active un jour : ils valent acompte sur son pack (D-037). |
 
 **5.5 E-cards**
 
@@ -383,15 +400,32 @@ supprimé et occupe sa place définitivement. L'adhésion suit trois états.
 **5.9 Renouvellement annuel**
 
 - **Obligation annuelle.** Chaque membre doit renouveler son inscription
-  une fois par an, pour 100 DT (valeur BV paramétrable), payable par
-  e-card ou en espèces hors système.
+  une fois par an, pour 100 DT (montant paramétrable,
+  `annual_renewal_dt`), **payable exclusivement par e-card(s)** — total
+  exact, cartes cumulables (D-038, D-030). Comme pour l'inscription, plus
+  rien ne se règle en espèces hors système.
 
-- **Validation admin.** Contrairement à l'inscription initiale, le
-  renouvellement est activé par l'administrateur.
+- **Deux temps, et le paiement ne suffit pas.** Régler ne réactive RIEN :
+  le paiement ouvre une demande en attente de validation. Le membre gelé
+  le reste — il ne perçoit toujours aucune commission — jusqu'à ce que
+  l'administrateur valide (D-038). C'est la différence avec l'inscription
+  initiale, où l'activation est automatique (D-010).
+
+- **Validation admin.** L'administrateur constate la régularisation. Un
+  membre INACTIF est alors **réactivé** : une nouvelle baseline est figée
+  (les points arrivés pendant le gel ne rapporteront jamais rien) mais le
+  **carry-over acquis avant le gel est conservé** (D-034). Un membre
+  encore ACTIF qui renouvelle par anticipation voit seulement son échéance
+  repoussée — aucune baseline n'est refigée, il n'a jamais cessé
+  d'apparier ses points. Un membre INSCRIT n'a rien à renouveler.
 
 - **Compte non renouvelé.** Un compte non renouvelé devient inactif : il
   ne perçoit plus de commissions tant que la régularisation n'est pas
   validée.
+
+|                                                                                                                                                                                                                 |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **[À TRANCHER] Refus d'un renouvellement —** Les e-cards sont brûlées AU PAIEMENT, avant la validation, et une e-card `USED` est irréversible. Si l'administrateur refuse une régularisation, l'argent est déjà sorti du système : valeur perdue, recréditée au solde du membre, ou autre ? Tant que la question n'est pas tranchée, aucun chemin de refus n'existe : l'admin valide, ou laisse la demande en attente. |
 
 **5.10 Authentification, notifications, langue**
 

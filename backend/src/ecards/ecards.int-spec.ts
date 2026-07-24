@@ -12,12 +12,16 @@ import { InsufficientBalanceError } from '../ledger/ledger.errors';
 import { LedgerService } from '../ledger/ledger.service';
 import { ActivationService } from '../members/activation.service';
 import { MemberCodeService } from '../members/member-code.service';
+import {
+  MembershipFeeService,
+  REGISTRATION_FEE_SETTING,
+} from '../members/membership-fee.service';
 import { MembersService } from '../members/members.service';
 import { ActivationPayment } from '../members/members.types';
 import { BalanceActivationPayment } from '../members/payment/balance-activation-payment';
 import { PlacementService } from '../members/placement.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { EcardNotActiveError, EcardValueMismatchError } from './ecards.errors';
+import { EcardNotActiveError, EcardsTotalMismatchError } from './ecards.errors';
 import { EcardsService } from './ecards.service';
 
 /**
@@ -44,7 +48,10 @@ describe('E-cards — intégration (vrai Postgres)', () => {
   let ecards: EcardsService;
   let packId: number;
   let tierBv: number; // POINTS — ce que l'arbre reçoit
-  let priceDt: Money; // DINARS — ce que l'activation fait payer (D-029)
+  let priceDt: Money; // DINARS — le TARIF du pack (D-029)
+  let feeDt: Money; // DINARS — frais d'inscription = acompte (D-036/D-037)
+  let dueDt: Money; // DINARS — ce que l'activation fait réellement payer (prix − acompte)
+  let fees: MembershipFeeService;
   let adminId: number;
 
   const createdMembers: number[] = [];
@@ -72,8 +79,11 @@ describe('E-cards — intégration (vrai Postgres)', () => {
     return member;
   }
 
+  /** Les frais d'inscription se règlent par e-card de genèse (D-036) : sans elle, pas d'inscription. */
   async function register(uplineCode: string, leg: Leg) {
     seq += 1;
+    const fee = await ecards.genesis({ adminId, valueDt: feeDt });
+    createdEcards.push(fee.id);
     const member = await members.register({
       lastName: 'Test',
       firstName: `E${seq}`,
@@ -82,6 +92,7 @@ describe('E-cards — intégration (vrai Postgres)', () => {
       sponsorCode: uplineCode,
       uplineCode,
       leg,
+      ecardCodes: [fee.code],
     });
     createdMembers.push(member.id);
     return member;
@@ -156,11 +167,15 @@ describe('E-cards — intégration (vrai Postgres)', () => {
 
     ledger = new LedgerService(prisma);
     const placement = new PlacementService(prisma);
+    ecards = new EcardsService(prisma, ledger);
+    fees = new MembershipFeeService(prisma);
     members = new MembersService(
       prisma,
       config,
       placement,
       new MemberCodeService(),
+      fees,
+      ecards,
     );
     activation = new ActivationService(
       prisma,
@@ -168,7 +183,6 @@ describe('E-cards — intégration (vrai Postgres)', () => {
       new CommissionEventsService(),
       new BalanceActivationPayment(ledger),
     );
-    ecards = new EcardsService(prisma, ledger);
 
     const pack = await prisma.pack.findFirstOrThrow({
       where: { name: 'Silver' },
@@ -176,6 +190,9 @@ describe('E-cards — intégration (vrai Postgres)', () => {
     packId = pack.id;
     tierBv = pack.tierBv;
     priceDt = pack.priceDt;
+    feeDt = await fees.read(REGISTRATION_FEE_SETTING);
+    // Ce que l'activation encaisse réellement : le tarif moins l'acompte déjà versé (D-037).
+    dueDt = priceDt.minus(feeDt);
 
     const admin = await prisma.adminUser.findFirstOrThrow();
     adminId = admin.id;
@@ -217,6 +234,10 @@ describe('E-cards — intégration (vrai Postgres)', () => {
       await prisma.ecard.deleteMany({ where: { id: { in: ecardIds } } });
     }
     if (memberIds.length > 0) {
+      // Paiements d'adhésion (T7.5) : à purger après les e-cards qui les référencent.
+      await prisma.membershipPayment.deleteMany({
+        where: { memberId: { in: memberIds } },
+      });
       await prisma.auditLog.deleteMany({
         where: { target: { in: memberIds.map((id) => `Member:${id}`) } },
       });
@@ -291,13 +312,13 @@ describe('E-cards — intégration (vrai Postgres)', () => {
     const creator = await createRoot();
     const newcomer = await register(root.memberCode, Leg.LEFT);
 
-    await fund(creator.id, priceDt);
-    const ecard = await createEcard(creator.id, priceDt);
+    await fund(creator.id, dueDt);
+    const ecard = await createEcard(creator.id, dueDt);
 
     const result = await activation.activate({
       memberId: newcomer.id,
       packId,
-      payment: ecards.activationPayment(ecard.code),
+      payment: ecards.activationPayment([ecard.code]),
     });
 
     // La carte est brûlée, définitivement, au profit du membre activé.
@@ -323,7 +344,7 @@ describe('E-cards — intégration (vrai Postgres)', () => {
     expect(result.payment).toEqual({
       method: 'ECARD',
       ledgerEntryId: null,
-      ecardId: ecard.id,
+      ecardIds: [ecard.id],
     });
   });
 
@@ -332,16 +353,16 @@ describe('E-cards — intégration (vrai Postgres)', () => {
     const creator = await createRoot();
     const newcomer = await register(root.memberCode, Leg.LEFT);
 
-    await fund(creator.id, priceDt.plus(500));
-    const ecard = await createEcard(creator.id, priceDt.plus(500)); // trop-perçu : interdit
+    await fund(creator.id, dueDt.plus(500));
+    const ecard = await createEcard(creator.id, dueDt.plus(500)); // trop-perçu : interdit
 
     await expect(
       activation.activate({
         memberId: newcomer.id,
         packId,
-        payment: ecards.activationPayment(ecard.code),
+        payment: ecards.activationPayment([ecard.code]),
       }),
-    ).rejects.toBeInstanceOf(EcardValueMismatchError);
+    ).rejects.toBeInstanceOf(EcardsTotalMismatchError);
 
     expect((await ecardRow(ecard.id)).status).toBe(EcardStatus.ACTIVE);
     const member = await prisma.member.findUniqueOrThrow({
@@ -360,20 +381,20 @@ describe('E-cards — intégration (vrai Postgres)', () => {
     const first = await register(root.memberCode, Leg.LEFT);
     const second = await register(root.memberCode, Leg.RIGHT);
 
-    await fund(creator.id, priceDt);
-    const ecard = await createEcard(creator.id, priceDt);
+    await fund(creator.id, dueDt);
+    const ecard = await createEcard(creator.id, dueDt);
 
     await activation.activate({
       memberId: first.id,
       packId,
-      payment: ecards.activationPayment(ecard.code),
+      payment: ecards.activationPayment([ecard.code]),
     });
 
     await expect(
       activation.activate({
         memberId: second.id,
         packId,
-        payment: ecards.activationPayment(ecard.code),
+        payment: ecards.activationPayment([ecard.code]),
       }),
     ).rejects.toBeInstanceOf(EcardNotActiveError);
 
@@ -388,20 +409,20 @@ describe('E-cards — intégration (vrai Postgres)', () => {
     const creator = await createRoot();
     const newcomer = await register(root.memberCode, Leg.LEFT);
 
-    await fund(creator.id, priceDt);
-    const ecard = await createEcard(creator.id, priceDt);
+    await fund(creator.id, dueDt);
+    const ecard = await createEcard(creator.id, dueDt);
 
     // La carte est RÉELLEMENT brûlée dans la transaction, puis l'activation échoue juste
     // après : c'est le cas qui compte (une panne au milieu du checkout). Seul le rollback
     // Postgres peut rendre la carte — aucune compensation applicative n'est écrite.
     const crashing: ActivationPayment = {
       settleInTx: async (tx, input) => {
-        const consumed = await ecards.consumeInTx(tx, {
-          code: ecard.code,
+        const consumed = await ecards.consumeManyInTx(tx, {
+          codes: [ecard.code],
           memberId: input.memberId,
           dueDt: input.amountDt,
         });
-        expect(consumed.ecardId).toBe(ecard.id); // la consommation a bien eu lieu…
+        expect(consumed.ecardIds).toEqual([ecard.id]); // la consommation a bien eu lieu…
         throw new Error('panne simulée après consommation');
       },
     };
@@ -434,8 +455,8 @@ describe('E-cards — intégration (vrai Postgres)', () => {
     const left = await register(root.memberCode, Leg.LEFT);
     const right = await register(root.memberCode, Leg.RIGHT);
 
-    await fund(creator.id, priceDt);
-    const ecard = await createEcard(creator.id, priceDt);
+    await fund(creator.id, dueDt);
+    const ecard = await createEcard(creator.id, dueDt);
 
     // Deux membres distincts (donc aucune sérialisation « gratuite » par le verrou du membre)
     // tentent de payer avec la même carte, en même temps. L'UPDATE gardé les sérialise sur le
@@ -444,12 +465,12 @@ describe('E-cards — intégration (vrai Postgres)', () => {
       activation.activate({
         memberId: left.id,
         packId,
-        payment: ecards.activationPayment(ecard.code),
+        payment: ecards.activationPayment([ecard.code]),
       }),
       activation.activate({
         memberId: right.id,
         packId,
-        payment: ecards.activationPayment(ecard.code),
+        payment: ecards.activationPayment([ecard.code]),
       }),
     ]);
 
@@ -489,19 +510,19 @@ describe('E-cards — intégration (vrai Postgres)', () => {
     const creator = await createRoot();
     const newcomer = await register(root.memberCode, Leg.LEFT);
 
-    await fund(creator.id, priceDt); // seul argent injecté dans le système : +2200 DT
-    const ecard = await createEcard(creator.id, priceDt);
+    await fund(creator.id, dueDt); // seul argent injecté dans le système : +2200 DT
+    const ecard = await createEcard(creator.id, dueDt);
     await activation.activate({
       memberId: newcomer.id,
       packId,
-      payment: ecards.activationPayment(ecard.code),
+      payment: ecards.activationPayment([ecard.code]),
     });
 
     // Créateur : +2200 (genèse) −2200 (émission) = 0. Il a vendu sa carte hors plateforme.
     const creatorEntries = await movements(creator.id);
     expect(creatorEntries.map((e) => e.amountDt.toString())).toEqual([
-      priceDt.toString(),
-      priceDt.negated().toString(),
+      dueDt.toString(),
+      dueDt.negated().toString(),
     ]);
     expect(await balance(creator.id)).toBe('0');
     // Somme des mouvements = solde courant (invariant du grand livre).
@@ -624,12 +645,12 @@ describe('E-cards — intégration (vrai Postgres)', () => {
     const creator = await createRoot();
     const newcomer = await register(root.memberCode, Leg.LEFT);
 
-    await fund(creator.id, priceDt);
-    const ecard = await createEcard(creator.id, priceDt);
+    await fund(creator.id, dueDt);
+    const ecard = await createEcard(creator.id, dueDt);
     await activation.activate({
       memberId: newcomer.id,
       packId,
-      payment: ecards.activationPayment(ecard.code),
+      payment: ecards.activationPayment([ecard.code]),
     });
 
     await expect(
@@ -648,7 +669,7 @@ describe('E-cards — intégration (vrai Postgres)', () => {
 
     const ecard = await ecards.genesis({
       adminId,
-      valueDt: priceDt,
+      valueDt: dueDt,
       reason: 'Amorçage',
     });
     createdEcards.push(ecard.id);
@@ -663,7 +684,7 @@ describe('E-cards — intégration (vrai Postgres)', () => {
     await activation.activate({
       memberId: newcomer.id,
       packId,
-      payment: ecards.activationPayment(ecard.code),
+      payment: ecards.activationPayment([ecard.code]),
     });
 
     expect((await ecardRow(ecard.id)).status).toBe(EcardStatus.USED);

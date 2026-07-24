@@ -11,7 +11,7 @@ import { Money, ZERO_DT, money, moneyToApi } from '../common/money';
 import { EcardsService } from '../ecards/ecards.service';
 import { ActivationService } from '../members/activation.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { OrdersService } from './orders.service';
+import { ORDER_INCLUDE, OrdersService } from './orders.service';
 import {
   CartTierMismatchError,
   EmptyCartError,
@@ -27,13 +27,16 @@ const LOCK_TIMEOUT = "SET LOCAL lock_timeout = '3s'";
 
 /**
  * Checkout (spec §5.6, §5.7, §7.1.4). Deux contextes, deux montants dus — une seule règle de
- * paiement : l'e-card couvre EXACTEMENT ce qui est dû, et il n'en faut qu'une (D-007).
+ * paiement : les e-cards couvrent EXACTEMENT ce qui est dû, ni plus ni moins. Plusieurs sont
+ * cumulables (D-007 révisé par D-030) : à 2100 DT dus, exiger une carte unique de valeur pile
+ * rendrait l'activation impraticable, les gains arrivant par petits montants.
  *
- * ── Ce qui est dû, selon le contexte (D-028, D-029) ──────────────────────────────────────
- * ACTIVATION : `dueDt = prix du PACK` (ex. Silver = 2200 DT), figé au snapshot d'activation.
- *              Ce n'est PAS la somme des prix des produits du panier : le panier ne sert qu'à
- *              COMPOSER le palier en POINTS (`Σ valeur BV × qté == tierBv`, D-006). Deux
- *              paniers Silver différents coûtent le même prix — celui du pack.
+ * ── Ce qui est dû, selon le contexte (D-028, D-029, D-037) ───────────────────────────────
+ * ACTIVATION : `dueDt = prix du PACK − ACOMPTE D'INSCRIPTION` (Silver : 2200 − 100 = 2100 DT),
+ *              figé au snapshot d'activation. Ce n'est PAS la somme des prix des produits du
+ *              panier : le panier ne sert qu'à COMPOSER le palier en POINTS (`Σ valeur BV ×
+ *              qté == tierBv`, D-006). Deux paniers Silver différents coûtent le même prix.
+ *              L'acompte ne touche QUE l'argent — le palier crédité à l'arbre reste entier.
  * LIBRE      : `dueDt = Σ (prix effectif × qté)` — le prix promo s'il existe. Ici, et ici
  *              seulement, ce sont les produits qui font le montant.
  *
@@ -78,7 +81,7 @@ export class CheckoutService {
     memberId: number;
     packId: number;
     items: CartItemInput[];
-    ecardCode: string;
+    ecardCodes: string[];
     shippingAddress?: string;
   }): Promise<OrderView> {
     const cart = this.normalizeCart(input.items);
@@ -93,12 +96,13 @@ export class CheckoutService {
         await tx.$executeRawUnsafe(LOCK_TIMEOUT);
 
         // 1. ACTIVATION — première instruction sous verrou (D-024) : elle verrouille la chaîne
-        //    d'ancêtres (`Member`, ids croissants) puis brûle l'e-card (`Ecard`) pour payer le
-        //    PRIX DU PACK snapshoté. Rien d'autre ne doit être verrouillé avant elle.
+        //    d'ancêtres (`Member`, ids croissants) puis brûle les e-cards (`Ecard`, ids
+        //    croissants) pour payer le montant snapshoté — prix du pack MOINS l'acompte
+        //    d'inscription (D-037). Rien d'autre ne doit être verrouillé avant elle.
         const activated = await this.activation.activateInTx(tx, {
           memberId: input.memberId,
           packId: input.packId,
-          payment: this.ecards.activationPayment(input.ecardCode),
+          payment: this.ecards.activationPayment(input.ecardCodes),
         });
 
         // 2. Le panier doit valoir EXACTEMENT le palier, EN POINTS (D-006) — comparé au palier
@@ -122,9 +126,11 @@ export class CheckoutService {
           memberId: input.memberId,
           context: OrderContext.ACTIVATION,
           priced,
-          // Le montant PAYÉ est le prix du pack (D-029), pas la somme des prix du panier.
-          totalDt: money(activated.snapshot.priceDt),
-          ecardId: activated.payment.ecardId,
+          // Le montant PAYÉ est le prix du pack MOINS l'acompte d'inscription (D-029 +
+          // D-037), et non la somme des prix du panier. Le total déboursé par le membre
+          // reste le prix du pack : il en a versé une part à l'inscription.
+          totalDt: money(activated.snapshot.amountDueDt),
+          ecardIds: activated.payment.ecardIds,
           shippingAddress: input.shippingAddress,
         });
       },
@@ -144,7 +150,7 @@ export class CheckoutService {
   async freeCheckout(input: {
     memberId: number;
     items: CartItemInput[];
-    ecardCode: string;
+    ecardCodes: string[];
     shippingAddress?: string;
   }): Promise<OrderView> {
     const cart = this.normalizeCart(input.items);
@@ -169,9 +175,9 @@ export class CheckoutService {
         //    l'e-card doit couvrir EXACTEMENT. Le chiffrage précède donc la consommation.
         const priced = await this.priceCartInTx(tx, cart);
 
-        // 3. `Ecard` : brûlée pour `totalDt` — valeur différente = refus (D-007).
-        const consumed = await this.ecards.consumeInTx(tx, {
-          code: input.ecardCode,
+        // 3. `Ecard` : brûlées pour `totalDt` — total différent = refus (D-007/D-030).
+        const consumed = await this.ecards.consumeManyInTx(tx, {
+          codes: input.ecardCodes,
           memberId: input.memberId,
           dueDt: priced.totalDt,
         });
@@ -186,7 +192,7 @@ export class CheckoutService {
           context: OrderContext.FREE,
           priced,
           totalDt: priced.totalDt,
-          ecardId: consumed.ecardId,
+          ecardIds: consumed.ecardIds,
           shippingAddress: input.shippingAddress,
         });
       },
@@ -348,9 +354,13 @@ export class CheckoutService {
       memberId: number;
       context: OrderContext;
       priced: PricedCart;
-      /** Ce que l'e-card a réellement payé : prix du pack (ACTIVATION) ou Σ des prix (LIBRE). */
+      /**
+       * Ce que les e-cards ont réellement payé : prix du pack moins l'acompte d'inscription
+       * (ACTIVATION, D-037) ou Σ des prix effectifs (LIBRE).
+       */
       totalDt: Money;
-      ecardId: number | null;
+      /** Cartes déjà brûlées dans cette transaction — rattachées à la commande juste après. */
+      ecardIds: number[];
       shippingAddress?: string;
     },
   ): Promise<OrderView> {
@@ -360,7 +370,10 @@ export class CheckoutService {
         context: input.context,
         totalDt: input.totalDt, // DINARS payés
         totalPoints: input.priced.totalPoints, // POINTS du panier (= le palier, en ACTIVATION)
-        ecardId: input.ecardId,
+        // Compteur figé : c'est lui qui porte l'invariant en base « aucune commande PAID sans
+        // e-card » (CHECK `Order_paid_ecard_ck`), qu'un CHECK ne peut pas aller chercher dans
+        // la table `Ecard`.
+        ecardCount: input.ecardIds.length,
         status: OrderStatus.PAID,
         paidAt: new Date(),
         shippingAddress: input.shippingAddress ?? null,
@@ -376,7 +389,18 @@ export class CheckoutService {
           })),
         },
       },
-      include: { lines: { include: { product: { select: { name: true } } } } },
+      select: { id: true },
+    });
+
+    // Rattachement des cartes à la commande : elles ont été brûlées AVANT que l'`Order`
+    // n'existe (ordre de verrouillage D-024 — `Ecard` avant `Order`), le lien ne peut donc se
+    // poser qu'ici. Même transaction : une carte brûlée sans sa commande n'existe jamais.
+    await this.ecards.attachToOrderInTx(tx, input.ecardIds, order.id);
+
+    // Relecture APRÈS rattachement : la vue expose les e-cards de la commande.
+    const created = await tx.order.findUniqueOrThrow({
+      where: { id: order.id },
+      include: ORDER_INCLUDE,
     });
 
     await tx.auditLog.create({
@@ -388,15 +412,15 @@ export class CheckoutService {
             : 'ORDER_FREE_PAID',
         target: `Order:${order.id}`,
         after: {
-          totalDt: moneyToApi(order.totalDt), // en texte : l'audit passe par du JSON
-          totalPoints: order.totalPoints,
-          ecardId: order.ecardId, // jamais le code en clair (règle e-card)
+          totalDt: moneyToApi(created.totalDt), // en texte : l'audit passe par du JSON
+          totalPoints: created.totalPoints,
+          ecardIds: input.ecardIds, // jamais les codes en clair (règle e-card)
           lines: input.priced.lines.length,
         },
       },
     });
 
-    return this.orders.toView(order);
+    return this.orders.toView(created);
   }
 
   /**

@@ -61,6 +61,17 @@ Ordre par dépendance. Chaque tranche est testable et se termine par un commit. 
 - [x] Gel / réactivation — partie moteur (D-034) : `RenewalService`, nouvelle baseline, carry-over conservé (circuit admin 100 DT en T8).
 - [x] **Tests de scénarios déterministes** (voir la règle) — bloquant. (149 unit + 76 int verts.)
 
+## Tranche 7.5 — Frais d'inscription par e-card & acompte (réf. D-036 à D-041)
+- [x] Inscription payée par e-card(s) (D-036) : total exact, consommation ATOMIQUE dans la transaction de création du membre INSCRIT — un échec laisse les cartes `ACTIVE` et ne crée rien. Montant figé sur le membre (`registrationPaidDt`).
+- [x] Activation : montant dû = prix du pack − acompte (D-037, Silver 2100 DT). Panier TOUJOURS au palier exact en points, arbre crédité du palier entier — le moteur de commissions n'a pas bougé.
+- [x] Renouvellement annuel en deux temps (D-038) : paiement par e-card(s) → `PENDING_VALIDATION` (le gelé reste gelé), validation admin → réactivation D-034 (nouvelle baseline, carry-over d'avant conservé). Service + endpoints minimaux ; écran admin en T8.
+- [x] Numéro de pièce d'identité (D-039), non bloquant comme le reste de la vérification.
+- [x] Cumul de plusieurs e-cards (D-030) généralisé : inscription, renouvellement, activation ET achat libre (D-041 — lien porté par `Ecard.orderId`, invariant `Order.ecardCount`). Plafond de sécurité de 10 cartes par paiement (D-040).
+- [x] Durcissement de l'endpoint public d'inscription : quota par IP sur deux fenêtres, plafond de codes par requête, refus indistinct (anti-oracle), `TRUST_PROXY`, aucun code en clair dans les logs ou l'audit.
+- [x] Seed recalé (`registration_fee_dt` = 100, `annual_renewal_dt` = 100, comptes d'amorçage inscrits par e-card de genèse) ; toute trace de « 100 DT en espèces hors système » purgée du code et des docs.
+- [x] Docs (spec §5.3/§5.4/§5.9, decisions D-036→D-041, rules inscription/ecard/tree/shop/moteur) ; build OK, typecheck 0, migrate status propre, **157 unit + 86 int verts**.
+- [ ] **Point ouvert** : que devient la valeur si l'admin REFUSE un renouvellement (e-cards déjà brûlées) ? Aucun chemin de refus tant que la cliente n'a pas tranché.
+
 ## Tranche 8 — Back-office admin (réf. spec §7.2) — 12 modules
 - [ ] Dashboard, membres, généalogie, packs, produits, commandes.
 - [ ] Moteur de commissions (supervision), soldes BV, e-cards, rapports, paramètres, RBAC.

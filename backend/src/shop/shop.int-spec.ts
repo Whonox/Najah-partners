@@ -12,10 +12,14 @@ import {
 import { CommissionEventsService } from '../commissions/commission-events.service';
 import { Money, money } from '../common/money';
 import { LedgerService } from '../ledger/ledger.service';
-import { EcardValueMismatchError } from '../ecards/ecards.errors';
+import { EcardsTotalMismatchError } from '../ecards/ecards.errors';
 import { EcardsService } from '../ecards/ecards.service';
 import { ActivationService } from '../members/activation.service';
 import { MemberCodeService } from '../members/member-code.service';
+import {
+  MembershipFeeService,
+  REGISTRATION_FEE_SETTING,
+} from '../members/membership-fee.service';
 import { MembersService } from '../members/members.service';
 import { BalanceActivationPayment } from '../members/payment/balance-activation-payment';
 import { PlacementService } from '../members/placement.service';
@@ -53,7 +57,10 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
   let checkout: CheckoutService;
   let packId: number;
   let tierBv: number; // POINTS — palier
-  let priceDt: Money; // DINARS — prix du pack (D-029)
+  let priceDt: Money; // DINARS — TARIF du pack (D-029)
+  let feeDt: Money; // DINARS — frais d'inscription = acompte (D-036/D-037)
+  let dueDt: Money; // DINARS — ce que l'activation encaisse (prix − acompte)
+  let fees: MembershipFeeService;
   let categoryId: number;
   let adminId: number;
 
@@ -83,8 +90,10 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
     return member;
   }
 
+  /** Les frais d'inscription se règlent par e-card (D-036) : sans elle, pas d'inscription. */
   async function register(uplineCode: string, leg: Leg) {
     seq += 1;
+    const fee = await genesisEcard(feeDt);
     const member = await members.register({
       lastName: 'Test',
       firstName: `S${seq}`,
@@ -93,15 +102,16 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
       sponsorCode: uplineCode,
       uplineCode,
       leg,
+      ecardCodes: [fee.code],
     });
     createdMembers.push(member.id);
     return member;
   }
 
-  /** Membre ACTIF : inscrit, financé du PRIX (DT) par genèse, puis activé sur son solde (T3/T4). */
+  /** Membre ACTIF : inscrit, financé du MONTANT DÛ (prix − acompte, D-037), puis activé. */
   async function activeMember(uplineCode: string, leg: Leg) {
     const member = await register(uplineCode, leg);
-    await fund(member.id, priceDt);
+    await fund(member.id, dueDt);
     await activation.activate({ memberId: member.id, packId });
     return member;
   }
@@ -179,11 +189,15 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
 
     ledger = new LedgerService(prisma);
     const placement = new PlacementService(prisma);
+    ecards = new EcardsService(prisma, ledger);
+    fees = new MembershipFeeService(prisma);
     members = new MembersService(
       prisma,
       config,
       placement,
       new MemberCodeService(),
+      fees,
+      ecards,
     );
     activation = new ActivationService(
       prisma,
@@ -191,7 +205,6 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
       new CommissionEventsService(),
       new BalanceActivationPayment(ledger),
     );
-    ecards = new EcardsService(prisma, ledger);
     orders = new OrdersService(prisma);
     checkout = new CheckoutService(prisma, activation, ecards, orders);
 
@@ -200,7 +213,9 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
     });
     packId = pack.id;
     tierBv = pack.tierBv; // 1000 points
-    priceDt = pack.priceDt; // 2200 DT
+    priceDt = pack.priceDt; // 2200 DT — le TARIF
+    feeDt = await fees.read(REGISTRATION_FEE_SETTING); // 100 DT — l'acompte (D-036)
+    dueDt = priceDt.minus(feeDt); // 2100 DT — ce que l'activation encaisse (D-037)
 
     const admin = await prisma.adminUser.findFirstOrThrow();
     adminId = admin.id;
@@ -221,18 +236,9 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
     createdEcards.length = 0;
     createdMembers.length = 0;
 
-    // Ordre imposé par les FK : lignes → commandes → produits → mouvements → e-cards → membres.
-    await prisma.order.deleteMany({
-      where: {
-        OR: [
-          { id: { in: orderIds } },
-          { memberId: { in: memberIds.length ? memberIds : [-1] } },
-        ],
-      },
-    });
-    if (productIds.length > 0) {
-      await prisma.product.deleteMany({ where: { id: { in: productIds } } });
-    }
+    // Ordre imposé par les FK : mouvements → e-cards → commandes → produits → paiements
+    // d'adhésion → membres. Les e-cards passent AVANT les commandes depuis la Tranche 7.5 :
+    // c'est `Ecard.orderId` (cumul, D-030) qui porte désormais le lien, en `Restrict`.
     if (memberIds.length > 0) {
       // Les activations écrivent des événements de commission (temps 1, D-035).
       await prisma.commissionEvent.deleteMany({
@@ -253,7 +259,21 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
       });
       await prisma.ecard.deleteMany({ where: { id: { in: ecardIds } } });
     }
+    await prisma.order.deleteMany({
+      where: {
+        OR: [
+          { id: { in: orderIds } },
+          { memberId: { in: memberIds.length ? memberIds : [-1] } },
+        ],
+      },
+    });
+    if (productIds.length > 0) {
+      await prisma.product.deleteMany({ where: { id: { in: productIds } } });
+    }
     if (memberIds.length > 0) {
+      await prisma.membershipPayment.deleteMany({
+        where: { memberId: { in: memberIds } },
+      });
       for (const id of memberIds) {
         await prisma.member.delete({ where: { id } });
       }
@@ -272,21 +292,24 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
       const root = await createRoot();
       const member = await register(root.memberCode, Leg.LEFT);
       const oil = await createProduct({ valueBv: 250, stock: 10 }); // 4 × 250 = 1000 points
-      const ecard = await genesisEcard(priceDt); // l'e-card vaut le PRIX du pack
+      const ecard = await genesisEcard(dueDt); // l'e-card vaut le prix du pack MOINS l'acompte
 
       const order = await track(
         checkout.activationCheckout({
           memberId: member.id,
           packId,
           items: [{ productId: oil.id, quantity: 4 }],
-          ecardCode: ecard.code,
+          ecardCodes: [ecard.code],
           shippingAddress: 'Tunis',
         }),
       );
 
       expect(order.context).toBe(OrderContext.ACTIVATION);
       expect(order.status).toBe(OrderStatus.PAID);
-      expect(order.totalDt).toBe('2200.000'); // le PRIX du pack, pas 4 × 100 DT
+      // 2200 (prix du pack) − 100 (acompte d'inscription, D-037) = 2100 — et surtout pas
+      // 4 × 100 DT, la somme des prix des produits du panier (D-029).
+      expect(order.totalDt).toBe(dueDt.toFixed(3));
+      expect(order.ecardIds).toEqual([ecard.id]);
       expect(order.totalPoints).toBe(tierBv); // le palier
       expect(order.shipmentStatus).toBe(ShipmentStatus.PREPARATION);
       expect(order.lines[0].unitValueBv).toBe(250); // snapshot figé (POINTS)
@@ -308,14 +331,14 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
       const root = await createRoot();
       const member = await register(root.memberCode, Leg.LEFT);
       const oil = await createProduct({ valueBv: 250, stock: 10 });
-      const ecard = await genesisEcard(priceDt);
+      const ecard = await genesisEcard(dueDt);
 
       await expect(
         checkout.activationCheckout({
           memberId: member.id,
           packId,
           items: [{ productId: oil.id, quantity: 3 }], // 750 points ≠ 1000
-          ecardCode: ecard.code,
+          ecardCodes: [ecard.code],
         }),
       ).rejects.toBeInstanceOf(CartTierMismatchError);
 
@@ -330,7 +353,7 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
       const root = await createRoot();
       const member = await register(root.memberCode, Leg.LEFT);
       const oil = await createProduct({ valueBv: 500, stock: 4 });
-      const ecard = await genesisEcard(priceDt);
+      const ecard = await genesisEcard(dueDt);
 
       // Panne injectée à la toute dernière étape, APRÈS l'activation, la consommation de
       // l'e-card, le décrément de stock et l'INSERT de la commande : c'est le pire moment,
@@ -344,7 +367,7 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
           memberId: member.id,
           packId,
           items: [{ productId: oil.id, quantity: 2 }], // 1000 points = palier
-          ecardCode: ecard.code,
+          ecardCodes: [ecard.code],
         }),
       ).rejects.toThrow('panne simulée');
       boom.mockRestore();
@@ -363,16 +386,16 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
       const root = await createRoot();
       const member = await register(root.memberCode, Leg.LEFT);
       const oil = await createProduct({ valueBv: 1000, stock: 5 }); // panier conforme (1000 points)
-      const ecard = await genesisEcard(priceDt.plus(500)); // trop-perçu sur le PRIX : refusé
+      const ecard = await genesisEcard(dueDt.plus(500)); // trop-perçu sur le montant dû : refusé
 
       await expect(
         checkout.activationCheckout({
           memberId: member.id,
           packId,
           items: [{ productId: oil.id, quantity: 1 }],
-          ecardCode: ecard.code,
+          ecardCodes: [ecard.code],
         }),
-      ).rejects.toBeInstanceOf(EcardValueMismatchError);
+      ).rejects.toBeInstanceOf(EcardsTotalMismatchError);
 
       expect((await ecardRow(ecard.id)).status).toBe(EcardStatus.ACTIVE);
       expect((await memberRow(member.id)).status).toBe(MemberStatus.REGISTERED);
@@ -397,7 +420,7 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
         checkout.freeCheckout({
           memberId: buyer.id,
           items: [{ productId: oil.id, quantity: 3 }], // 300 DT, 750 points (qui ne vont nulle part)
-          ecardCode: ecard.code,
+          ecardCodes: [ecard.code],
         }),
       );
 
@@ -429,9 +452,9 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
         checkout.freeCheckout({
           memberId: buyer.id,
           items: [{ productId: oil.id, quantity: 3 }],
-          ecardCode: ecard.code,
+          ecardCodes: [ecard.code],
         }),
-      ).rejects.toBeInstanceOf(EcardValueMismatchError);
+      ).rejects.toBeInstanceOf(EcardsTotalMismatchError);
 
       expect((await ecardRow(ecard.id)).status).toBe(EcardStatus.ACTIVE);
       expect(await stockOf(oil.id)).toBe(10);
@@ -447,7 +470,7 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
         checkout.freeCheckout({
           memberId: member.id,
           items: [{ productId: oil.id, quantity: 1 }],
-          ecardCode: ecard.code,
+          ecardCodes: [ecard.code],
         }),
       ).rejects.toBeInstanceOf(MemberNotActiveError);
 
@@ -474,7 +497,7 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
         checkout.freeCheckout({
           memberId: buyer.id,
           items: [{ productId: oil.id, quantity: 2 }],
-          ecardCode: ecard.code,
+          ecardCodes: [ecard.code],
           shippingAddress: 'Sfax',
         }),
       );
@@ -498,7 +521,7 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
         checkout.freeCheckout({
           memberId: buyer.id,
           items: [{ productId: oil.id, quantity: 1 }],
-          ecardCode: ecard.code,
+          ecardCodes: [ecard.code],
         }),
       );
 
@@ -523,12 +546,12 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
         checkout.freeCheckout({
           memberId: buyerA.id,
           items: [{ productId: rare.id, quantity: 1 }],
-          ecardCode: ecardA.code,
+          ecardCodes: [ecardA.code],
         }),
         checkout.freeCheckout({
           memberId: buyerB.id,
           items: [{ productId: rare.id, quantity: 1 }],
-          ecardCode: ecardB.code,
+          ecardCodes: [ecardB.code],
         }),
       ]);
 
@@ -573,7 +596,7 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
         checkout.freeCheckout({
           memberId: buyer.id,
           items: [{ productId: guide.id, quantity: 10 }],
-          ecardCode: ecard.code,
+          ecardCodes: [ecard.code],
         }),
       );
 
@@ -597,7 +620,7 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
         checkout.freeCheckout({
           memberId: buyer.id,
           items: [{ productId: oil.id, quantity: 1 }],
-          ecardCode: ecard.code,
+          ecardCodes: [ecard.code],
           shippingAddress: 'Tunis',
         }),
       );
@@ -636,7 +659,7 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
         checkout.freeCheckout({
           memberId: buyer.id,
           items: [{ productId: guide.id, quantity: 1 }],
-          ecardCode: ecard.code,
+          ecardCodes: [ecard.code],
         }),
       );
 

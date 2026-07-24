@@ -4,6 +4,7 @@ import { CommissionEventsService } from '../commissions/commission-events.servic
 import { money, moneyToApi } from '../common/money';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  ActivationAmountInvalidError,
   MemberNotFoundError,
   MemberNotRegisteredError,
   PackUnavailableError,
@@ -34,10 +35,12 @@ export interface ActivateInput {
  * ensemble ou pas du tout : une activation interrompue ne laisse aucun événement orphelin.
  *
  * LES DEUX DIMENSIONS SE CROISENT ICI, ET NULLE PART AILLEURS (D-028) — sans se convertir :
- *   on FAIT PAYER `snapshot.priceDt`  (DINARS — le prix du pack, D-029) à la stratégie de paiement ;
- *   on CRÉDITE   `snapshot.tierBv`    (POINTS — le palier) aux ancêtres dans l'arbre.
+ *   on FAIT PAYER `snapshot.amountDueDt` (DINARS — prix du pack MOINS l'acompte d'inscription,
+ *                                         D-029 + D-037) à la stratégie de paiement ;
+ *   on CRÉDITE   `snapshot.tierBv`       (POINTS — le palier) aux ancêtres dans l'arbre.
  * Le prix ne se déduit pas du palier, et le palier ne vaut pas le prix : ce sont deux grandeurs
- * indépendantes, toutes deux figées au snapshot.
+ * indépendantes, toutes deux figées au snapshot. L'acompte ne touche QUE l'argent : le panier
+ * doit toujours totaliser le palier exact en points, et l'arbre reçoit le palier entier.
  *
  * Aucune route HTTP n'expose ce service (D-023) : la seule porte d'entrée en ACTIF est
  * l'achat par e-card finalisé — le checkout de la Tranche 6, qui compose sa propre
@@ -83,9 +86,17 @@ export class ActivationService {
 
     // 2. Relecture du statut SOUS VERROU : garde d'idempotence (double soumission, retry).
     //    `sponsorId` sert au temps 1 du moteur : la commission DIRECTE va au sponsor.
+    //    `registrationPaidDt` est l'ACOMPTE versé à l'inscription (D-037) — relu ici, sous le
+    //    verrou déjà pris, sans requête ni verrou supplémentaire.
     const member = await tx.member.findUnique({
       where: { id: input.memberId },
-      select: { id: true, memberCode: true, status: true, sponsorId: true },
+      select: {
+        id: true,
+        memberCode: true,
+        status: true,
+        sponsorId: true,
+        registrationPaidDt: true,
+      },
     });
     if (!member) {
       throw new MemberNotFoundError(input.memberId);
@@ -100,26 +111,42 @@ export class ActivationService {
     if (!pack || !pack.active) {
       throw new PackUnavailableError(input.packId);
     }
+    // L'ACOMPTE (D-037) : les frais d'inscription déjà versés viennent en déduction du prix du
+    // pack. On lit la valeur FIGÉE sur le membre, jamais le paramètre `registration_fee_dt`
+    // courant — le tarif a pu changer entre l'inscription et l'activation, et c'est ce que le
+    // membre a réellement payé qui fait foi. Le total déboursé reste le prix du pack.
+    const registrationCreditDt = member.registrationPaidDt;
+    const amountDueDt = pack.priceDt.minus(registrationCreditDt);
+    if (amountDueDt.lessThanOrEqualTo(0)) {
+      throw new ActivationAmountInvalidError(
+        moneyToApi(pack.priceDt),
+        moneyToApi(registrationCreditDt),
+      );
+    }
+
     const snapshot: ActivationSnapshot = {
       packName: pack.name,
-      tierBv: pack.tierBv, // POINTS — pour l'arbre
-      priceDt: moneyToApi(pack.priceDt), // DINARS — pour le paiement (D-029)
+      tierBv: pack.tierBv, // POINTS — pour l'arbre, INCHANGÉ par l'acompte (D-037)
+      priceDt: moneyToApi(pack.priceDt), // DINARS — le TARIF du pack (D-029)
+      registrationCreditDt: moneyToApi(registrationCreditDt), // DINARS — déduits (D-037)
+      amountDueDt: moneyToApi(amountDueDt), // DINARS — ce qui est réellement encaissé
       directCommissionDt: moneyToApi(pack.directCommissionDt),
       indirectCommissionDt: moneyToApi(pack.indirectCommissionDt),
       weeklyCapDt: moneyToApi(pack.weeklyCapDt),
     };
 
-    // 4. RÈGLEMENT du PRIX DU PACK (en DINARS — D-029), délégué à la stratégie de paiement
-    //    (D-025) — elle règle intégralement, ou elle lève (et toute l'activation est annulée) :
-    //      - solde  : débit ACTIVATION du membre (grand livre) ;
-    //      - e-card : la carte est brûlée, AUCUN solde n'est touché.
+    // 4. RÈGLEMENT du MONTANT DÛ (en DINARS — prix du pack moins l'acompte, D-029 + D-037),
+    //    délégué à la stratégie de paiement (D-025) — elle règle intégralement, ou elle lève
+    //    (et toute l'activation est annulée) :
+    //      - solde   : débit ACTIVATION du membre (grand livre) ;
+    //      - e-cards : les cartes sont brûlées, AUCUN solde n'est touché.
     //    Ce n'est PAS le palier qu'on fait payer : le palier est en points, et un point ne se
-    //    paie pas. C'est le prix du pack, figé au snapshot comme le reste.
+    //    paie pas. C'est un montant en dinars, figé au snapshot comme le reste.
     //    L'ordre de verrouillage (D-024) est respecté : la chaîne `Member` est déjà
     //    verrouillée (étape 1), l'`Ecard` ne l'est qu'ici — Member → Ecard, jamais l'inverse.
     const settlement = await payment.settleInTx(tx, {
       memberId: member.id,
-      amountDt: money(snapshot.priceDt),
+      amountDt: money(snapshot.amountDueDt),
     });
 
     // 5. Passage à ACTIF + baseline figée. `baselineLeft = leftPoints` est calculé EN SQL,

@@ -1,20 +1,38 @@
 import { ConfigService } from '@nestjs/config';
-import { Leg, MemberStatus, Prisma } from '@prisma/client';
+import {
+  EcardStatus,
+  Leg,
+  MemberStatus,
+  MembershipPaymentStatus,
+  MembershipPaymentType,
+  Prisma,
+} from '@prisma/client';
 import { CommissionEventsService } from '../commissions/commission-events.service';
 import { Money, money } from '../common/money';
+import { EcardsService } from '../ecards/ecards.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { InsufficientBalanceError } from '../ledger/ledger.errors';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivationService } from './activation.service';
 import { MemberCodeService } from './member-code.service';
 import {
+  ANNUAL_RENEWAL_SETTING,
+  MembershipFeeService,
+  REGISTRATION_FEE_SETTING,
+} from './membership-fee.service';
+import {
+  NothingToRenewError,
   PositionTakenError,
+  RegistrationPaymentRefusedError,
+  RenewalAlreadyPendingError,
+  RenewalPaymentNotPendingError,
   UplineOutsideSponsorTreeError,
 } from './members.errors';
 import { MembersService } from './members.service';
 import { ActivationPayment } from './members.types';
 import { BalanceActivationPayment } from './payment/balance-activation-payment';
 import { buildLockChainQuery, PlacementService } from './placement.service';
+import { RenewalService } from './renewal.service';
 import { buildTree } from './tree.builder';
 
 /**
@@ -34,13 +52,30 @@ describe('Members — intégration (vrai Postgres)', () => {
   let placement: PlacementService;
   let members: MembersService;
   let activation: ActivationService;
+  let ecards: EcardsService;
+  let fees: MembershipFeeService;
+  let renewals: RenewalService;
+  let adminId: number;
   let packId: number;
   let tierBv: number; // POINTS — ce que l'arbre reçoit
-  let priceDt: Money; // DINARS — ce que l'activation fait payer (D-029)
+  let priceDt: Money; // DINARS — le TARIF du pack (D-029)
+  let feeDt: Money; // DINARS — frais d'inscription = acompte (D-036/D-037)
+  let dueDt: Money; // DINARS — ce que l'activation fait réellement payer (prix − acompte)
+  let renewalDt: Money; // DINARS — renouvellement annuel (D-038)
 
   /** Membres créés par les tests, dans l'ordre : on les supprime à l'envers (FK Restrict). */
   const created: number[] = [];
   let seq = 0;
+
+  /** Codes émis par les tests : purgés en fin de test, y compris ceux restés ACTIVE. */
+  const createdEcards: string[] = [];
+
+  /** E-card de genèse : de la valeur créée ex nihilo, comme en amorçage réseau (D-017b). */
+  async function genesisEcard(valueDt: Money): Promise<string> {
+    const ecard = await ecards.genesis({ adminId, valueDt });
+    createdEcards.push(ecard.code);
+    return ecard.code;
+  }
 
   /** Racine isolée : chaque test travaille dans son propre arbre. */
   async function createRoot(): Promise<{ id: number; memberCode: string }> {
@@ -63,11 +98,15 @@ describe('Members — intégration (vrai Postgres)', () => {
     return member;
   }
 
-  /** Inscrit un membre par le service réel (donc avec toutes ses validations). */
+  /**
+   * Inscrit un membre par le service réel (donc avec toutes ses validations), frais réglés par
+   * une e-card de genèse du montant exact (D-036) : sans e-card valide, pas d'inscription.
+   */
   async function register(
     sponsorCode: string,
     uplineCode: string,
     leg: Leg,
+    ecardCodes?: string[],
   ): Promise<{ id: number; memberCode: string }> {
     seq += 1;
     const member = await members.register({
@@ -78,14 +117,17 @@ describe('Members — intégration (vrai Postgres)', () => {
       sponsorCode,
       uplineCode,
       leg,
+      ecardCodes: ecardCodes ?? [await genesisEcard(feeDt)],
     });
     created.push(member.id);
     return { id: member.id, memberCode: member.memberCode };
   }
 
   /**
-   * Approvisionne le solde du PRIX du pack (en DT) puis active — le moyen de paiement par défaut
-   * (BalanceActivationPayment) débite ce prix. L'arbre, lui, reçoit le palier en POINTS (D-028).
+   * Approvisionne le solde du MONTANT DÛ (prix du pack moins l'acompte réellement versé par ce
+   * membre — D-037) puis active : le moyen de paiement par défaut (BalanceActivationPayment)
+   * débite exactement ce montant. L'acompte est relu sur le membre, jamais supposé : une racine
+   * créée hors inscription n'en a pas et paie le prix plein.
    */
   async function fundAndActivate(
     memberId: number,
@@ -94,10 +136,19 @@ describe('Members — intégration (vrai Postgres)', () => {
     await ledger.recordMovement({
       memberId,
       type: 'ADMIN_GENESIS',
-      amountDt: priceDt,
+      amountDt: await amountDueFor(memberId),
       reason: 'Test',
     });
     return activation.activate({ memberId, packId, payment });
+  }
+
+  /** Prix du pack − acompte d'inscription figé sur le membre (D-037). */
+  async function amountDueFor(memberId: number): Promise<Money> {
+    const member = await prisma.member.findUniqueOrThrow({
+      where: { id: memberId },
+      select: { registrationPaidDt: true },
+    });
+    return priceDt.minus(member.registrationPaidDt);
   }
 
   async function points(memberId: number) {
@@ -128,11 +179,15 @@ describe('Members — intégration (vrai Postgres)', () => {
 
     ledger = new LedgerService(prisma);
     placement = new PlacementService(prisma);
+    ecards = new EcardsService(prisma, ledger);
+    fees = new MembershipFeeService(prisma);
     members = new MembersService(
       prisma,
       config,
       placement,
       new MemberCodeService(),
+      fees,
+      ecards,
     );
     activation = new ActivationService(
       prisma,
@@ -140,6 +195,13 @@ describe('Members — intégration (vrai Postgres)', () => {
       new CommissionEventsService(),
       new BalanceActivationPayment(ledger),
     );
+    renewals = new RenewalService(prisma, fees, ecards);
+
+    const admin = await prisma.adminUser.findFirstOrThrow({
+      where: { role: 'SUPER_ADMIN' },
+      select: { id: true },
+    });
+    adminId = admin.id;
 
     const pack = await prisma.pack.findFirstOrThrow({
       where: { name: 'Silver' },
@@ -147,13 +209,23 @@ describe('Members — intégration (vrai Postgres)', () => {
     packId = pack.id;
     tierBv = pack.tierBv;
     priceDt = pack.priceDt;
+    feeDt = await fees.read(REGISTRATION_FEE_SETTING);
+    dueDt = priceDt.minus(feeDt);
+    renewalDt = await fees.read(ANNUAL_RENEWAL_SETTING);
   });
 
   afterEach(async () => {
     // Ordre inverse de création : un upline ne peut pas être supprimé avant ses downlines
     // (onDelete: Restrict — le placement est immuable, pas de réenracinement silencieux).
     const ids = [...created].reverse();
+    const codes = [...createdEcards];
     created.length = 0;
+    createdEcards.length = 0;
+    // Les e-cards restées ACTIVE (paiement refusé, course perdue) n'ont pas de membre : on
+    // les purge par code, sans balayer la table — d'autres suites tournent en parallèle.
+    if (codes.length > 0) {
+      await prisma.ecard.deleteMany({ where: { code: { in: codes } } });
+    }
     if (ids.length === 0) return;
     // Les activations écrivent des événements de commission (temps 1, D-035) : à purger
     // avant les membres (FK Restrict — bénéficiaire comme filleul source).
@@ -163,6 +235,16 @@ describe('Members — intégration (vrai Postgres)', () => {
       },
     });
     await prisma.ledgerEntry.deleteMany({ where: { memberId: { in: ids } } });
+    // Les e-cards des frais d'inscription / de renouvellement (D-036, D-038) pointent vers le
+    // membre (`userId`) et vers leur paiement d'adhésion : purger dans cet ordre (FK Restrict).
+    await prisma.ecard.deleteMany({
+      where: {
+        OR: [{ userId: { in: ids } }, { creatorId: { in: ids } }],
+      },
+    });
+    await prisma.membershipPayment.deleteMany({
+      where: { memberId: { in: ids } },
+    });
     await prisma.auditLog.deleteMany({
       where: { target: { in: ids.map((id) => `Member:${id}`) } },
     });
@@ -203,18 +285,212 @@ describe('Members — intégration (vrai Postgres)', () => {
     expect(rootPoints.rightPoints).toBe(0);
   });
 
-  it('vérification d’identité PENDING par défaut, et non bloquante', async () => {
+  it('vérification d’identité PENDING par défaut, et non bloquante (D-018, D-039)', async () => {
     const root = await createRoot();
-    const child = await register(root.memberCode, root.memberCode, Leg.LEFT);
+    seq += 1;
+    const child = await members.register({
+      lastName: 'Test',
+      firstName: `Pending${seq}`,
+      email: `pending-${Date.now()}-${seq}@test.local`,
+      password: PASSWORD,
+      sponsorCode: root.memberCode,
+      uplineCode: root.memberCode,
+      leg: Leg.LEFT,
+      ecardCodes: [await genesisEcard(feeDt)],
+      idDocument: {
+        type: 'ID_CARD',
+        relativePath: 'test/piece.jpg',
+        number: '09876543', // D-039 : numéro saisi à la main
+      },
+    });
+    created.push(child.id);
+
     const member = await prisma.member.findUniqueOrThrow({
       where: { id: child.id },
     });
     expect(member.verificationStatus).toBe('PENDING');
+    expect(member.idDocumentNumber).toBe('09876543');
 
-    // D-018 : un membre PENDING s'active normalement.
+    // D-018/D-039 : rien de tout cela ne bloque — un membre PENDING s'active normalement.
     const result = await fundAndActivate(child.id);
     expect(result.memberId).toBe(child.id);
     expect((await points(child.id)).status).toBe(MemberStatus.ACTIVE);
+  });
+
+  // ─────────────────────────── Frais d'inscription par e-card (D-036) ───────────────────────────
+
+  it('inscription : e-cards au total EXACT → membre INSCRIT, cartes USED, acompte figé', async () => {
+    const root = await createRoot();
+    const code = await genesisEcard(feeDt);
+    const child = await register(root.memberCode, root.memberCode, Leg.LEFT, [
+      code,
+    ]);
+
+    const member = await prisma.member.findUniqueOrThrow({
+      where: { id: child.id },
+    });
+    expect(member.status).toBe(MemberStatus.REGISTERED);
+    expect(member.registrationPaidDt.toString()).toBe(feeDt.toString());
+
+    const ecard = await prisma.ecard.findUniqueOrThrow({ where: { code } });
+    expect(ecard.status).toBe(EcardStatus.USED);
+    expect(ecard.userId).toBe(child.id);
+    expect(ecard.usedAt).not.toBeNull();
+
+    // Le paiement d'adhésion trace ce que la carte a réglé : une carte brûlée sans
+    // contrepartie lisible n'existe jamais.
+    const payment = await prisma.membershipPayment.findFirstOrThrow({
+      where: { memberId: child.id },
+    });
+    expect(payment.type).toBe(MembershipPaymentType.REGISTRATION);
+    expect(payment.status).toBe(MembershipPaymentStatus.SETTLED); // acquise, sans admin (D-010)
+    expect(payment.amountDt.toString()).toBe(feeDt.toString());
+    expect(ecard.membershipPaymentId).toBe(payment.id);
+
+    // Toujours AUCUN mouvement de grand livre : l'e-card paie, elle ne recharge rien (D-025).
+    expect(
+      await prisma.ledgerEntry.count({ where: { memberId: child.id } }),
+    ).toBe(0);
+  });
+
+  it('inscription : PLUSIEURS e-cards cumulées (50 + 50) → acceptées (D-030)', async () => {
+    const root = await createRoot();
+    const half = feeDt.dividedBy(2);
+    const codes = [await genesisEcard(half), await genesisEcard(half)];
+
+    const child = await register(
+      root.memberCode,
+      root.memberCode,
+      Leg.LEFT,
+      codes,
+    );
+
+    const used = await prisma.ecard.findMany({ where: { code: { in: codes } } });
+    expect(used).toHaveLength(2);
+    expect(used.every((e) => e.status === EcardStatus.USED)).toBe(true);
+    const payment = await prisma.membershipPayment.findFirstOrThrow({
+      where: { memberId: child.id },
+    });
+    expect(used.every((e) => e.membershipPaymentId === payment.id)).toBe(true);
+  });
+
+  it('inscription : total INFÉRIEUR ou SUPÉRIEUR → refus, e-cards intactes', async () => {
+    const root = await createRoot();
+
+    for (const wrong of [feeDt.minus(10), feeDt.plus(10)]) {
+      const code = await genesisEcard(wrong);
+      await expect(
+        register(root.memberCode, root.memberCode, Leg.LEFT, [code]),
+      ).rejects.toBeInstanceOf(RegistrationPaymentRefusedError);
+
+      const ecard = await prisma.ecard.findUniqueOrThrow({ where: { code } });
+      expect(ecard.status).toBe(EcardStatus.ACTIVE); // jamais brûlée pour rien
+      expect(ecard.userId).toBeNull();
+    }
+
+    // Aucun membre n'a été créé sous cette position : elle est toujours libre.
+    expect(
+      await prisma.member.count({ where: { uplineId: root.id, leg: Leg.LEFT } }),
+    ).toBe(0);
+  });
+
+  it('inscription : erreur INDISTINCTE — code inconnu, déjà utilisé, total faux (anti-oracle)', async () => {
+    const root = await createRoot();
+    const spent = await genesisEcard(feeDt);
+    await register(root.memberCode, root.memberCode, Leg.RIGHT, [spent]); // brûle `spent`
+
+    const wrongTotal = await genesisEcard(feeDt.minus(1));
+    const messages: string[] = [];
+    for (const codes of [['ZZZ-ZZZ-ZZZ-ZZZ'], [spent], [wrongTotal]]) {
+      const caught = await register(
+        root.memberCode,
+        root.memberCode,
+        Leg.LEFT,
+        codes,
+      ).then(
+        () => null,
+        (error: Error) => error,
+      );
+      expect(caught).toBeInstanceOf(RegistrationPaymentRefusedError);
+      messages.push(caught!.message);
+    }
+    // Un attaquant anonyme ne peut pas distinguer les trois cas : pas d'oracle
+    // d'énumération, et la valeur d'une carte ne fuit jamais.
+    expect(new Set(messages).size).toBe(1);
+    expect(messages[0]).not.toMatch(/\b(inconnu|utilisée|expirée)\b/i);
+  });
+
+  it('ROLLBACK : inscription échouant après le paiement (position prise) → e-cards ACTIVE', async () => {
+    const root = await createRoot();
+    await register(root.memberCode, root.memberCode, Leg.LEFT); // occupe la position
+
+    const code = await genesisEcard(feeDt);
+    await expect(
+      register(root.memberCode, root.memberCode, Leg.LEFT, [code]),
+    ).rejects.toBeInstanceOf(PositionTakenError);
+
+    // La carte a bien traversé la transaction annulée : elle est intacte, réutilisable.
+    const ecard = await prisma.ecard.findUniqueOrThrow({ where: { code } });
+    expect(ecard.status).toBe(EcardStatus.ACTIVE);
+    expect(ecard.userId).toBeNull();
+    expect(ecard.membershipPaymentId).toBeNull();
+
+    // Ni membre orphelin, ni paiement orphelin.
+    expect(
+      await prisma.member.count({ where: { uplineId: root.id, leg: Leg.LEFT } }),
+    ).toBe(1);
+    const payments = await prisma.membershipPayment.count({
+      where: { memberId: { in: created } },
+    });
+    expect(payments).toBe(1); // celui de la première inscription, et lui seul
+
+    // Réutilisable pour de bon : la même carte règle une inscription valide.
+    await expect(
+      register(root.memberCode, root.memberCode, Leg.RIGHT, [code]),
+    ).resolves.toBeDefined();
+  });
+
+  it('CONCURRENCE : deux inscriptions avec la MÊME e-card → une seule réussit', async () => {
+    const root = await createRoot();
+    const code = await genesisEcard(feeDt);
+
+    const results = await Promise.allSettled([
+      members.register({
+        lastName: 'Course',
+        firstName: 'Ecard-A',
+        email: `ea-${Date.now()}@test.local`,
+        password: PASSWORD,
+        sponsorCode: root.memberCode,
+        uplineCode: root.memberCode,
+        leg: Leg.LEFT,
+        ecardCodes: [code],
+      }),
+      members.register({
+        lastName: 'Course',
+        firstName: 'Ecard-B',
+        email: `eb-${Date.now()}@test.local`,
+        password: PASSWORD,
+        sponsorCode: root.memberCode,
+        uplineCode: root.memberCode,
+        leg: Leg.RIGHT, // positions DIFFÉRENTES : seule l'e-card peut départager
+        ecardCodes: [code],
+      }),
+    ]);
+
+    for (const r of results) {
+      if (r.status === 'fulfilled') created.push(r.value.id);
+    }
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+
+    // La carte n'a payé QU'UNE inscription — pas deux membres pour 100 DT.
+    const ecard = await prisma.ecard.findUniqueOrThrow({ where: { code } });
+    expect(ecard.status).toBe(EcardStatus.USED);
+    expect(
+      await prisma.membershipPayment.count({
+        where: { memberId: { in: created } },
+      }),
+    ).toBe(1);
   });
 
   it('position occupée → refus explicite, pas de spillover', async () => {
@@ -233,6 +509,11 @@ describe('Members — intégration (vrai Postgres)', () => {
 
   it('CONCURRENCE : deux inscriptions simultanées sur la même position → une seule gagne', async () => {
     const root = await createRoot();
+    // Deux e-cards DISTINCTES : c'est la position qui doit départager, pas le paiement.
+    const [codeA, codeB] = [
+      await genesisEcard(feeDt),
+      await genesisEcard(feeDt),
+    ];
 
     const results = await Promise.allSettled([
       members.register({
@@ -243,6 +524,7 @@ describe('Members — intégration (vrai Postgres)', () => {
         sponsorCode: root.memberCode,
         uplineCode: root.memberCode,
         leg: Leg.LEFT,
+        ecardCodes: [codeA],
       }),
       members.register({
         lastName: 'Course',
@@ -252,6 +534,7 @@ describe('Members — intégration (vrai Postgres)', () => {
         sponsorCode: root.memberCode,
         uplineCode: root.memberCode,
         leg: Leg.LEFT,
+        ecardCodes: [codeB],
       }),
     ]);
 
@@ -359,7 +642,7 @@ describe('Members — intégration (vrai Postgres)', () => {
     expect(cPoints.balanceDt.toString()).toBe('0');
   });
 
-  it('activation : un seul mouvement ACTIVATION, du montant exact du PRIX du pack (DT)', async () => {
+  it('activation : un seul mouvement ACTIVATION, du PRIX du pack MOINS l’acompte (D-037)', async () => {
     const root = await createRoot();
     const child = await register(root.memberCode, root.memberCode, Leg.LEFT);
     await fundAndActivate(child.id);
@@ -368,10 +651,24 @@ describe('Members — intégration (vrai Postgres)', () => {
       where: { memberId: child.id },
       orderBy: { id: 'asc' },
     });
-    expect(entries).toHaveLength(2); // genèse (+prix) puis activation (−prix)
+    expect(entries).toHaveLength(2); // genèse (+dû) puis activation (−dû)
     expect(entries[1].type).toBe('ACTIVATION');
-    expect(entries[1].amountDt.toString()).toBe(priceDt.negated().toString());
+    // 2200 − 100 = 2100, et surtout PAS 2200 : l'acompte a déjà été versé à l'inscription.
+    expect(entries[1].amountDt.toString()).toBe(dueDt.negated().toString());
     expect(entries[1].balanceAfterDt.toString()).toBe('0');
+
+    // Le total déboursé reste le prix du pack : acompte + solde du montant dû.
+    const member = await prisma.member.findUniqueOrThrow({
+      where: { id: child.id },
+      select: { registrationPaidDt: true, activationSnapshot: true },
+    });
+    expect(member.registrationPaidDt.plus(dueDt).toString()).toBe(
+      priceDt.toString(),
+    );
+    const snapshot = member.activationSnapshot as Record<string, string>;
+    expect(snapshot.priceDt).toBe(priceDt.toFixed(3)); // le TARIF, inchangé
+    expect(snapshot.registrationCreditDt).toBe(feeDt.toFixed(3));
+    expect(snapshot.amountDueDt).toBe(dueDt.toFixed(3));
   });
 
   it('SNAPSHOT : modifier le pack après coup ne réécrit pas l’activation', async () => {
@@ -422,7 +719,7 @@ describe('Members — intégration (vrai Postgres)', () => {
     await ledger.recordMovement({
       memberId: child.id,
       type: 'ADMIN_GENESIS',
-      amountDt: priceDt,
+      amountDt: dueDt,
       reason: 'Test',
     });
 
@@ -438,7 +735,7 @@ describe('Members — intégration (vrai Postgres)', () => {
 
     const member = await points(child.id);
     expect(member.status).toBe(MemberStatus.REGISTERED);
-    expect(member.balanceDt.toString()).toBe(priceDt.toString()); // la genèse, intacte
+    expect(member.balanceDt.toString()).toBe(dueDt.toString()); // la genèse, intacte
     expect(member.activationTierBv).toBeNull();
 
     const rootPoints = await points(root.id);
@@ -458,7 +755,7 @@ describe('Members — intégration (vrai Postgres)', () => {
     await ledger.recordMovement({
       memberId: child.id,
       type: 'ADMIN_GENESIS',
-      amountDt: priceDt,
+      amountDt: dueDt,
       reason: 'Test',
     });
 
@@ -489,13 +786,13 @@ describe('Members — intégration (vrai Postgres)', () => {
     await ledger.recordMovement({
       memberId: leftChild.id,
       type: 'ADMIN_GENESIS',
-      amountDt: priceDt,
+      amountDt: dueDt,
       reason: 'Test',
     });
     await ledger.recordMovement({
       memberId: rightChild.id,
       type: 'ADMIN_GENESIS',
-      amountDt: priceDt,
+      amountDt: dueDt,
       reason: 'Test',
     });
 
@@ -525,6 +822,141 @@ describe('Members — intégration (vrai Postgres)', () => {
     // LockRows = le nœud d'exécution qui prend réellement le verrou de ligne. Absent → pas de
     // verrou (vérifié : retirer FOR NO KEY UPDATE du service fait disparaître ce nœud).
     expect(text).toContain('LockRows');
+  });
+
+  // ─────────────────────────── Renouvellement annuel (D-038) ───────────────────────────
+
+  it('renouvellement : payé → EN ATTENTE, le membre reste GELÉ et ne perçoit rien', async () => {
+    const root = await createRoot();
+    const child = await register(root.memberCode, root.memberCode, Leg.LEFT);
+    await fundAndActivate(child.id);
+    await renewals.freeze(child.id);
+
+    const payment = await renewals.pay({
+      memberId: child.id,
+      ecardCodes: [await genesisEcard(renewalDt)],
+    });
+
+    expect(payment.status).toBe(MembershipPaymentStatus.PENDING_VALIDATION);
+    expect(payment.amountDt).toBe(renewalDt.toFixed(3));
+    expect(payment.ecardIds).toHaveLength(1);
+
+    // LE POINT DE D-038 : payer ne dégèle pas. Sans validation admin, rien ne bouge.
+    const member = await points(child.id);
+    expect(member.status).toBe(MemberStatus.INACTIVE);
+    expect(await renewals.listPending()).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: payment.id })]),
+    );
+  });
+
+  it('renouvellement : validé par l’admin → réactivé, nouvelle baseline, carry-over CONSERVÉ', async () => {
+    // On fabrique du carry-over AVANT le gel : une seule jambe créditée, donc rien d'apparié.
+    const root = await createRoot();
+    const parent = await register(root.memberCode, root.memberCode, Leg.LEFT);
+    await fundAndActivate(parent.id);
+    const left = await register(parent.memberCode, parent.memberCode, Leg.LEFT);
+    await fundAndActivate(left.id);
+
+    const beforeFreeze = await points(parent.id);
+    expect(beforeFreeze.carriedLeftPoints).toBe(tierBv); // carry-over acquis
+    expect(beforeFreeze.carriedRightPoints).toBe(0);
+
+    await renewals.freeze(parent.id);
+
+    // Des points arrivent PENDANT le gel : ils traversent, sans jamais entrer dans la pool.
+    const right = await register(
+      parent.memberCode,
+      parent.memberCode,
+      Leg.RIGHT,
+    );
+    await fundAndActivate(right.id);
+    const frozen = await points(parent.id);
+    expect(frozen.rightPoints).toBe(tierBv); // cumul à vie : les points TRAVERSENT (D-034)
+    expect(frozen.carriedRightPoints).toBe(0); // mais la pool d'un gelé ne reçoit rien
+
+    const payment = await renewals.pay({
+      memberId: parent.id,
+      ecardCodes: [await genesisEcard(renewalDt)],
+    });
+    const validated = await renewals.validate({
+      paymentId: payment.id,
+      adminId,
+    });
+    expect(validated.status).toBe(MembershipPaymentStatus.VALIDATED);
+    expect(validated.validatedAt).not.toBeNull();
+
+    const after = await points(parent.id);
+    expect(after.status).toBe(MemberStatus.ACTIVE);
+    // Nouvelle baseline : les points du gel ne rapporteront jamais rien (D-034).
+    expect(after.baselineLeft).toBe(after.leftPoints);
+    expect(after.baselineRight).toBe(after.rightPoints);
+    // MAIS le carry-over d'AVANT le gel est intact — c'est l'invariant délicat de D-034.
+    expect(after.carriedLeftPoints).toBe(tierBv);
+    expect(after.carriedRightPoints).toBe(0);
+  });
+
+  it('renouvellement : validation NON REJOUABLE, et un INSCRIT n’a rien à renouveler', async () => {
+    const root = await createRoot();
+    const child = await register(root.memberCode, root.memberCode, Leg.LEFT);
+
+    // INSCRIT : jamais activé, donc rien à renouveler (D-010).
+    await expect(
+      renewals.pay({
+        memberId: child.id,
+        ecardCodes: [await genesisEcard(renewalDt)],
+      }),
+    ).rejects.toBeInstanceOf(NothingToRenewError);
+
+    await fundAndActivate(child.id);
+    await renewals.freeze(child.id);
+    const payment = await renewals.pay({
+      memberId: child.id,
+      ecardCodes: [await genesisEcard(renewalDt)],
+    });
+
+    // Un second paiement pendant qu'un autre attend brûlerait des e-cards pour rien.
+    await expect(
+      renewals.pay({
+        memberId: child.id,
+        ecardCodes: [await genesisEcard(renewalDt)],
+      }),
+    ).rejects.toBeInstanceOf(RenewalAlreadyPendingError);
+
+    await renewals.validate({ paymentId: payment.id, adminId });
+    // Rejouer la validation ne doit ni refiger une baseline, ni réactiver deux fois.
+    await expect(
+      renewals.validate({ paymentId: payment.id, adminId }),
+    ).rejects.toBeInstanceOf(RenewalPaymentNotPendingError);
+  });
+
+  it('renouvellement ANTICIPÉ (membre ACTIF) : validé → échéance repoussée, carry-over intact', async () => {
+    const root = await createRoot();
+    const parent = await register(root.memberCode, root.memberCode, Leg.LEFT);
+    await fundAndActivate(parent.id);
+    const left = await register(parent.memberCode, parent.memberCode, Leg.LEFT);
+    await fundAndActivate(left.id);
+
+    const payment = await renewals.pay({
+      memberId: parent.id,
+      ecardCodes: [await genesisEcard(renewalDt)],
+    });
+    await renewals.validate({ paymentId: payment.id, adminId });
+
+    const after = await prisma.member.findUniqueOrThrow({
+      where: { id: parent.id },
+      select: {
+        status: true,
+        renewalAt: true,
+        baselineLeft: true,
+        carriedLeftPoints: true,
+      },
+    });
+    expect(after.status).toBe(MemberStatus.ACTIVE);
+    expect(after.renewalAt).not.toBeNull();
+    // Il n'a jamais cessé d'apparier : surtout PAS de nouvelle baseline, et le carry-over
+    // en cours reste disponible.
+    expect(after.baselineLeft).toBe(0);
+    expect(after.carriedLeftPoints).toBe(tierBv);
   });
 
   // ─────────────────────────── Consultation de l'arbre ───────────────────────────

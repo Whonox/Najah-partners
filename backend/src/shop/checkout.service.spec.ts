@@ -89,19 +89,29 @@ function makeService(scenario: Scenario = {}) {
         }
       : null;
   });
-  const orderCreate = jest.fn(async (args: { data: Record<string, any> }) => ({
+  // Le checkout INSÈRE la commande, rattache les e-cards, puis RELIT (les cartes sont
+  // brûlées avant que l'`Order` n'existe — ordre de verrouillage D-024). On rejoue les deux
+  // temps : `create` mémorise les données, `findUniqueOrThrow` rend la commande complète.
+  let lastOrder: Record<string, any> | null = null;
+  const orderCreate = jest.fn(async (args: { data: Record<string, any> }) => {
+    lastOrder = args.data;
+    return { id: 99 };
+  });
+  const attachedEcardIds: number[] = [];
+  const orderFindUniqueOrThrow = jest.fn(async () => ({
     id: 99,
-    memberId: args.data.memberId,
-    context: args.data.context,
-    status: args.data.status,
-    totalDt: args.data.totalDt,
-    totalPoints: args.data.totalPoints,
-    ecardId: args.data.ecardId,
-    shippingAddress: args.data.shippingAddress,
-    shipmentStatus: args.data.shipmentStatus,
+    memberId: lastOrder!.memberId,
+    context: lastOrder!.context,
+    status: lastOrder!.status,
+    totalDt: lastOrder!.totalDt,
+    totalPoints: lastOrder!.totalPoints,
+    ecardCount: lastOrder!.ecardCount,
+    shippingAddress: lastOrder!.shippingAddress,
+    shipmentStatus: lastOrder!.shipmentStatus,
     createdAt: new Date(),
-    paidAt: args.data.paidAt,
-    lines: (args.data.lines.create as Array<Record<string, any>>).map((l) => ({
+    paidAt: lastOrder!.paidAt,
+    ecards: attachedEcardIds.map((id) => ({ id })),
+    lines: (lastOrder!.lines.create as Array<Record<string, any>>).map((l) => ({
       ...l,
       product: { name: 'x' },
     })),
@@ -122,7 +132,7 @@ function makeService(scenario: Scenario = {}) {
     $executeRawUnsafe: jest.fn(async () => 0),
     $queryRaw: queryRaw,
     product: { findMany: productFindMany, findUnique: productFindUnique },
-    order: { create: orderCreate },
+    order: { create: orderCreate, findUniqueOrThrow: orderFindUniqueOrThrow },
     auditLog: { create: auditCreate },
   };
 
@@ -149,7 +159,9 @@ function makeService(scenario: Scenario = {}) {
       snapshot: {
         packName: 'Silver',
         tierBv: scenario.snapshotTierBv ?? SILVER.tierBv,
-        priceDt: '2200.000',
+        priceDt: '2200.000', // le TARIF
+        registrationCreditDt: '100.000', // l'acompte d'inscription (D-037)
+        amountDueDt: '2100.000', // ce que l'e-card doit couvrir
         directCommissionDt: '500.000',
         indirectCommissionDt: '250.000',
         weeklyCapDt: '10000.000',
@@ -158,15 +170,31 @@ function makeService(scenario: Scenario = {}) {
       baselineRight: 0,
       creditedAncestors: 3,
       commissionEvents: { direct: 1, balance: 0, startupBonus: 0, rewardPoint: 0 },
-      payment: { method: 'ECARD' as const, ledgerEntryId: null, ecardId: 42 },
+      payment: {
+        method: 'ECARD' as const,
+        ledgerEntryId: null,
+        ecardIds: [42],
+      },
     }),
   );
   const activation = { activateInTx } as unknown as ActivationService;
 
-  const consumeInTx = jest.fn(async () => ({ ecardId: 42, valueDt: money(120) }));
-  const activationPayment = jest.fn(() => ({ settleInTx: jest.fn() }));
+  const consumeManyInTx = jest.fn(async (..._args: unknown[]) => ({
+    ecardIds: [42],
+    totalDt: money(120),
+  }));
+  const attachToOrderInTx = jest.fn(
+    async (_tx: unknown, ecardIds: number[]) => {
+      attachedEcardIds.length = 0;
+      attachedEcardIds.push(...ecardIds);
+    },
+  );
+  const activationPayment = jest.fn((..._args: unknown[]) => ({
+    settleInTx: jest.fn(),
+  }));
   const ecards = {
-    consumeInTx,
+    consumeManyInTx,
+    attachToOrderInTx,
     activationPayment,
   } as unknown as EcardsService;
 
@@ -182,16 +210,17 @@ function makeService(scenario: Scenario = {}) {
     transaction,
     activateInTx,
     activationPayment,
-    consumeInTx,
+    consumeManyInTx,
+    attachToOrderInTx,
     orderCreate,
     queryRaw,
     auditCreate,
   };
 }
 
-/** Le `dueDt` d'un appel à `consumeInTx`, en chaîne pour comparaison exacte. */
-function dueOf(consumeInTx: jest.Mock, call = 0): string {
-  const arg = consumeInTx.mock.calls[call][1] as { dueDt: Prisma.Decimal };
+/** Le `dueDt` d'un appel à `consumeManyInTx`, en chaîne pour comparaison exacte. */
+function dueOf(consumeManyInTx: jest.Mock, call = 0): string {
+  const arg = consumeManyInTx.mock.calls[call][1] as { dueDt: Prisma.Decimal };
   return arg.dueDt.toString();
 }
 
@@ -208,7 +237,7 @@ describe('CheckoutService — activation (D-006, D-007, D-029)', () => {
           { productId: 10, quantity: 1 },
           { productId: 20, quantity: 1 },
         ],
-        ecardCode: 'AAA-BBB-CCC-DDD',
+        ecardCodes: ['AAA-BBB-CCC-DDD'],
       }),
     ).rejects.toBeInstanceOf(CartTierMismatchError);
 
@@ -216,12 +245,13 @@ describe('CheckoutService — activation (D-006, D-007, D-029)', () => {
     expect(activateInTx).not.toHaveBeenCalled();
   });
 
-  it('panier = palier → activation par E-CARD, commande PAID ; totalDt = PRIX DU PACK, totalPoints = palier', async () => {
+  it('panier = palier → activation par E-CARD, commande PAID ; totalDt = PRIX − ACOMPTE, totalPoints = palier', async () => {
     const { service, activateInTx, activationPayment, orderCreate } =
       makeService();
 
     // 2 × 250 + 1 × 500 = 1000 points = palier Silver. Les prix des produits (2×39.9 + 40 =
-    // 119.8 DT) n'ont AUCUNE incidence : l'activation paie les 2200 DT du pack (D-029).
+    // 119.8 DT) n'ont AUCUNE incidence : l'activation paie le prix du pack (D-029), diminué
+    // de l'acompte d'inscription (D-037).
     const order = await service.activationCheckout({
       memberId: 1,
       packId: 1,
@@ -229,16 +259,18 @@ describe('CheckoutService — activation (D-006, D-007, D-029)', () => {
         { productId: 10, quantity: 2 },
         { productId: 20, quantity: 1 },
       ],
-      ecardCode: 'AAA-BBB-CCC-DDD',
+      ecardCodes: ['AAA-BBB-CCC-DDD'],
     });
 
-    expect(activationPayment).toHaveBeenCalledWith('AAA-BBB-CCC-DDD');
+    expect(activationPayment).toHaveBeenCalledWith(['AAA-BBB-CCC-DDD']);
     expect(activateInTx).toHaveBeenCalledTimes(1);
     expect(order.context).toBe(OrderContext.ACTIVATION);
     expect(order.status).toBe(OrderStatus.PAID);
-    expect(order.totalDt).toBe('2200.000'); // le prix du pack, pas 119.8
+    // 2200 (prix du pack) − 100 (acompte d'inscription, D-037) = 2100. Ni 119.8 (la somme
+    // des prix du panier, D-029), ni 2200 (le tarif brut).
+    expect(order.totalDt).toBe('2100.000');
     expect(order.totalPoints).toBe(1000); // le palier
-    expect(order.ecardId).toBe(42);
+    expect(order.ecardIds).toEqual([42]);
     expect(orderCreate.mock.calls[0][0].data.shipmentStatus).toBe(
       'PREPARATION',
     );
@@ -254,7 +286,7 @@ describe('CheckoutService — activation (D-006, D-007, D-029)', () => {
         memberId: 1,
         packId: 1,
         items: [{ productId: 10, quantity: 4 }], // 1000 points
-        ecardCode: 'AAA-BBB-CCC-DDD',
+        ecardCodes: ['AAA-BBB-CCC-DDD'],
       }),
     ).rejects.toBeInstanceOf(CartTierMismatchError);
   });
@@ -262,15 +294,15 @@ describe('CheckoutService — activation (D-006, D-007, D-029)', () => {
 
 describe('CheckoutService — achat libre (D-005, D-025, D-028)', () => {
   it('e-card = somme EXACTE des PRIX → commande FREE, sans jamais toucher à l’arbre', async () => {
-    const { service, activateInTx, consumeInTx, orderCreate } = makeService();
+    const { service, activateInTx, consumeManyInTx, orderCreate } = makeService();
 
     const order = await service.freeCheckout({
       memberId: 1,
       items: [{ productId: 20, quantity: 3 }], // 3 × 40 DT = 120 DT (VIRTUEL), 3 × 500 = 1500 points
-      ecardCode: 'AAA-BBB-CCC-DDD',
+      ecardCodes: ['AAA-BBB-CCC-DDD'],
     });
 
-    expect(dueOf(consumeInTx)).toBe('120'); // Σ des prix, en DINARS
+    expect(dueOf(consumeManyInTx)).toBe('120'); // Σ des prix, en DINARS
     // Aucune activation, donc aucune propagation de points : l'achat libre est neutre (D-005).
     expect(activateInTx).not.toHaveBeenCalled();
     expect(order.context).toBe(OrderContext.FREE);
@@ -281,7 +313,7 @@ describe('CheckoutService — achat libre (D-005, D-025, D-028)', () => {
   });
 
   it('membre INSCRIT → achat libre refusé (réservé aux ACTIFS)', async () => {
-    const { service, consumeInTx } = makeService({
+    const { service, consumeManyInTx } = makeService({
       memberStatus: MemberStatus.REGISTERED,
     });
 
@@ -289,23 +321,23 @@ describe('CheckoutService — achat libre (D-005, D-025, D-028)', () => {
       service.freeCheckout({
         memberId: 1,
         items: [{ productId: 20, quantity: 1 }],
-        ecardCode: 'AAA-BBB-CCC-DDD',
+        ecardCodes: ['AAA-BBB-CCC-DDD'],
       }),
     ).rejects.toBeInstanceOf(MemberNotActiveError);
-    expect(consumeInTx).not.toHaveBeenCalled();
+    expect(consumeManyInTx).not.toHaveBeenCalled();
   });
 
   it('le membre est verrouillé AVANT l’e-card, elle-même avant le produit (ordre D-024)', async () => {
-    const { service, consumeInTx, queryRaw, orderCreate } = makeService();
+    const { service, consumeManyInTx, queryRaw, orderCreate } = makeService();
 
     await service.freeCheckout({
       memberId: 1,
       items: [{ productId: 10, quantity: 4 }],
-      ecardCode: 'AAA-BBB-CCC-DDD',
+      ecardCodes: ['AAA-BBB-CCC-DDD'],
     });
 
     const memberLock = queryRaw.mock.invocationCallOrder[0];
-    const ecardBurn = consumeInTx.mock.invocationCallOrder[0];
+    const ecardBurn = consumeManyInTx.mock.invocationCallOrder[0];
     const stockGuard = queryRaw.mock.invocationCallOrder[1];
     const orderInsert = orderCreate.mock.invocationCallOrder[0];
     expect(memberLock).toBeLessThan(ecardBurn);
@@ -316,32 +348,32 @@ describe('CheckoutService — achat libre (D-005, D-025, D-028)', () => {
 
 describe('CheckoutService — le montant dû (achat libre) est la somme des PRIX, et rien d’autre', () => {
   it('les frais de livraison n’entrent JAMAIS dans le montant DT dû', async () => {
-    const { service, consumeInTx } = makeService();
+    const { service, consumeManyInTx } = makeService();
 
     // 4 × 39.9 DT = 159.6 DT. Le produit porte 7 DT de frais de livraison, l'e-card doit valoir
     // 159.6 — pas un millime de plus : les frais se règlent hors système.
     await service.freeCheckout({
       memberId: 1,
       items: [{ productId: 10, quantity: 4 }],
-      ecardCode: 'AAA-BBB-CCC-DDD',
+      ecardCodes: ['AAA-BBB-CCC-DDD'],
     });
 
-    expect(dueOf(consumeInTx)).toBe('159.6');
+    expect(dueOf(consumeManyInTx)).toBe('159.6');
   });
 
   it('promo : le prix effectif est le prix promo, la valeur BV ne bouge pas (D-002)', async () => {
-    const { service, consumeInTx, orderCreate } = makeService();
+    const { service, consumeManyInTx, orderCreate } = makeService();
 
     await service.freeCheckout({
       memberId: 1,
       items: [{ productId: 10, quantity: 2 }],
-      ecardCode: 'AAA-BBB-CCC-DDD',
+      ecardCodes: ['AAA-BBB-CCC-DDD'],
     });
 
     const line = orderCreate.mock.calls[0][0].data.lines.create[0];
     expect(line.unitValueBv).toBe(250); // POINTS : inchangés par la promo
     expect(line.unitPriceDt.toString()).toBe('39.9'); // DINARS : le prix promo
-    expect(dueOf(consumeInTx)).toBe('79.8'); // 2 × 39.9, en dinars
+    expect(dueOf(consumeManyInTx)).toBe('79.8'); // 2 × 39.9, en dinars
   });
 
   it('quantités d’un même produit fusionnées en une seule ligne', async () => {
@@ -353,7 +385,7 @@ describe('CheckoutService — le montant dû (achat libre) est la somme des PRIX
         { productId: 10, quantity: 1 },
         { productId: 10, quantity: 3 },
       ],
-      ecardCode: 'AAA-BBB-CCC-DDD',
+      ecardCodes: ['AAA-BBB-CCC-DDD'],
     });
 
     const lines = orderCreate.mock.calls[0][0].data.lines.create;
@@ -370,7 +402,7 @@ describe('CheckoutService — stock', () => {
       service.freeCheckout({
         memberId: 1,
         items: [{ productId: 10, quantity: 200 }], // stock 100
-        ecardCode: 'AAA-BBB-CCC-DDD',
+        ecardCodes: ['AAA-BBB-CCC-DDD'],
       }),
     ).rejects.toBeInstanceOf(OutOfStockError);
     expect(orderCreate).not.toHaveBeenCalled();
@@ -389,7 +421,7 @@ describe('CheckoutService — stock', () => {
           { productId: 20, quantity: 1 },
           { productId: 10, quantity: 1 },
         ],
-        ecardCode: 'AAA-BBB-CCC-DDD',
+        ecardCodes: ['AAA-BBB-CCC-DDD'],
       }),
     ).rejects.toBeInstanceOf(ProductUnavailableError);
   });
@@ -400,7 +432,7 @@ describe('CheckoutService — stock', () => {
     await service.freeCheckout({
       memberId: 1,
       items: [{ productId: 20, quantity: 999 }], // VIRTUEL, stock null
-      ecardCode: 'AAA-BBB-CCC-DDD',
+      ecardCodes: ['AAA-BBB-CCC-DDD'],
     });
 
     // Le SQL garde le stock intact pour un VIRTUEL (CASE … ELSE "stock") et n'exige aucune

@@ -57,11 +57,15 @@ export interface OrderView {
   memberId: number;
   context: OrderContext;
   status: OrderStatus;
-  /** DINARS payés : prix du pack (ACTIVATION) ou Σ des prix effectifs (LIBRE). */
+  /**
+   * DINARS payés : prix du pack MOINS l'acompte d'inscription (ACTIVATION — D-029 + D-037),
+   * ou Σ des prix effectifs (LIBRE).
+   */
   totalDt: string;
   /** POINTS du panier : le palier, en ACTIVATION. */
   totalPoints: number;
-  ecardId: number | null;
+  /** Ids des e-cards qui ont réglé la commande (1..n depuis D-030). Jamais leurs codes. */
+  ecardIds: number[];
   shippingAddress: string | null;
   shipmentStatus: ShipmentStatus | null;
   createdAt: Date;

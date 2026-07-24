@@ -14,6 +14,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { ECARD_CODE_PATTERN } from '../../ecards/ecard-code';
+import { MAX_ECARDS_PER_PAYMENT } from '../../ecards/ecards.service';
 
 export class CartItemDto {
   @ApiProperty({ example: 12 })
@@ -38,13 +39,19 @@ class CheckoutDto {
   items!: CartItemDto[];
 
   @ApiProperty({
-    example: 'HHD-7Z7-JJD-77D',
+    type: [String],
+    example: ['HHD-7Z7-JJD-77D', 'K4M-8P2-QRS-33T'],
     description:
-      'Code de l’e-card. Sa valeur doit égaler EXACTEMENT le montant BV dû (D-007) : une seule e-card, ni appoint, ni trop-perçu.',
+      'Codes des e-cards réglant la commande. Leur SOMME doit égaler EXACTEMENT le montant ' +
+      'dû en DT (D-007 révisé par D-030 : plusieurs cartes sont cumulables), ni appoint, ni ' +
+      'trop-perçu.',
   })
-  @IsString()
-  @Matches(ECARD_CODE_PATTERN, { message: 'Code e-card invalide.' })
-  ecardCode!: string;
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(MAX_ECARDS_PER_PAYMENT)
+  @IsString({ each: true })
+  @Matches(ECARD_CODE_PATTERN, { each: true, message: 'Code e-card invalide.' })
+  ecardCodes!: string[];
 
   @ApiPropertyOptional({
     description:
@@ -56,7 +63,10 @@ class CheckoutDto {
   shippingAddress?: string;
 }
 
-/** Checkout d'ACTIVATION : le panier doit totaliser EXACTEMENT le palier du pack (D-006). */
+/**
+ * Checkout d'ACTIVATION : le panier doit totaliser EXACTEMENT le palier du pack en POINTS
+ * (D-006) ; le montant PAYÉ, lui, est le prix du pack moins l'acompte d'inscription (D-037).
+ */
 export class ActivationCheckoutDto extends CheckoutDto {
   @ApiProperty({
     example: 1,

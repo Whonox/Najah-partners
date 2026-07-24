@@ -12,9 +12,14 @@ import { OrderPage, OrderView } from './shop.types';
 
 const DEFAULT_PAGE_SIZE = 20;
 
-/** Une commande avec ses lignes et le nom des produits (le seul champ relu en direct). */
-const ORDER_INCLUDE = {
+/**
+ * Une commande avec ses lignes, le nom des produits (le seul champ relu en direct) et les
+ * e-cards qui l'ont réglée — leurs IDENTIFIANTS seulement : un code est de la valeur au
+ * porteur et ne sort jamais d'une vue de commande.
+ */
+export const ORDER_INCLUDE = {
   lines: { include: { product: { select: { name: true } } } },
+  ecards: { select: { id: true }, orderBy: { id: 'asc' } },
 } satisfies Prisma.OrderInclude;
 
 type OrderWithLines = Prisma.OrderGetPayload<{ include: typeof ORDER_INCLUDE }>;
@@ -176,7 +181,7 @@ export class OrdersService {
       status: order.status,
       totalDt: moneyToApi(order.totalDt),
       totalPoints: order.totalPoints,
-      ecardId: order.ecardId,
+      ecardIds: order.ecards.map((ecard) => ecard.id),
       shippingAddress: order.shippingAddress,
       shipmentStatus: order.shipmentStatus,
       createdAt: order.createdAt,

@@ -5,10 +5,15 @@ import {
   MemberStatus,
   RunStatus,
 } from '@prisma/client';
-import { money } from '../common/money';
+import { Money, money } from '../common/money';
+import { EcardsService } from '../ecards/ecards.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { ActivationService } from '../members/activation.service';
 import { MemberCodeService } from '../members/member-code.service';
+import {
+  MembershipFeeService,
+  REGISTRATION_FEE_SETTING,
+} from '../members/membership-fee.service';
 import { MembersService } from '../members/members.service';
 import { BalanceActivationPayment } from '../members/payment/balance-activation-payment';
 import { PlacementService } from '../members/placement.service';
@@ -39,13 +44,18 @@ describe('Moteur de commissions — scénarios déterministes (vrai Postgres)', 
   let activation: ActivationService;
   let renewal: RenewalService;
   let runs: CommissionRunService;
+  let ecards: EcardsService;
+  let fees: MembershipFeeService;
+  let adminId: number;
 
   let silverId: number;
   let silverPrice: ReturnType<typeof money>;
+  let feeDt: Money; // DINARS — frais d'inscription = acompte (D-036/D-037)
 
   const createdMembers: number[] = [];
   const createdPacks: number[] = [];
   const createdRuns: number[] = [];
+  const createdEcards: number[] = [];
   let seq = 0;
   let periodSeq = 0;
 
@@ -91,13 +101,18 @@ describe('Moteur de commissions — scénarios déterministes (vrai Postgres)', 
     return member;
   }
 
-  /** Inscrit par le service réel (validations D-021/D-022 comprises). */
+  /**
+   * Inscrit par le service réel (validations D-021/D-022 comprises), frais d'inscription
+   * réglés par e-card de genèse (D-036) : sans elle, pas d'inscription.
+   */
   async function register(
     sponsorCode: string,
     uplineCode: string,
     leg: Leg,
   ): Promise<{ id: number; memberCode: string }> {
     seq += 1;
+    const fee = await ecards.genesis({ adminId, valueDt: feeDt });
+    createdEcards.push(fee.id);
     const member = await members.register({
       lastName: 'Test',
       firstName: `C${seq}`,
@@ -106,18 +121,27 @@ describe('Moteur de commissions — scénarios déterministes (vrai Postgres)', 
       sponsorCode,
       uplineCode,
       leg,
+      ecardCodes: [fee.code],
     });
     createdMembers.push(member.id);
     return { id: member.id, memberCode: member.memberCode };
   }
 
-  /** Approvisionne le PRIX du pack (DT) puis active — la voie solde (seed/tests). */
+  /**
+   * Approvisionne le MONTANT DÛ (prix du pack − acompte d'inscription, D-037) puis active —
+   * la voie solde (seed/tests). L'acompte est relu sur le membre : une racine créée hors
+   * inscription n'en a pas et paie le prix plein.
+   */
   async function fundAndActivate(memberId: number, packId = silverId) {
     const pack = await prisma.pack.findUniqueOrThrow({ where: { id: packId } });
+    const member = await prisma.member.findUniqueOrThrow({
+      where: { id: memberId },
+      select: { registrationPaidDt: true },
+    });
     await ledger.recordMovement({
       memberId,
       type: 'ADMIN_GENESIS',
-      amountDt: pack.priceDt,
+      amountDt: pack.priceDt.minus(member.registrationPaidDt),
       reason: 'Test moteur de commissions',
     });
     return activation.activate({ memberId, packId });
@@ -188,11 +212,15 @@ describe('Moteur de commissions — scénarios déterministes (vrai Postgres)', 
 
     ledger = new LedgerService(prisma);
     const placement = new PlacementService(prisma);
+    ecards = new EcardsService(prisma, ledger);
+    fees = new MembershipFeeService(prisma);
     members = new MembersService(
       prisma,
       config,
       placement,
       new MemberCodeService(),
+      fees,
+      ecards,
     );
     activation = new ActivationService(
       prisma,
@@ -200,7 +228,7 @@ describe('Moteur de commissions — scénarios déterministes (vrai Postgres)', 
       new CommissionEventsService(),
       new BalanceActivationPayment(ledger),
     );
-    renewal = new RenewalService(prisma);
+    renewal = new RenewalService(prisma, fees, ecards);
     runs = new CommissionRunService(prisma, ledger);
 
     const silver = await prisma.pack.findFirstOrThrow({
@@ -208,15 +236,31 @@ describe('Moteur de commissions — scénarios déterministes (vrai Postgres)', 
     });
     silverId = silver.id;
     silverPrice = silver.priceDt;
+    feeDt = await fees.read(REGISTRATION_FEE_SETTING);
+
+    const admin = await prisma.adminUser.findFirstOrThrow();
+    adminId = admin.id;
   });
 
   afterEach(async () => {
     const memberIds = [...createdMembers].reverse();
     const packIds = [...createdPacks];
     const runIds = [...createdRuns];
+    const ecardIds = [...createdEcards];
     createdMembers.length = 0;
     createdPacks.length = 0;
     createdRuns.length = 0;
+    createdEcards.length = 0;
+    // E-cards des frais d'inscription (D-036) puis leurs paiements d'adhésion : à purger
+    // avant les membres (FK Restrict).
+    if (ecardIds.length > 0) {
+      await prisma.ecard.deleteMany({ where: { id: { in: ecardIds } } });
+    }
+    if (memberIds.length > 0) {
+      await prisma.membershipPayment.deleteMany({
+        where: { memberId: { in: memberIds } },
+      });
+    }
     if (memberIds.length > 0) {
       await prisma.commissionEvent.deleteMany({
         where: {

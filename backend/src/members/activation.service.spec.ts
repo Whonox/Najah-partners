@@ -5,6 +5,7 @@ import { LedgerService } from '../ledger/ledger.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivationService } from './activation.service';
 import {
+  ActivationAmountInvalidError,
   MemberNotRegisteredError,
   PackUnavailableError,
 } from './members.errors';
@@ -60,12 +61,17 @@ const ANCESTORS = [
   },
 ];
 
+/** Acompte d'inscription par défaut (D-036) : 100 DT → 2200 − 100 = 2100 DT dus. */
+const REGISTRATION_PAID_DT = money(100);
+
 interface Scenario {
   status?: MemberStatus;
   sponsorId?: number | null;
   sponsorStatus?: MemberStatus;
   pack?: (typeof PACK & { active: boolean }) | null;
   payment?: ActivationPayment;
+  /** Acompte figé sur le membre (D-037). 0 = membre antérieur à la Tranche 7.5. */
+  registrationPaidDt?: Prisma.Decimal;
 }
 
 function makeService(scenario: Scenario = {}) {
@@ -94,6 +100,8 @@ function makeService(scenario: Scenario = {}) {
             memberCode: 'NP000970',
             status: scenario.status ?? MemberStatus.REGISTERED,
             sponsorId,
+            registrationPaidDt:
+              scenario.registrationPaidDt ?? REGISTRATION_PAID_DT,
           },
   );
   const tx = {
@@ -180,7 +188,7 @@ describe('ActivationService.activate — séquence', () => {
     expect(propagate).toBeLessThan(events);
   });
 
-  it('règlement sur le solde : débite exactement le PRIX DU PACK (en DT), en mouvement ACTIVATION', async () => {
+  it('règlement sur le solde : débite le PRIX DU PACK MOINS l’ACOMPTE (D-037), en ACTIVATION', async () => {
     const s = makeService();
     const result = await s.service.activate({ memberId: 42, packId: PACK.id });
 
@@ -191,21 +199,45 @@ describe('ActivationService.activate — séquence', () => {
     };
     expect(call.memberId).toBe(42);
     expect(call.type).toBe(LedgerMovementType.ACTIVATION);
-    // Le PRIX (2200 DT), pas le palier (1000 points) : un point ne se paie pas (D-029).
-    expect(call.amountDt.toString()).toBe('-2200');
+    // 2200 − 100 = 2100 : l'acompte a déjà été versé à l'inscription (D-037). Et c'est bien
+    // un montant en dinars, pas le palier (1000 points) : un point ne se paie pas (D-029).
+    expect(call.amountDt.toString()).toBe('-2100');
     expect(result.payment).toEqual({
       method: 'BALANCE',
       ledgerEntryId: 77,
-      ecardId: null,
+      ecardIds: [],
     });
   });
 
-  it('règlement par e-card : AUCUN mouvement de solde (D-025 — la carte paie, elle ne recharge pas)', async () => {
+  it('l’ACOMPTE vient du membre, jamais du paramètre : sans acompte, le prix plein est dû', async () => {
+    // Membre antérieur à la Tranche 7.5 (ou racine d'amorçage) : il n'a rien versé.
+    const s = makeService({ registrationPaidDt: money(0) });
+    const result = await s.service.activate({ memberId: 42, packId: PACK.id });
+
+    const call = s.recordMovementInTx.mock.calls[0][1] as {
+      amountDt: Prisma.Decimal;
+    };
+    expect(call.amountDt.toString()).toBe('-2200');
+    expect(result.snapshot.registrationCreditDt).toBe('0.000');
+    expect(result.snapshot.amountDueDt).toBe('2200.000');
+  });
+
+  it('acompte couvrant le pack → activation refusée (jamais d’activation gratuite)', async () => {
+    const s = makeService({ registrationPaidDt: money(2200) });
+    await expect(
+      s.service.activate({ memberId: 42, packId: PACK.id }),
+    ).rejects.toBeInstanceOf(ActivationAmountInvalidError);
+    // Rien n'a été propagé : des points entrés dans l'arbre sans contrepartie seraient
+    // une corruption irréversible.
+    expect(s.propagateInTx).not.toHaveBeenCalled();
+  });
+
+  it('règlement par e-cards : AUCUN mouvement de solde (D-025 — la carte paie, elle ne recharge pas)', async () => {
     const ecardPayment: ActivationPayment = {
       settleInTx: jest.fn(async () => ({
         method: 'ECARD' as const,
         ledgerEntryId: null,
-        ecardId: 9,
+        ecardIds: [9, 10], // cumul (D-030)
       })),
     };
     const s = makeService({ payment: ecardPayment });
@@ -221,8 +253,12 @@ describe('ActivationService.activate — séquence', () => {
     expect(result.payment).toEqual({
       method: 'ECARD',
       ledgerEntryId: null,
-      ecardId: 9,
+      ecardIds: [9, 10],
     });
+    // Les cartes ont réglé le montant DÛ, pas le tarif du pack.
+    const settled = (ecardPayment.settleInTx as jest.Mock).mock
+      .calls[0][1] as { amountDt: Prisma.Decimal };
+    expect(settled.amountDt.toString()).toBe('2100');
     expect(s.propagateInTx).toHaveBeenCalled(); // l'arbre est bien alimenté
   });
 
@@ -240,8 +276,10 @@ describe('ActivationService.activate — séquence', () => {
     expect(result.creditedAncestors).toBe(2);
     expect(result.snapshot).toEqual({
       packName: 'Silver',
-      tierBv: 1000,
-      priceDt: '2200.000',
+      tierBv: 1000, // POINTS — l'acompte ne le touche PAS (D-037)
+      priceDt: '2200.000', // le TARIF du pack
+      registrationCreditDt: '100.000', // l'acompte déduit
+      amountDueDt: '2100.000', // ce qui a réellement été encaissé
       directCommissionDt: '500.000',
       indirectCommissionDt: '250.000',
       weeklyCapDt: '10000.000',

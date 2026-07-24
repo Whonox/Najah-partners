@@ -6,24 +6,26 @@ import {
   LedgerMovementType,
   Prisma,
 } from '@prisma/client';
-import { Money, ZERO_DT, moneyFromSql, moneyToApi } from '../common/money';
+import { Money, ZERO_DT, moneyToApi } from '../common/money';
 import { LedgerService } from '../ledger/ledger.service';
 import { ActivationPayment } from '../members/members.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { generateEcardCode, normalizeEcardCode } from './ecard-code';
 import {
+  DuplicateEcardCodeError,
   EcardAlreadyConsumedError,
   EcardAlreadyUnlimitedError,
   EcardExpiredError,
   EcardNotActiveError,
   EcardNotFoundError,
   EcardNotOwnedError,
-  EcardValueMismatchError,
+  EcardsTotalMismatchError,
   InvalidExpirationDaysError,
   InvalidExpirationSettingError,
+  TooManyEcardsError,
 } from './ecards.errors';
 import {
-  ConsumedEcard,
+  ConsumedEcards,
   EcardVerification,
   EcardView,
   ExpirationSweepResult,
@@ -37,6 +39,16 @@ const UNLIMITED = -1;
 const MAX_CODE_ATTEMPTS = 5;
 /** Le cron traite les échéances par lots : un pic d'expirations ne doit pas tenir une transaction géante. */
 const EXPIRATION_BATCH = 200;
+/**
+ * Plafond d'e-cards par paiement — RÉVISE D-030 (« nombre illimité »).
+ *
+ * Motif de sécurité, pas de métier : l'inscription est un endpoint PUBLIC et ANONYME (D-021)
+ * qui consomme désormais de la valeur. Le quota de requêtes par IP compte des REQUÊTES, pas
+ * des codes : sans plafond, une seule requête vaudrait autant d'essais qu'elle porte de
+ * champs, et l'anti-brute-force ne protégerait plus rien. À 10, le débit maximal reste de
+ * 50 essais/heure/IP contre 32^12 ≈ 1,15 × 10^18 codes possibles.
+ */
+export const MAX_ECARDS_PER_PAYMENT = 10;
 const DAY_MS = 86_400_000;
 
 /**
@@ -54,10 +66,13 @@ const DAY_MS = 86_400_000;
  * consommé en payant. Aucune ligne de grand livre à la consommation : le grand livre est
  * le journal des SOLDES, et aucun solde ne bouge.
  *
- * VERROUILLAGE (D-024) — ordre inter-tables `Member` → `Ecard`, sans exception. Toute
- * opération qui rembourse écrit donc le mouvement de solde (qui verrouille le membre) AVANT de
- * revendiquer l'e-card. Revendiquer l'e-card d'abord croiserait l'ordre de l'activation
- * (chaîne `Member` verrouillée, puis carte brûlée) et rouvrirait l'interblocage.
+ * VERROUILLAGE (D-024) — ordre inter-tables `Member` → `Ecard` (ids croissants), sans
+ * exception. Toute opération qui rembourse écrit donc le mouvement de solde (qui verrouille le
+ * membre) AVANT de revendiquer l'e-card. Revendiquer l'e-card d'abord croiserait l'ordre de
+ * l'activation (chaîne `Member` verrouillée, puis cartes brûlées) et rouvrirait
+ * l'interblocage. Depuis le cumul (D-030), l'ordre par id croissant s'applique AUSSI entre
+ * cartes : deux paiements concurrents se recoupant se sérialisent au lieu de s'attendre en
+ * rond.
  */
 @Injectable()
 export class EcardsService {
@@ -169,72 +184,135 @@ export class EcardsService {
   // ─────────────────────────── Consommation ───────────────────────────
 
   /**
-   * Brûle une e-card pour payer `dueDt` (en DINARS — une e-card est de l'argent, D-028), DANS la
-   * transaction de l'appelant : la carte ne passe `USED` que si cette transaction committe. Une
-   * activation interrompue laisse donc la carte `ACTIVE` (spec §5.4) — c'est le rollback
-   * Postgres qui le garantit, pas une compensation applicative.
+   * Brûle UN LOT d'e-cards pour payer `dueDt` (en DINARS — une e-card est de l'argent, D-028),
+   * DANS la transaction de l'appelant : les cartes ne passent `USED` que si cette transaction
+   * committe. Un checkout interrompu les laisse toutes `ACTIVE` (spec §5.4) — c'est le
+   * rollback Postgres qui le garantit, jamais une compensation applicative.
+   *
+   * CUMUL (D-030) : plusieurs cartes règlent un même paiement, et c'est leur SOMME qui doit
+   * égaler le montant dû, exactement, au millime. Les gains arrivent par petits montants et
+   * les activations se chiffrent en milliers de dinars : exiger une carte unique de valeur
+   * pile rendrait le système inutilisable. Ni trop-perçu, ni appoint pour autant — un
+   * excédent serait de la valeur perdue sans trace.
+   *
+   * ORDRE DE VERROUILLAGE (D-024) : les cartes sont brûlées par **id CROISSANT**. À plusieurs
+   * cartes, deux transactions concurrentes tenant chacune une carte que l'autre convoite
+   * s'interbloqueraient ; l'ordre total commun rend le graphe d'attente acyclique. Ce n'est
+   * pas cosmétique, c'est la même règle que la chaîne d'ancêtres et que les produits.
    *
    * Les contrôles préalables ne servent qu'à produire une erreur PARLANTE. L'autorité est
-   * l'`UPDATE` gardé (`WHERE status = 'ACTIVE' AND …`) : deux consommations simultanées de
-   * la même carte se sérialisent sur le verrou de ligne, et la perdante relit `status`
-   * committé par la gagnante → 0 ligne → `EcardAlreadyConsumedError`, transaction annulée.
-   * Exactement une réussit, toujours.
+   * l'`UPDATE` gardé (`WHERE status = 'ACTIVE' AND "valueDt" = … AND non échue`) : deux
+   * consommations simultanées de la même carte se sérialisent sur le verrou de ligne, et la
+   * perdante relit le `status` committé par la gagnante → 0 ligne → rollback complet.
+   * Exactement une réussit, toujours. La garde épingle aussi la VALEUR : sans elle, une carte
+   * modifiée entre le calcul du total et le brûlage ferait payer le mauvais montant.
    *
-   * La garde compare la valeur en `numeric` : `${dueDt}` est envoyé en paramètre typé, donc
-   * Postgres compare des décimaux exacts — jamais des flottants.
+   * Les valeurs sont comparées en `numeric` (paramètres typés) : jamais un flottant.
    */
-  async consumeInTx(
+  async consumeManyInTx(
     tx: Prisma.TransactionClient,
-    input: { code: string; memberId: number; dueDt: Money },
-  ): Promise<ConsumedEcard> {
-    const code = normalizeEcardCode(input.code);
+    input: {
+      codes: string[];
+      memberId: number;
+      dueDt: Money;
+      /** Adhésion réglée par ces cartes (inscription / renouvellement). */
+      membershipPaymentId?: number;
+    },
+  ): Promise<ConsumedEcards> {
+    const codes = input.codes.map(normalizeEcardCode);
+    if (codes.length === 0) {
+      throw new EcardsTotalMismatchError(ZERO_DT, input.dueDt, 0);
+    }
+    if (codes.length > MAX_ECARDS_PER_PAYMENT) {
+      throw new TooManyEcardsError(codes.length, MAX_ECARDS_PER_PAYMENT);
+    }
+    // Le même code deux fois compterait sa valeur deux fois dans le total alors qu'une seule
+    // carte serait brûlée : le paiement serait à moitié gratuit.
+    const unique = new Set(codes);
+    if (unique.size !== codes.length) {
+      throw new DuplicateEcardCodeError();
+    }
 
-    const ecard = await tx.ecard.findUnique({
-      where: { code },
+    // Tri par id croissant assuré ici : c'est l'ordre de verrouillage (D-024).
+    const ecards = await tx.ecard.findMany({
+      where: { code: { in: [...unique] } },
       select: { id: true, valueDt: true, status: true, expiresAt: true },
+      orderBy: { id: 'asc' },
     });
-    if (!ecard) {
-      throw new EcardNotFoundError();
+    if (ecards.length !== unique.size) {
+      throw new EcardNotFoundError(); // au moins un code inconnu
     }
-    if (ecard.status !== EcardStatus.ACTIVE) {
-      throw new EcardNotActiveError(ecard.status);
+    for (const ecard of ecards) {
+      if (ecard.status !== EcardStatus.ACTIVE) {
+        throw new EcardNotActiveError(ecard.status);
+      }
+      if (this.isExpired(ecard.expiresAt)) {
+        throw new EcardExpiredError();
+      }
     }
-    if (this.isExpired(ecard.expiresAt)) {
-      throw new EcardExpiredError();
-    }
-    // Couverture EXACTE (spec §5.5, D-007) : ni trop-perçu, ni appoint, une seule carte.
+
+    // Couverture EXACTE de la SOMME (spec §5.5, D-007 révisé par D-030).
     // `.equals` et non `!==` : deux `Decimal` de même valeur sont deux objets distincts.
-    if (!ecard.valueDt.equals(input.dueDt)) {
-      throw new EcardValueMismatchError(ecard.valueDt, input.dueDt);
+    const totalDt = ecards.reduce(
+      (sum, ecard) => sum.plus(ecard.valueDt),
+      ZERO_DT,
+    );
+    if (!totalDt.equals(input.dueDt)) {
+      throw new EcardsTotalMismatchError(totalDt, input.dueDt, ecards.length);
     }
 
-    const burned = await tx.$queryRaw<Array<{ id: number; valueDt: string }>>`
-      UPDATE "Ecard"
-      SET "status" = 'USED'::"EcardStatus",
-          "usedAt" = now(),
-          "userId" = ${input.memberId}
-      WHERE "id" = ${ecard.id}
-        AND "status" = 'ACTIVE'::"EcardStatus"
-        AND "valueDt" = ${input.dueDt}
-        AND ("expiresAt" IS NULL OR "expiresAt" > now())
-      RETURNING "id", "valueDt"::text AS "valueDt"
-    `;
-    if (burned.length !== 1) {
-      throw new EcardAlreadyConsumedError();
+    const ecardIds: number[] = [];
+    for (const ecard of ecards) {
+      const burned = await tx.$queryRaw<Array<{ id: number }>>`
+        UPDATE "Ecard"
+        SET "status" = 'USED'::"EcardStatus",
+            "usedAt" = now(),
+            "userId" = ${input.memberId},
+            "membershipPaymentId" = ${input.membershipPaymentId ?? null}::int
+        WHERE "id" = ${ecard.id}
+          AND "status" = 'ACTIVE'::"EcardStatus"
+          AND "valueDt" = ${ecard.valueDt}
+          AND ("expiresAt" IS NULL OR "expiresAt" > now())
+        RETURNING "id"
+      `;
+      if (burned.length !== 1) {
+        throw new EcardAlreadyConsumedError();
+      }
+      ecardIds.push(ecard.id);
     }
 
-    // AUCUN mouvement de grand livre (D-025) : la valeur de la carte paie le montant dû,
-    // elle ne transite pas par le solde du bénéficiaire.
-    return { ecardId: burned[0].id, valueDt: moneyFromSql(burned[0].valueDt) };
+    // AUCUN mouvement de grand livre (D-025) : la valeur des cartes paie le montant dû, elle
+    // ne transite pas par le solde du bénéficiaire.
+    return { ecardIds, totalDt };
   }
 
   /**
-   * Stratégie de paiement de l'activation adossée à une e-card (interface `ActivationPayment`
-   * laissée par la Tranche 4). Le checkout de la Tranche 6 s'en sert :
-   *   `activation.activate({ memberId, packId, payment: ecards.activationPayment(code) })`
+   * Rattache des cartes déjà brûlées à la commande qu'elles ont réglée. En deux temps parce
+   * que la commande n'existe pas encore au moment du paiement : l'activation consomme avant
+   * que le checkout n'insère l'`Order` (ordre de verrouillage D-024 : `Ecard` avant `Order`).
+   * Même transaction — une carte brûlée sans son rattachement n'existe donc jamais.
    */
-  activationPayment(code: string): ActivationPayment {
-    return new EcardActivationPayment(this, code);
+  async attachToOrderInTx(
+    tx: Prisma.TransactionClient,
+    ecardIds: number[],
+    orderId: number,
+  ): Promise<void> {
+    if (ecardIds.length === 0) {
+      return;
+    }
+    await tx.ecard.updateMany({
+      where: { id: { in: ecardIds } },
+      data: { orderId },
+    });
+  }
+
+  /**
+   * Stratégie de paiement de l'activation adossée à des e-cards (interface `ActivationPayment`
+   * laissée par la Tranche 4). Le checkout s'en sert :
+   *   `activation.activate({ memberId, packId, payment: ecards.activationPayment(codes) })`
+   */
+  activationPayment(codes: string[]): ActivationPayment {
+    return new EcardActivationPayment(this, codes);
   }
 
   // ─────────────────────────── Prolongation (créateur ou admin — D-026) ───────────────────────────

@@ -45,14 +45,41 @@ export class EcardExpiredError extends ConflictException {
 }
 
 /**
- * Couverture exacte (spec §5.5, D-007) : ni trop-perçu, ni appoint. Une e-card paie un montant
- * égal, au millime près.
+ * Couverture exacte (spec §5.5, D-007 révisé par D-030) : ni trop-perçu, ni appoint. Les
+ * e-cards sont CUMULABLES, mais leur somme doit égaler le montant dû au millime près — un
+ * trop-perçu créerait de la monnaie perdue, un manque ferait payer la plateforme.
  */
-export class EcardValueMismatchError extends ConflictException {
-  constructor(valueDt: Money, dueDt: Money) {
+export class EcardsTotalMismatchError extends ConflictException {
+  constructor(totalDt: Money, dueDt: Money, count: number) {
     super(
-      `Valeur de l’e-card (${moneyToApi(valueDt)} DT) différente du montant dû (${moneyToApi(dueDt)} DT) : ` +
-        'une e-card doit couvrir le montant exactement (une seule e-card par transaction).',
+      `Total des ${count} e-card(s) fournies : ${moneyToApi(totalDt)} DT — montant dû : ` +
+        `${moneyToApi(dueDt)} DT. Le total doit couvrir le montant EXACTEMENT (au millime), ` +
+        'ni plus, ni moins.',
+    );
+  }
+}
+
+/**
+ * Le même code deux fois dans un paiement. Sans ce refus, sa valeur serait comptée deux fois
+ * pour atteindre le total dû alors qu'une seule carte serait brûlée : de la valeur créée.
+ */
+export class DuplicateEcardCodeError extends BadRequestException {
+  constructor() {
+    super('Le même code e-card est fourni plusieurs fois dans le même paiement.');
+  }
+}
+
+/**
+ * Plafond du nombre d'e-cards par paiement (RÉVISE D-030, qui les disait « illimitées »).
+ * Motif : l'inscription est un endpoint PUBLIC et ANONYME (D-021) ; sans plafond, une seule
+ * requête offrirait autant d'essais de codes qu'elle porte de champs, et le quota par IP ne
+ * protégerait plus rien. Voir `.claude/rules/ecard.md`.
+ */
+export class TooManyEcardsError extends BadRequestException {
+  constructor(count: number, max: number) {
+    super(
+      `${count} e-cards fournies : ${max} au maximum par paiement. Regroupez-les en cartes ` +
+        'de plus forte valeur.',
     );
   }
 }

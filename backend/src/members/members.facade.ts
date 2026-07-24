@@ -22,9 +22,9 @@ export class MembersFacade {
 
   /**
    * Le fichier est écrit AVANT la transaction (l'inscription a besoin de son chemin) ; si
-   * l'inscription échoue — position prise, contact déjà utilisé, course perdue —, le fichier
-   * est supprimé. Il n'existe donc jamais de membre sans son document, ni de document sans
-   * son membre.
+   * l'inscription échoue — position prise, contact déjà utilisé, paiement refusé, course
+   * perdue —, le fichier est supprimé. Il n'existe donc jamais de membre sans son document,
+   * ni de document sans son membre.
    */
   async register(
     dto: RegisterMemberDto,
@@ -47,9 +47,11 @@ export class MembersFacade {
         sponsorCode: dto.sponsorCode,
         uplineCode: dto.uplineCode,
         leg: dto.leg,
+        ecardCodes: dto.ecardCodes,
         idDocument: {
           type: dto.idDocumentType,
           relativePath: stored.relativePath,
+          number: dto.idDocumentNumber.trim(),
         },
       });
     } catch (error) {

@@ -1,13 +1,35 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Leg, MemberStatus, Prisma } from '@prisma/client';
+import {
+  Leg,
+  MemberStatus,
+  MembershipPaymentStatus,
+  MembershipPaymentType,
+  Prisma,
+} from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { Money, moneyToApi } from '../common/money';
+import {
+  DuplicateEcardCodeError,
+  EcardAlreadyConsumedError,
+  EcardExpiredError,
+  EcardNotActiveError,
+  EcardNotFoundError,
+  EcardsTotalMismatchError,
+  TooManyEcardsError,
+} from '../ecards/ecards.errors';
+import { EcardsService } from '../ecards/ecards.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MemberCodeService } from './member-code.service';
+import {
+  MembershipFeeService,
+  REGISTRATION_FEE_SETTING,
+} from './membership-fee.service';
 import {
   ContactAlreadyUsedError,
   MissingContactError,
   PositionTakenError,
+  RegistrationPaymentRefusedError,
   SponsorNotFoundError,
   UplineNotFoundError,
   UplineOutsideSponsorTreeError,
@@ -18,11 +40,37 @@ import { PlacementService } from './placement.service';
 const TX_TIMEOUT_MS = 10_000;
 
 /**
- * Inscription (spec §5.3, D-013, D-021, D-022).
+ * Toutes les façons dont un paiement d'inscription peut être refusé — réduites à UNE seule
+ * réponse (voir `RegistrationPaymentRefusedError`). L'endpoint étant public et anonyme,
+ * distinguer « code inconnu » de « déjà utilisée » offrirait un oracle d'énumération.
+ */
+const PAYMENT_REFUSAL_ERRORS = [
+  EcardNotFoundError,
+  EcardNotActiveError,
+  EcardExpiredError,
+  EcardsTotalMismatchError,
+  EcardAlreadyConsumedError,
+  DuplicateEcardCodeError,
+  TooManyEcardsError,
+] as const;
+
+/**
+ * Inscription (spec §5.3, D-013, D-021, D-022, D-036).
  *
- * Résultat d'une inscription : un membre INSCRIT, avec son code et sa place définitive dans
- * l'arbre — et RIEN d'autre. Aucun BV n'est injecté, aucune ligne de grand livre n'est
- * écrite : seule l'activation (ActivationService) fait circuler de la valeur.
+ * Résultat d'une inscription : un membre INSCRIT, avec son code, sa place définitive dans
+ * l'arbre — et les frais d'inscription réglés. Aucun POINT n'est injecté (seule l'activation
+ * alimente l'arbre, D-005) et AUCUNE ligne de grand livre n'est écrite : les e-cards sont un
+ * instrument de paiement, pas une recharge de solde (D-025). Rien ne transite par un solde.
+ *
+ * ATOMICITÉ (D-036) : membre + paiement + consommation des e-cards committent ensemble ou pas
+ * du tout. Une position déjà prise, un sponsor inconnu, un upline hors sous-arbre — n'importe
+ * quel échec laisse les cartes `ACTIVE` et ne crée aucun membre. Jamais d'e-card brûlée sans
+ * membre, jamais de membre sans e-cards brûlées. C'est le rollback Postgres qui le garantit,
+ * pas une compensation applicative.
+ *
+ * VERROUILLAGE (D-024) : `Member` (l'INSERT, qui prend un `FOR KEY SHARE` sur le sponsor et
+ * l'upline via les clés étrangères) AVANT `Ecard` (ids croissants). Consommer d'abord
+ * croiserait l'ordre du checkout et de l'expiration.
  */
 @Injectable()
 export class MembersService {
@@ -31,6 +79,8 @@ export class MembersService {
     private readonly config: ConfigService,
     private readonly placement: PlacementService,
     private readonly memberCode: MemberCodeService,
+    private readonly fees: MembershipFeeService,
+    private readonly ecards: EcardsService,
   ) {}
 
   async register(input: RegisterMemberInput): Promise<RegisteredMember> {
@@ -81,6 +131,10 @@ export class MembersService {
 
     await this.assertContactsFree(email, phone);
 
+    // Le tarif est lu AVANT la transaction : un paramètre corrompu doit produire une 500
+    // parlante, pas un rollback silencieux au milieu du paiement.
+    const feeDt = await this.fees.read(REGISTRATION_FEE_SETTING);
+
     const passwordHash = await bcrypt.hash(input.password, this.bcryptRounds());
 
     try {
@@ -102,7 +156,11 @@ export class MembersService {
               uplineId: upline.id,
               leg: input.leg,
               idDocumentType: input.idDocument?.type ?? null,
+              idDocumentNumber: input.idDocument?.number ?? null,
               idDocumentPath: input.idDocument?.relativePath ?? null,
+              // L'ACOMPTE (D-037), figé ici : c'est lui que l'activation déduira du prix du
+              // pack, et non le paramètre courant — qui aura peut-être changé d'ici là.
+              registrationPaidDt: feeDt,
             },
             select: {
               id: true,
@@ -116,6 +174,27 @@ export class MembersService {
             },
           });
 
+          // Le paiement précède la consommation : les cartes s'y rattachent en étant brûlées,
+          // et une carte `USED` sans contrepartie lisible n'existe donc jamais.
+          const payment = await tx.membershipPayment.create({
+            data: {
+              memberId: member.id,
+              type: MembershipPaymentType.REGISTRATION,
+              // Acquise d'emblée : l'inscription initiale ne demande aucune validation
+              // administrateur (D-010) — seul le renouvellement en exige une.
+              status: MembershipPaymentStatus.SETTLED,
+              amountDt: feeDt,
+            },
+            select: { id: true },
+          });
+
+          const consumed = await this.settleRegistrationInTx(tx, {
+            codes: input.ecardCodes,
+            memberId: member.id,
+            dueDt: feeDt,
+            membershipPaymentId: payment.id,
+          });
+
           await tx.auditLog.create({
             data: {
               actor: 'SYSTEM',
@@ -126,6 +205,11 @@ export class MembersService {
                 sponsorCode: sponsor.memberCode,
                 uplineCode: upline.memberCode,
                 leg: input.leg,
+                registrationPaidDt: moneyToApi(feeDt),
+                membershipPaymentId: payment.id,
+                // Des IDENTIFIANTS, jamais les codes : un code est de la valeur au porteur,
+                // et l'AuditLog se lit, s'exporte et se journalise (règle e-card).
+                ecardIds: consumed.ecardIds,
               },
             },
           });
@@ -135,12 +219,42 @@ export class MembersService {
             leg: input.leg,
             sponsorCode: sponsor.memberCode,
             uplineCode: upline.memberCode,
+            registrationPaidDt: moneyToApi(feeDt),
           };
         },
         { timeout: TX_TIMEOUT_MS },
       );
     } catch (error) {
       throw this.translateUniqueViolation(error, upline.memberCode, input.leg);
+    }
+  }
+
+  /**
+   * Consomme les e-cards des frais d'inscription et MASQUE la cause exacte d'un refus.
+   *
+   * Seules les erreurs métier des e-cards sont masquées ; tout le reste (base indisponible,
+   * bug) remonte tel quel — un incident technique ne doit pas se déguiser en « e-card
+   * invalide », on perdrait toute chance de le diagnostiquer.
+   */
+  private async settleRegistrationInTx(
+    tx: Prisma.TransactionClient,
+    input: {
+      codes: string[];
+      memberId: number;
+      dueDt: Money;
+      membershipPaymentId: number;
+    },
+  ): Promise<{ ecardIds: number[] }> {
+    try {
+      return await this.ecards.consumeManyInTx(tx, input);
+    } catch (error) {
+      const isRefusal = PAYMENT_REFUSAL_ERRORS.some(
+        (type) => error instanceof type,
+      );
+      if (isRefusal) {
+        throw new RegistrationPaymentRefusedError(moneyToApi(input.dueDt));
+      }
+      throw error;
     }
   }
 

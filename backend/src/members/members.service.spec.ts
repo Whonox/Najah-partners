@@ -1,10 +1,18 @@
 import { ConfigService } from '@nestjs/config';
 import { Leg, Prisma } from '@prisma/client';
+import { money } from '../common/money';
+import {
+  EcardNotFoundError,
+  EcardsTotalMismatchError,
+} from '../ecards/ecards.errors';
+import { EcardsService } from '../ecards/ecards.service';
 import { MemberCodeService } from './member-code.service';
+import { MembershipFeeService } from './membership-fee.service';
 import {
   ContactAlreadyUsedError,
   MissingContactError,
   PositionTakenError,
+  RegistrationPaymentRefusedError,
   SponsorNotFoundError,
   UplineNotFoundError,
   UplineOutsideSponsorTreeError,
@@ -15,12 +23,13 @@ import { PlacementService } from './placement.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
- * Inscription, Prisma mocké (sans base). La course réelle sur une même position et la
- * contrainte d'unicité sont couvertes par `members.int-spec.ts`.
+ * Inscription, Prisma mocké (sans base). La course réelle sur une même position, sur une même
+ * e-card, et l'atomicité du paiement sont couvertes par `members.int-spec.ts`.
  */
 
 const SPONSOR = { id: 1, memberCode: 'NP000963' };
 const UPLINE = { id: 2, memberCode: 'NP000964' };
+const FEE_DT = money(100);
 
 const INPUT: RegisterMemberInput = {
   lastName: 'Ben Salah',
@@ -30,6 +39,7 @@ const INPUT: RegisterMemberInput = {
   sponsorCode: 'NP000963',
   uplineCode: 'NP000964',
   leg: Leg.LEFT,
+  ecardCodes: ['HHD-7Z7-JJD-77D'],
 };
 
 interface Scenario {
@@ -40,6 +50,8 @@ interface Scenario {
   phoneTaken?: boolean;
   insideNetwork?: boolean;
   createError?: unknown;
+  /** Erreur levée par la consommation des e-cards (paiement refusé). */
+  paymentError?: unknown;
 }
 
 function makeService(scenario: Scenario = {}) {
@@ -55,7 +67,15 @@ function makeService(scenario: Scenario = {}) {
         },
   );
   const auditCreate = jest.fn(async () => ({}));
+  // Signatures explicites (…_args) : sinon `mock.calls` est typé `[][]` et l'inspection des
+  // appels ci-dessous ne compile pas (`tsc --noEmit`).
+  const paymentCreate = jest.fn(async (..._args: unknown[]) => ({ id: 7 }));
   const allocate = jest.fn(async () => 'NP000970');
+  const consumeManyInTx = jest.fn(async (..._args: unknown[]) =>
+    scenario.paymentError
+      ? Promise.reject(scenario.paymentError)
+      : { ecardIds: [11], totalDt: FEE_DT },
+  );
 
   // `??` ne conviendrait pas : un scénario peut vouloir un sponsor/upline explicitement `null`.
   const sponsor = 'sponsor' in scenario ? scenario.sponsor : SPONSOR;
@@ -74,9 +94,19 @@ function makeService(scenario: Scenario = {}) {
     return null;
   });
 
-  const tx = { member: { create }, auditLog: { create: auditCreate } };
+  const tx = {
+    member: { create },
+    membershipPayment: { create: paymentCreate },
+    auditLog: { create: auditCreate },
+  };
   const prisma = {
     member: { findUnique },
+    setting: {
+      findUnique: jest.fn(async () => ({
+        key: 'registration_fee_dt',
+        value: '100',
+      })),
+    },
     $transaction: jest.fn(async (cb: (t: unknown) => unknown) => cb(tx)),
   } as unknown as PrismaService;
 
@@ -89,12 +119,23 @@ function makeService(scenario: Scenario = {}) {
   } as unknown as ConfigService;
 
   const memberCode = { allocate } as unknown as MemberCodeService;
+  const fees = new MembershipFeeService(prisma);
+  const ecards = { consumeManyInTx } as unknown as EcardsService;
 
   return {
-    service: new MembersService(prisma, config, placement, memberCode),
+    service: new MembersService(
+      prisma,
+      config,
+      placement,
+      memberCode,
+      fees,
+      ecards,
+    ),
     create,
+    paymentCreate,
     allocate,
     placement,
+    consumeManyInTx,
   };
 }
 
@@ -145,13 +186,14 @@ describe('MembersService.register — validations', () => {
 });
 
 describe('MembersService.register — création', () => {
-  it('crée un membre INSCRIT placé, sans BV, e-mail normalisé', async () => {
+  it('crée un membre INSCRIT placé, sans point, e-mail normalisé, acompte figé', async () => {
     const { service, create } = makeService();
     const member = await service.register(INPUT);
 
     expect(member.memberCode).toBe('NP000970');
     expect(member.status).toBe('REGISTERED');
     expect(member.uplineCode).toBe('NP000964');
+    expect(member.registrationPaidDt).toBe('100.000'); // l'acompte, renvoyé au portail
 
     const data = create.mock.calls[0][0].data as Record<string, unknown>;
     expect(data.status).toBe('REGISTERED');
@@ -160,9 +202,57 @@ describe('MembersService.register — création', () => {
     expect(data.sponsorId).toBe(SPONSOR.id);
     expect(data.leg).toBe(Leg.LEFT);
     expect(data.passwordHash).not.toBe(INPUT.password);
-    // Aucune valeur BV n'est écrite : seule l'activation fait circuler du BV.
-    expect(data).not.toHaveProperty('bvBalance');
+    // L'ACOMPTE est figé sur le membre (D-037) : c'est lui que l'activation déduira.
+    expect((data.registrationPaidDt as Prisma.Decimal).toString()).toBe('100');
+    // Aucun point n'est écrit : seule l'activation en fait circuler.
     expect(data).not.toHaveProperty('leftPoints');
+  });
+
+  it('règle les frais AVANT tout : paiement créé, e-cards consommées du montant exact', async () => {
+    const { service, paymentCreate, consumeManyInTx } = makeService();
+    await service.register(INPUT);
+
+    const payment = paymentCreate.mock.calls[0][0] as {
+      data: Record<string, unknown>;
+    };
+    expect(payment.data.type).toBe('REGISTRATION');
+    expect(payment.data.status).toBe('SETTLED'); // acquise sans validation admin (D-010)
+
+    const consumed = consumeManyInTx.mock.calls[0][1] as {
+      codes: string[];
+      dueDt: Prisma.Decimal;
+      membershipPaymentId: number;
+    };
+    expect(consumed.codes).toEqual(INPUT.ecardCodes);
+    expect(consumed.dueDt.toString()).toBe('100');
+    expect(consumed.membershipPaymentId).toBe(7);
+  });
+
+  it('MASQUE la cause du refus : toutes les erreurs d’e-card donnent la MÊME réponse', async () => {
+    const messages = new Set<string>();
+    for (const paymentError of [
+      new EcardNotFoundError(),
+      new EcardsTotalMismatchError(money(90), FEE_DT, 1),
+    ]) {
+      const { service } = makeService({ paymentError });
+      const caught = await service.register(INPUT).then(
+        () => null,
+        (error: Error) => error,
+      );
+      expect(caught).toBeInstanceOf(RegistrationPaymentRefusedError);
+      messages.add(caught!.message);
+    }
+    // Un endpoint public ne doit pas dire si un code existe : pas d'oracle d'énumération.
+    expect(messages.size).toBe(1);
+    expect([...messages][0]).not.toMatch(/90/); // ni la valeur des cartes fournies
+  });
+
+  it('une panne technique n’est PAS masquée en « e-card invalide »', async () => {
+    const boom = new Error('connexion Postgres perdue');
+    const { service } = makeService({ paymentError: boom });
+    // Masquer un incident le rendrait indiagnosticable : seules les erreurs métier des
+    // e-cards sont aveuglées.
+    await expect(service.register(INPUT)).rejects.toBe(boom);
   });
 
   it('alloue le code APRÈS toutes les validations (trous de numérotation minimisés)', async () => {

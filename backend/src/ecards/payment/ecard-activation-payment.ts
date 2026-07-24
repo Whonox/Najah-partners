@@ -7,38 +7,48 @@ import {
 import type { EcardsService } from '../ecards.service';
 
 /**
- * Règlement de l'activation PAR E-CARD (D-025) — l'implémentation que la Tranche 4 laissait
+ * Règlement de l'activation PAR E-CARD(S) (D-025) — l'implémentation que la Tranche 4 laissait
  * en attente derrière l'interface `ActivationPayment`.
  *
- * La carte est brûlée dans la transaction d'activation : elle passe `USED` si et seulement si
- * l'activation committe entièrement (statut, snapshot, baseline, propagation d'arbre). Une
- * activation interrompue la laisse `ACTIVE` (spec §5.4) — garanti par le rollback Postgres.
+ * Les cartes sont brûlées dans la transaction d'activation : elles passent `USED` si et
+ * seulement si l'activation committe entièrement (statut, snapshot, baseline, propagation
+ * d'arbre). Une activation interrompue les laisse toutes `ACTIVE` (spec §5.4) — garanti par le
+ * rollback Postgres.
  *
- * AUCUN mouvement de solde : la valeur de l'e-card paie le PRIX DU PACK (en dinars — D-029),
- * elle ne transite pas par le solde du membre (qui reste à zéro s'il n'a jamais rien gagné). Le
- * membre n'est donc jamais débité — il n'y a rien à débiter.
+ * AUCUN mouvement de solde : la valeur des e-cards paie le montant dû (en dinars — D-029 et
+ * D-037 : prix du pack MOINS l'acompte d'inscription), elle ne transite pas par le solde du
+ * membre (qui reste à zéro s'il n'a jamais rien gagné). Le membre n'est donc jamais débité —
+ * il n'y a rien à débiter.
  *
- * Objet à usage unique (il porte le code d'UNE carte) : instancié par
- * `EcardsService.activationPayment(code)`, jamais un provider Nest partagé.
+ * Plusieurs cartes sont cumulables (D-030), leur somme devant couvrir le montant EXACTEMENT :
+ * à 2100 DT dus pour un Silver, exiger une carte unique de valeur pile rendrait l'activation
+ * impraticable — les gains, eux, arrivent par petits montants.
+ *
+ * Objet à usage unique (il porte les codes d'UN paiement) : instancié par
+ * `EcardsService.activationPayment(codes)`, jamais un provider Nest partagé.
  */
 export class EcardActivationPayment implements ActivationPayment {
   constructor(
     private readonly ecards: EcardsService,
-    private readonly code: string,
+    private readonly codes: string[],
   ) {}
 
   async settleInTx(
     tx: Prisma.TransactionClient,
     input: { memberId: number; amountDt: Money },
   ): Promise<SettlementResult> {
-    // La valeur doit couvrir le prix du pack EXACTEMENT (spec §5.5, D-007) ; `consumeInTx` le
-    // vérifie et refuse toute carte inactive, expirée ou de valeur différente.
-    const consumed = await this.ecards.consumeInTx(tx, {
-      code: this.code,
+    // La SOMME des valeurs doit couvrir le montant dû EXACTEMENT (spec §5.5, D-007/D-030) ;
+    // `consumeManyInTx` le vérifie et refuse toute carte inactive, expirée ou en double.
+    const consumed = await this.ecards.consumeManyInTx(tx, {
+      codes: this.codes,
       memberId: input.memberId,
       dueDt: input.amountDt,
     });
 
-    return { method: 'ECARD', ledgerEntryId: null, ecardId: consumed.ecardId };
+    return {
+      method: 'ECARD',
+      ledgerEntryId: null,
+      ecardIds: consumed.ecardIds,
+    };
   }
 }
