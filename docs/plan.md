@@ -5,7 +5,7 @@ Ordre par dépendance. Chaque tranche est testable et se termine par un commit. 
 ## Tranche 0 — Fondations
 - [ ] Dépôt git initialisé, kit de démarrage en place, premier commit.
 - [ ] `backend/` scaffoldé (NestJS), connexion PostgreSQL OK.
-- [ ] `vitrine/`, `admin/`, `portal/` scaffoldés (Next.js / Vite+React+shadcn).
+- [x] `vitrine/`, `admin/`, `portal/` scaffoldés (Next.js / Vite+React+shadcn).
 - [ ] Swagger/OpenAPI activé côté backend ; génération du client TS côté fronts vérifiée sur un endpoint bidon.
 
 ## Tranche 1 — Modèle de données (réf. spec §8)
