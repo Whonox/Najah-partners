@@ -5,6 +5,14 @@ import { tokenStore } from "./token-store"
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000"
 
 /**
+ * Exportée pour les rares requêtes qui ne peuvent PAS passer par le client généré : celui-ci
+ * parse toute réponse en JSON, ce qui ne convient pas à un binaire (l'image de pièce
+ * d'identité, T8b). Ces appels-là refont le Bearer et le rejeu à la main, en réutilisant
+ * `refreshAccessToken` pour partager la même promesse de rafraîchissement.
+ */
+export const apiBaseUrl = baseUrl
+
+/**
  * Routes qui ne portent JAMAIS de Bearer et ne déclenchent JAMAIS de rafraîchissement :
  * elles sont le rafraîchissement (ou son absence). Rejouer un /auth/refresh sur un 401 de
  * /auth/refresh serait une boucle infinie.
