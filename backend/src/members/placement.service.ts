@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { MemberStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MemberNotFoundError, TreeTruncatedError } from './members.errors';
 import { TreeRow } from './members.types';
@@ -51,6 +51,44 @@ export interface LockedChain {
   ids: number[];
   /** Nombre d'ancêtres (membre exclu) : c'est le nombre de lignes que la propagation doit toucher. */
   ancestorCount: number;
+}
+
+/** Forme brute du RETURNING (le driver rend l'enum en texte, le JSONB en objet). */
+interface PropagatedAncestorRow {
+  id: number;
+  distance: number;
+  status: string;
+  activationTierBv: number | null;
+  activationSnapshot: unknown;
+  carriedLeftPoints: number;
+  carriedRightPoints: number;
+  lifetimeBalanceCount: number;
+  startupBonusUsed: boolean;
+  activatedDescendants: number;
+}
+
+/**
+ * Un ancêtre tel que la propagation d'activation l'a laissé — l'entrée du temps 1 du moteur
+ * de commissions (D-035). Toutes les valeurs sont relues par le `RETURNING`, donc SOUS le
+ * verrou de chaîne : détection d'équilibre et consommation de points sont sérialisées.
+ */
+export interface PropagatedAncestor {
+  id: number;
+  /** 0 = upline direct du membre activé, croissant vers la racine. */
+  distance: number;
+  status: MemberStatus;
+  /** Palier (POINTS) figé à l'activation de CET ancêtre — null s'il n'a jamais activé. */
+  activationTierBv: number | null;
+  /** Snapshot d'activation de CET ancêtre (Json) — montants en DT figés (D-028). */
+  activationSnapshot: unknown;
+  /** Pools appariables APRÈS crédit de cette activation. */
+  carriedLeftPoints: number;
+  carriedRightPoints: number;
+  /** Compteur d'équilibres à vie AVANT les événements de cette activation (D-032). */
+  lifetimeBalanceCount: number;
+  startupBonusUsed: boolean;
+  /** Membres activés dans le sous-arbre, CETTE activation comprise (D-031). */
+  activatedDescendants: number;
 }
 
 /**
@@ -110,19 +148,29 @@ export class PlacementService {
    * un membre en jambe GAUCHE de son upline, lui-même en jambe DROITE de son propre upline,
    * crédite ce dernier à DROITE.
    *
+   * Depuis la Tranche 7 (D-035), la même instruction entretient TROIS compteurs :
+   *  - `leftPoints` / `rightPoints` — cumul À VIE, crédité quel que soit l'état (D-020) ;
+   *  - `carriedLeftPoints` / `carriedRightPoints` — la POOL APPARIABLE, créditée SEULEMENT
+   *    si l'ancêtre est ACTIF : un INSCRIT n'a pas encore de baseline (ses points d'avant
+   *    activation ne compteront jamais pour lui), un GELÉ ne compte pas les points du gel
+   *    (D-034) — dans les deux cas les points TRAVERSENT et continuent de monter ;
+   *  - `activatedDescendants` — +1 partout : le sous-arbre de chaque ancêtre vient de
+   *    gagner un membre activé (déclencheur du bonus D-031, « exactement 2 »).
+   *
    * Le `RETURNING` sert de preuve : si le nombre d'ancêtres crédités diffère du chemin
    * verrouillé, la propagation est tronquée → on lève, la transaction est annulée (une
    * propagation partielle qui committerait serait une corruption comptable irréversible).
+   * Il rapporte aussi tout ce que le moteur de commissions (temps 1, D-035) doit savoir
+   * pour détecter les équilibres — pools APRÈS crédit, palier et snapshot d'activation,
+   * compteurs à vie — sans relire les lignes déjà verrouillées.
    */
   async propagateInTx(
     tx: Prisma.TransactionClient,
     memberId: number,
     tierBv: number,
     expectedAncestors: number,
-  ): Promise<Array<{ id: number; leftPoints: number; rightPoints: number }>> {
-    const rows = await tx.$queryRaw<
-      Array<{ id: number; leftPoints: number; rightPoints: number }>
-    >`
+  ): Promise<PropagatedAncestor[]> {
+    const rows = await tx.$queryRaw<PropagatedAncestorRow[]>`
       WITH RECURSIVE chain AS (
           SELECT m."id", m."uplineId", m."leg", 0 AS depth
           FROM "Member" m
@@ -135,6 +183,7 @@ export class PlacementService {
       ),
       credits AS (
           SELECT c."uplineId" AS ancestor_id,
+                 MIN(c.depth) AS distance,  -- 0 = upline direct du membre activé
                  SUM(CASE WHEN c."leg" = 'LEFT'::"Leg"  THEN ${tierBv}::int ELSE 0 END)::int AS add_left,
                  SUM(CASE WHEN c."leg" = 'RIGHT'::"Leg" THEN ${tierBv}::int ELSE 0 END)::int AS add_right
           FROM chain c
@@ -143,10 +192,18 @@ export class PlacementService {
       )
       UPDATE "Member" m
       SET "leftPoints"  = m."leftPoints"  + cr.add_left,
-          "rightPoints" = m."rightPoints" + cr.add_right
+          "rightPoints" = m."rightPoints" + cr.add_right,
+          "carriedLeftPoints"  = m."carriedLeftPoints"
+              + CASE WHEN m."status" = 'ACTIVE'::"MemberStatus" THEN cr.add_left  ELSE 0 END,
+          "carriedRightPoints" = m."carriedRightPoints"
+              + CASE WHEN m."status" = 'ACTIVE'::"MemberStatus" THEN cr.add_right ELSE 0 END,
+          "activatedDescendants" = m."activatedDescendants" + 1
       FROM credits cr
       WHERE m."id" = cr.ancestor_id
-      RETURNING m."id", m."leftPoints", m."rightPoints"
+      RETURNING m."id", cr.distance::int AS "distance", m."status",
+                m."activationTierBv", m."activationSnapshot",
+                m."carriedLeftPoints", m."carriedRightPoints",
+                m."lifetimeBalanceCount", m."startupBonusUsed", m."activatedDescendants"
     `;
 
     if (rows.length !== expectedAncestors) {
@@ -155,7 +212,11 @@ export class PlacementService {
         `${rows.length} ancêtre(s) crédité(s) pour ${expectedAncestors} attendu(s)`,
       );
     }
-    return rows;
+    // L'ordre des lignes d'un UPDATE … RETURNING n'est pas garanti : on retrie du plus
+    // proche au plus lointain (la chronologie D-033 des événements d'une même activation).
+    return rows
+      .map((row) => ({ ...row, status: row.status as MemberStatus }))
+      .sort((a, b) => a.distance - b.distance);
   }
 
   /**

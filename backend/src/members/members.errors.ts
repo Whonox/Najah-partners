@@ -86,10 +86,12 @@ export class PackUnavailableError extends BadRequestException {
   }
 }
 
-/** Paramètre système illisible — mieux vaut refuser l'activation qu'écrire une valeur absurde. */
-export class InvalidSettingError extends InternalServerErrorException {
-  constructor(key: string, value: string) {
-    super(`Paramètre système « ${key} » invalide : « ${value} » (entier positif attendu).`);
+/** Transition de gel/réactivation impossible : le membre n'est pas dans l'état attendu (D-034). */
+export class InvalidRenewalTransitionError extends ConflictException {
+  constructor(memberId: number, status: string, expected: string) {
+    super(
+      `Le membre ${memberId} est en état ${status} : cette opération exige l'état ${expected}.`,
+    );
   }
 }
 

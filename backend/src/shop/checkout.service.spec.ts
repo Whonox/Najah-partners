@@ -156,8 +156,8 @@ function makeService(scenario: Scenario = {}) {
       },
       baselineLeft: 0,
       baselineRight: 0,
-      startupBonusRemaining: 6,
       creditedAncestors: 3,
+      commissionEvents: { direct: 1, balance: 0, startupBonus: 0, rewardPoint: 0 },
       payment: { method: 'ECARD' as const, ledgerEntryId: null, ecardId: 42 },
     }),
   );

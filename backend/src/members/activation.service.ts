@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { MemberStatus, Prisma } from '@prisma/client';
+import { CommissionEventsService } from '../commissions/commission-events.service';
 import { money, moneyToApi } from '../common/money';
 import { PrismaService } from '../prisma/prisma.service';
 import {
-  InvalidSettingError,
   MemberNotFoundError,
   MemberNotRegisteredError,
   PackUnavailableError,
@@ -17,8 +17,6 @@ import { BalanceActivationPayment } from './payment/balance-activation-payment';
 import { PlacementService } from './placement.service';
 
 const TX_TIMEOUT_MS = 15_000;
-const STARTUP_BONUS_SETTING = 'startup_bonus_default';
-const DEFAULT_STARTUP_BONUS = 6;
 /** Échouer proprement plutôt que d'attendre indéfiniment un verrou de branche. */
 const LOCK_TIMEOUT = "SET LOCAL lock_timeout = '3s'";
 
@@ -32,7 +30,8 @@ export interface ActivateInput {
 /**
  * Activation INSCRIT → ACTIF (spec §5.3, §5.4, §9.1) : la SEULE opération qui injecte des
  * POINTS dans l'arbre. Tout se fait dans une transaction unique — statut, snapshot, règlement,
- * baseline et propagation committent ensemble ou pas du tout.
+ * baseline, propagation ET événements de commission (temps 1 du moteur, D-035) committent
+ * ensemble ou pas du tout : une activation interrompue ne laisse aucun événement orphelin.
  *
  * LES DEUX DIMENSIONS SE CROISENT ICI, ET NULLE PART AILLEURS (D-028) — sans se convertir :
  *   on FAIT PAYER `snapshot.priceDt`  (DINARS — le prix du pack, D-029) à la stratégie de paiement ;
@@ -49,6 +48,7 @@ export class ActivationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly placement: PlacementService,
+    private readonly commissionEvents: CommissionEventsService,
     private readonly defaultPayment: BalanceActivationPayment,
   ) {}
 
@@ -74,9 +74,6 @@ export class ActivationService {
     input: ActivateInput,
   ): Promise<ActivationResult> {
     const payment = input.payment ?? this.defaultPayment;
-    // Avant tout verrou : un paramètre corrompu doit faire échouer l'activation sans avoir
-    // immobilisé une branche de l'arbre.
-    const startupBonus = await this.startupBonusDefault(tx);
 
     await tx.$executeRawUnsafe(LOCK_TIMEOUT);
 
@@ -85,9 +82,10 @@ export class ActivationService {
     const chain = await this.placement.lockChainInTx(tx, input.memberId);
 
     // 2. Relecture du statut SOUS VERROU : garde d'idempotence (double soumission, retry).
+    //    `sponsorId` sert au temps 1 du moteur : la commission DIRECTE va au sponsor.
     const member = await tx.member.findUnique({
       where: { id: input.memberId },
-      select: { id: true, memberCode: true, status: true },
+      select: { id: true, memberCode: true, status: true, sponsorId: true },
     });
     if (!member) {
       throw new MemberNotFoundError(input.memberId);
@@ -126,7 +124,8 @@ export class ActivationService {
 
     // 5. Passage à ACTIF + baseline figée. `baselineLeft = leftPoints` est calculé EN SQL,
     //    sous verrou : les points accumulés pendant la phase INSCRIT sont ainsi exclus des
-    //    commissions propres du membre (§5.8), sans lecture-modification-écriture côté JS.
+    //    commissions propres du membre (§5.8) — la pool appariable, elle, reste à zéro (la
+    //    propagation ne crédite que les ACTIFS : la baseline vaut par construction, D-035).
     //    `WHERE status = 'REGISTERED'` : dernier rempart contre une double activation.
     const updated = await tx.$queryRaw<
       Array<{ baselineLeft: number; baselineRight: number }>
@@ -139,7 +138,6 @@ export class ActivationService {
           "activationSnapshot" = ${JSON.stringify(snapshot)}::jsonb,
           "baselineLeft" = "leftPoints",
           "baselineRight" = "rightPoints",
-          "startupBonusRemaining" = ${startupBonus},
           "updatedAt" = now()
       WHERE "id" = ${member.id}
         AND "status" = 'REGISTERED'::"MemberStatus"
@@ -151,12 +149,30 @@ export class ActivationService {
 
     // 6. Propagation du palier SNAPSHOTÉ — en POINTS — à tous les ancêtres, sur la bonne jambe
     //    (D-020). L'arbre ne voit jamais un dinar : ce qui monte, ce sont les points du palier.
-    await this.placement.propagateInTx(
+    //    Le RETURNING rapporte l'état des ancêtres SOUS VERROU : l'entrée du temps 1.
+    const ancestors = await this.placement.propagateInTx(
       tx,
       member.id,
       snapshot.tierBv,
       chain.ancestorCount,
     );
+
+    // 7. TEMPS 1 DU MOTEUR (D-035) : événements de commission écrits au fil de l'eau —
+    //    DIRECT pour le sponsor (D-033 : avant les équilibres), équilibres/bonus/Points
+    //    Fidélité pour les ancêtres, points appariés consommés immédiatement. Même
+    //    transaction : tout-ou-rien.
+    const sponsor = member.sponsorId
+      ? await tx.member.findUnique({
+          where: { id: member.sponsorId },
+          select: { id: true, status: true },
+        })
+      : null;
+    const events = await this.commissionEvents.recordActivationEventsInTx(tx, {
+      sourceMemberId: member.id,
+      sourceSnapshot: snapshot,
+      sponsor,
+      ancestors,
+    });
 
     await tx.auditLog.create({
       data: {
@@ -171,6 +187,7 @@ export class ActivationService {
           baselineLeft: updated[0].baselineLeft,
           baselineRight: updated[0].baselineRight,
           creditedAncestors: chain.ancestorCount,
+          commissionEvents: { ...events },
           payment: { ...settlement },
         },
       },
@@ -183,27 +200,9 @@ export class ActivationService {
       snapshot,
       baselineLeft: updated[0].baselineLeft,
       baselineRight: updated[0].baselineRight,
-      startupBonusRemaining: startupBonus,
       creditedAncestors: chain.ancestorCount,
+      commissionEvents: events,
       payment: settlement,
     };
-  }
-
-  /** Réserve de bonus de démarrage figée à l'activation (défaut 6, paramétrable — D-012). */
-  private async startupBonusDefault(
-    tx: Prisma.TransactionClient,
-  ): Promise<number> {
-    const setting = await tx.setting.findUnique({
-      where: { key: STARTUP_BONUS_SETTING },
-    });
-    if (!setting) {
-      return DEFAULT_STARTUP_BONUS;
-    }
-    const value = Number(setting.value);
-    if (!Number.isInteger(value) || value < 0) {
-      // Un paramètre corrompu écrirait NaN en base : mieux vaut refuser l'activation.
-      throw new InvalidSettingError(STARTUP_BONUS_SETTING, setting.value);
-    }
-    return value;
   }
 }

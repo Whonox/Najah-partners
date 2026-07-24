@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { Leg, MemberStatus, Prisma } from '@prisma/client';
+import { CommissionEventsService } from '../commissions/commission-events.service';
 import { Money, money } from '../common/money';
 import { LedgerService } from '../ledger/ledger.service';
 import { InsufficientBalanceError } from '../ledger/ledger.errors';
@@ -110,7 +111,8 @@ describe('Members — intégration (vrai Postgres)', () => {
         status: true,
         balanceDt: true,
         activationTierBv: true,
-        startupBonusRemaining: true,
+        carriedLeftPoints: true,
+        carriedRightPoints: true,
       },
     });
   }
@@ -135,6 +137,7 @@ describe('Members — intégration (vrai Postgres)', () => {
     activation = new ActivationService(
       prisma,
       placement,
+      new CommissionEventsService(),
       new BalanceActivationPayment(ledger),
     );
 
@@ -152,6 +155,13 @@ describe('Members — intégration (vrai Postgres)', () => {
     const ids = [...created].reverse();
     created.length = 0;
     if (ids.length === 0) return;
+    // Les activations écrivent des événements de commission (temps 1, D-035) : à purger
+    // avant les membres (FK Restrict — bénéficiaire comme filleul source).
+    await prisma.commissionEvent.deleteMany({
+      where: {
+        OR: [{ memberId: { in: ids } }, { sourceMemberId: { in: ids } }],
+      },
+    });
     await prisma.ledgerEntry.deleteMany({ where: { memberId: { in: ids } } });
     await prisma.auditLog.deleteMany({
       where: { target: { in: ids.map((id) => `Member:${id}`) } },
@@ -314,7 +324,9 @@ describe('Members — intégration (vrai Postgres)', () => {
     expect(after.baselineRight).toBe(tierBv);
     expect(after.leftPoints - after.baselineLeft).toBe(0); // rien d'éligible : tout est antérieur
     expect(after.rightPoints - after.baselineRight).toBe(0);
-    expect(after.startupBonusRemaining).toBe(6);
+    // La pool appariable (D-035) reste vide : les points d'avant activation ne comptent jamais.
+    expect(after.carriedLeftPoints).toBe(0);
+    expect(after.carriedRightPoints).toBe(0);
     expect(result.creditedAncestors).toBe(1); // seule la racine est au-dessus de lui
   });
 

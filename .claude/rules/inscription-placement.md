@@ -16,7 +16,7 @@ Ils peuvent désigner des membres différents. Les deux sont saisis à l'inscrip
 
 ## Cycle de vie (états)
 - **INSCRIT** : formulaire soumis, 100 DT réglés en espèces (hors système), **code attribué immédiatement** (`NP` + numéro auto-incrémenté), **placement définitif**. Le membre existe dans l'arbre et peut recevoir des downlines G/D. **Persiste indéfiniment** (pas d'expiration). Aucun point, aucun solde, aucune commission.
-- **ACTIF** : achat par e-card finalisé (panier au **palier exact en points**, e-card au **prix du pack en DT** — D-029). Les **points** du palier sont injectés vers les uplines. **Baseline figée** + réserve de bonus de démarrage initialisée (défaut 6). Entre dans le calcul des commissions. **Activation automatique, sans validation admin.**
+- **ACTIF** : achat par e-card finalisé (panier au **palier exact en points**, e-card au **prix du pack en DT** — D-029). Les **points** du palier sont injectés vers les uplines. **Baseline figée** (la réserve appariable démarre à zéro — D-035) et les événements de commission de l'activation sont écrits dans la même transaction. Entre dans le calcul des commissions. **Activation automatique, sans validation admin.**
 - **INACTIF** : membre actif n'ayant pas renouvelé (annuel, 100 DT, **validé par l'admin**). Ne perçoit plus de commissions jusqu'à régularisation.
 
 ## Points clés

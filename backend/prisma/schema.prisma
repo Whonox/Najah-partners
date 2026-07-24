@@ -46,10 +46,14 @@ enum EcardOrigin {
   GENESIS
 }
 
-enum CommissionType {
-  DIRECT
-  INDIRECT
-  STARTUP_BONUS
+// Événements de commission, écrits AU FIL DE L'EAU pendant la remontée d'arbre de
+// l'activation (D-035). Le run hebdomadaire ne recalcule rien : il applique le plafond
+// sur ces événements triés par date, puis crédite.
+enum CommissionEventType {
+  DIRECT // commission directe — pour le sponsor du filleul activé
+  BALANCE // équilibre atteint — commission indirecte, un événement PAR cycle
+  STARTUP_BONUS // D-031 : 2 membres activés dans le sous-arbre, une seule fois à vie
+  REWARD_POINT // D-032 : chaque 6e équilibre à vie — 0 DT, +1 Point Fidélité
 }
 
 // Mouvements du grand livre — le journal des SOLDES, donc des DINARS (D-028).
@@ -166,18 +170,38 @@ model Member {
   renewalAt    DateTime?
 
   // ── Ci-dessous : POINTS uniquement (l'arbre) ──
-  // Baseline figée à l'activation (points antérieurs exclus du calcul propre)
+  // Baseline : cumul à vie des jambes figé à l'activation ET à chaque réactivation (D-034).
+  // Depuis D-035 elle est purement documentaire (audit) : l'exclusion des points antérieurs
+  // est portée par la POOL ci-dessous, qui ne reçoit rien tant que le membre n'est pas ACTIF.
   baselineLeft  Int @default(0)
   baselineRight Int @default(0)
 
-  // Accumulateurs binaires (repris de NoeudArbre §8, fusionnés ici — relation 1:1)
-  leftPoints         Int @default(0) // semaine en cours
-  rightPoints        Int @default(0)
-  carriedLeftPoints  Int @default(0) // report / carry-over
+  // Cumul À VIE des points reçus par jambe (audit / affichage) : crédité par CHAQUE
+  // activation du sous-arbre, quel que soit l'état du membre (D-020). Jamais décrémenté.
+  leftPoints  Int @default(0)
+  rightPoints Int @default(0)
+
+  // POOL APPARIABLE = carry-over courant (D-035) : points non encore consommés par un
+  // équilibre. Créditée UNIQUEMENT quand le membre est ACTIF — c'est ce qui rend la baseline
+  // (activation) et le gel (D-034 : les points du gel ne comptent jamais, le carry-over
+  // d'avant gel est conservé) corrects par construction. Décrémentée à chaque équilibre.
+  carriedLeftPoints  Int @default(0)
   carriedRightPoints Int @default(0)
 
-  // Réserve de bonus de démarrage (défaut 6, initialisée à l'activation)
-  startupBonusRemaining Int @default(0)
+  // ── Moteur de commissions (D-031, D-032) ──
+  // Bonus de démarrage : UNE commission indirecte quand le sous-arbre atteint 2 membres
+  // activés — une seule fois à vie (D-031, annule la réserve de 6 paliers de D-012).
+  startupBonusUsed Boolean @default(false)
+  // Compteur d'équilibres À VIE, jamais remis à zéro (bonus inclus) : chaque multiple de 6
+  // donne un Point Fidélité au lieu d'une commission (D-032).
+  lifetimeBalanceCount Int @default(0)
+  // Points Fidélité — TROISIÈME unité, distincte des points BV et des dinars (D-032).
+  // L'achat de produits avec ces points est hors scope (tranche ultérieure).
+  rewardPoints Int @default(0)
+  // Nombre de membres ACTIVÉS (activatedAt non nul) dans le sous-arbre : maintenu par la
+  // propagation d'activation, sous le verrou de chaîne — rend le déclencheur du bonus
+  // (« exactement 2 ») O(1) et sérialisé, sans CTE de comptage par ancêtre.
+  activatedDescendants Int @default(0)
 
   // Vérification d'identité (D-018) — jamais bloquante. Le fichier est stocké hors du
   // dépôt (IDENTITY_UPLOAD_DIR) ; seul son chemin RELATIF est en base. Le badge admin
@@ -190,11 +214,13 @@ model Member {
   updatedAt DateTime @updatedAt
 
   // Relations inverses
-  createdEcards  Ecard[]       @relation("EcardCreator")
-  receivedEcards Ecard[]       @relation("EcardUser")
-  ledgerEntries  LedgerEntry[]
-  commissions    Commission[]
-  orders         Order[]
+  createdEcards    Ecard[]           @relation("EcardCreator")
+  receivedEcards   Ecard[]           @relation("EcardUser")
+  ledgerEntries    LedgerEntry[]
+  commissions      Commission[]
+  commissionEvents CommissionEvent[] @relation("CommissionEventBeneficiary")
+  sourcedEvents    CommissionEvent[] @relation("CommissionEventSource")
+  orders           Order[]
 
   // Auth (Tranche 2)
   refreshTokens       RefreshToken[]
@@ -292,39 +318,79 @@ model Ecard {
 
 // ─────────────────────────── Commissions ───────────────────────────
 
-// Une commission est de l'ARGENT (DINARS, D-028) : elle rémunère des cycles comptés en points,
-// mais elle n'est la conversion d'aucun point — le montant vient du plan de rémunération figé
-// au snapshot (`indirectCommissionDt` par cycle, etc.). Tranche 7.
+// ÉVÉNEMENT de commission (D-035) : écrit au fil de l'eau, dans la transaction de
+// l'activation qui l'a produit — jamais recalculé, jamais rejoué. Un événement est de
+// l'ARGENT dû (DINARS, D-028), sauf REWARD_POINT (0 DT, un Point Fidélité — D-032).
+// Deux CHECK en base gardent ces invariants :
+//   `CommissionEvent_reward_zero_ck`   — REWARD_POINT ⇒ amountDt = 0 ;
+//   `CommissionEvent_balance_index_ck` — balanceIndex IS NULL ⇔ type = DIRECT.
+model CommissionEvent {
+  id       Int                 @id @default(autoincrement())
+  memberId Int // bénéficiaire de la commission
+  member   Member              @relation("CommissionEventBeneficiary", fields: [memberId], references: [id])
+  type     CommissionEventType
+  amountDt Decimal             @db.Decimal(12, 3) // DINARS — 0 pour REWARD_POINT
+  // Horodatage RÉEL (timestamp de la transaction d'activation) : c'est lui, puis l'id,
+  // qui portent la chronologie du plafond (D-033 — DIRECT inséré avant BALANCE).
+  occurredAt     DateTime @default(now())
+  sourceMemberId Int // le filleul dont l'activation a produit l'événement
+  sourceMember   Member   @relation("CommissionEventSource", fields: [sourceMemberId], references: [id])
+  // Éligibilité évaluée AU MOMENT de l'événement (D-034) : un bénéficiaire gelé ou encore
+  // INSCRIT donne eligible=false — l'événement est tracé mais ne sera JAMAIS payé.
+  eligible Boolean
+  // paid : l'événement a contribué (même partiellement) au versement d'un run. Un événement
+  // réclamé (runId non nul) mais paid=false a été perdu : inéligible, ou au-delà du plafond.
+  paid     Boolean        @default(false)
+  runId    Int?
+  run      CommissionRun? @relation(fields: [runId], references: [id])
+  snapshot Json // paramètres figés au moment de l'événement (palier, montant, pack source…)
+  // N° d'équilibre à vie concerné (D-032) — null pour DIRECT, 1 pour le bonus (D-031).
+  balanceIndex Int?
+
+  @@index([memberId, occurredAt])
+  @@index([runId])
+  @@index([occurredAt]) // réclamation du run : runId IS NULL + borne de période
+}
+
+// RÈGLEMENT d'un membre pour un run (D-035) : l'agrégat plafonné des événements de la
+// période. Le détail (chronologie, perdu/payé) vit dans CommissionEvent ; l'argent versé
+// (DINARS, D-028) part au grand livre via la ligne liée.
 model Commission {
-  id             Int            @id @default(autoincrement())
-  memberId       Int
-  member         Member         @relation(fields: [memberId], references: [id])
-  runId          Int
-  run            CommissionRun  @relation(fields: [runId], references: [id])
-  type           CommissionType
-  amountDt       Decimal        @db.Decimal(12, 3) // DINARS
-  appliedCapDt   Decimal?       @db.Decimal(12, 3) // DINARS — plafond figé si écrêtage
-  cycles         Int            @default(0) // nombre de cycles (sans unité)
-  snapshotParams Json // palier (pts) / commissions (DT) / plafond (DT) figés
-  createdAt      DateTime       @default(now())
+  id       Int           @id @default(autoincrement())
+  memberId Int
+  member   Member        @relation(fields: [memberId], references: [id])
+  runId    Int
+  run      CommissionRun @relation(fields: [runId], references: [id])
+  grossDt  Decimal       @db.Decimal(12, 3) // DINARS — total éligible avant plafond
+  paidDt   Decimal       @db.Decimal(12, 3) // DINARS — versé = min(gross, plafond) ; l'écart est PERDU (D-033)
+  // Plafond appliqué, FIGÉ ici (snapshot) : celui du snapshot d'activation du membre — le
+  // moteur ne lit jamais Pack en direct, un changement de pack ne touche que l'avenir.
+  appliedCapDt        Decimal  @db.Decimal(12, 3)
+  eventCount          Int
+  rewardPointsGranted Int      @default(0) // D-032 — Points Fidélité accordés sous le plafond
+  rewardPointsLost    Int      @default(0) // D-032 — survenus après le plafond : perdus
+  snapshotParams      Json // palier (pts) / montants (DT) / plafond (DT) figés
+  createdAt           DateTime @default(now())
 
   ledgerEntries LedgerEntry[]
 
-  @@index([memberId, runId])
+  @@unique([memberId, runId]) // un règlement par membre et par run (idempotence)
   @@index([runId])
 }
 
 model CommissionRun {
-  id            Int       @id @default(autoincrement())
-  executedAt    DateTime  @default(now())
-  periodStart   DateTime
-  periodEnd     DateTime
-  memberCount   Int       @default(0)
-  distributedDt Decimal   @default(0) @db.Decimal(12, 3) // DINARS versés sur le run
-  status        RunStatus @default(IN_PROGRESS)
-  log           String?   @db.Text
+  id                  Int       @id @default(autoincrement())
+  executedAt          DateTime  @default(now())
+  periodStart         DateTime
+  periodEnd           DateTime
+  memberCount         Int       @default(0)
+  distributedDt       Decimal   @default(0) @db.Decimal(12, 3) // DINARS versés sur le run
+  rewardPointsGranted Int       @default(0) // Points Fidélité accordés sur le run (D-032)
+  status              RunStatus @default(IN_PROGRESS)
+  log                 String?   @db.Text
 
   commissions Commission[]
+  events      CommissionEvent[]
 }
 
 // ─────────────────────────── Boutique ───────────────────────────

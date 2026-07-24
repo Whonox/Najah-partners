@@ -5,6 +5,7 @@ import {
   Prisma,
   VerificationStatus,
 } from '@prisma/client';
+import type { ActivationEventsSummary } from '../commissions/commission-events.service';
 import { Money } from '../common/money';
 
 /** Fichier de pièce d'identité déjà validé et écrit sur disque (chemin relatif). */
@@ -99,9 +100,10 @@ export interface ActivationResult {
   snapshot: ActivationSnapshot;
   baselineLeft: number;
   baselineRight: number;
-  startupBonusRemaining: number;
   /** Ancêtres crédités du palier (en POINTS), de l'upline direct jusqu'à la racine. */
   creditedAncestors: number;
+  /** Événements de commission écrits au fil de l'eau par cette activation (D-035). */
+  commissionEvents: ActivationEventsSummary;
   /** Comment le prix du pack a été réglé (solde débité, ou e-card brûlée — D-025). */
   payment: SettlementResult;
 }

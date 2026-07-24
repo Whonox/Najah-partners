@@ -286,12 +286,6 @@ export class SeedService {
 
     const settings = [
       {
-        key: 'startup_bonus_default',
-        value: '6',
-        description:
-          'Réserve de paliers de bonus de démarrage figée à l’activation',
-      },
-      {
         key: 'ecard_expiration_days',
         value: '180',
         description:
@@ -359,11 +353,12 @@ export class SeedService {
    * Les 7 comptes d'amorçage, créés PAR LES VRAIS SERVICES (inscription puis activation) :
    * dupliquer ici la propagation de points produirait un arbre incohérent avec le code.
    *
-   * L'activation se fait des FEUILLES vers la RACINE. Conséquence assumée : chaque nœud fige
-   * sa baseline APRÈS avoir reçu les points de ses downlines, donc ses points éligibles valent
-   * 0 et le premier run de commissions ne verse rien à ce réseau synthétique. (Activer la
-   * racine en premier lui laisserait 3000/3000 sur une baseline nulle, soit 3 cycles payés
-   * dès le premier vendredi.)
+   * L'activation se fait des FEUILLES vers la RACINE. Conséquence assumée : chaque nœud est
+   * encore INSCRIT quand ses downlines s'activent — sa pool appariable ne reçoit rien (c'est
+   * la baseline par construction, D-035) et les commissions DIRECTES s'écrivent
+   * `eligible=false` (sponsor pas encore ACTIF, D-034). Le premier run de commissions ne
+   * verse donc rien à ce réseau synthétique. (Activer la racine en premier lui laisserait
+   * 3000/3000 en pool, soit 3 équilibres payés dès le premier vendredi.)
    */
   private async bootstrapNetwork(): Promise<void> {
     const root = await this.prisma.member.findUnique({

@@ -9,6 +9,7 @@ import {
   ProductType,
   ShipmentStatus,
 } from '@prisma/client';
+import { CommissionEventsService } from '../commissions/commission-events.service';
 import { Money, money } from '../common/money';
 import { LedgerService } from '../ledger/ledger.service';
 import { EcardValueMismatchError } from '../ecards/ecards.errors';
@@ -187,6 +188,7 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
     activation = new ActivationService(
       prisma,
       placement,
+      new CommissionEventsService(),
       new BalanceActivationPayment(ledger),
     );
     ecards = new EcardsService(prisma, ledger);
@@ -232,6 +234,15 @@ describe('Boutique & checkout — intégration (vrai Postgres)', () => {
       await prisma.product.deleteMany({ where: { id: { in: productIds } } });
     }
     if (memberIds.length > 0) {
+      // Les activations écrivent des événements de commission (temps 1, D-035).
+      await prisma.commissionEvent.deleteMany({
+        where: {
+          OR: [
+            { memberId: { in: memberIds } },
+            { sourceMemberId: { in: memberIds } },
+          ],
+        },
+      });
       await prisma.ledgerEntry.deleteMany({
         where: { memberId: { in: memberIds } },
       });

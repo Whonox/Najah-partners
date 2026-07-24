@@ -41,6 +41,12 @@ describe('Seed — réseau d’amorçage D-019 (vrai Postgres)', () => {
       });
       const ids = leftovers.map((m) => m.id);
       if (ids.length > 0) {
+        // Les activations écrivent des événements de commission (temps 1, D-035).
+        await prisma.commissionEvent.deleteMany({
+          where: {
+            OR: [{ memberId: { in: ids } }, { sourceMemberId: { in: ids } }],
+          },
+        });
         await prisma.ledgerEntry.deleteMany({ where: { memberId: { in: ids } } });
         for (const id of ids) {
           await prisma.member.delete({ where: { id } });
@@ -114,7 +120,8 @@ describe('Seed — réseau d’amorçage D-019 (vrai Postgres)', () => {
     const leaf = await get('NP000969');
     expect(leaf.leftPoints).toBe(0);
     expect(leaf.rightPoints).toBe(0);
-    expect(leaf.startupBonusRemaining).toBe(6);
+    // D-031 : plus de réserve de paliers — le bonus (une fois à vie) n'a pas été consommé.
+    expect(leaf.startupBonusUsed).toBe(false);
   });
 
   it('le compteur de codes reprend APRÈS NP000969, et ne rembobine jamais', async () => {

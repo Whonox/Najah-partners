@@ -1,10 +1,10 @@
 import { LedgerMovementType, MemberStatus, Prisma } from '@prisma/client';
+import { CommissionEventsService } from '../commissions/commission-events.service';
 import { money } from '../common/money';
 import { LedgerService } from '../ledger/ledger.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActivationService } from './activation.service';
 import {
-  InvalidSettingError,
   MemberNotRegisteredError,
   PackUnavailableError,
 } from './members.errors';
@@ -15,9 +15,10 @@ import { PlacementService } from './placement.service';
 /**
  * Séquence de la transaction d'activation, Prisma mocké. Ce qui est vérifié ici, c'est
  * l'ORDRE et les VALEURS : le verrou d'abord, le paiement avant le débit, le palier
- * SNAPSHOTÉ (en POINTS) propagé, le PRIX (en DINARS) réglé. Les deux dimensions se croisent ici
- * sans se convertir (D-028). La propagation réelle, le verrou et l'atomicité sont couverts par
- * `members.int-spec.ts`.
+ * SNAPSHOTÉ (en POINTS) propagé, le PRIX (en DINARS) réglé, puis les ÉVÉNEMENTS de
+ * commission écrits au fil de l'eau (temps 1, D-035) dans la même transaction. Les deux
+ * dimensions se croisent ici sans se convertir (D-028). La propagation réelle, le verrou
+ * et l'atomicité sont couverts par `members.int-spec.ts` et `commissions.int-spec.ts`.
  */
 
 const PACK = {
@@ -31,10 +32,39 @@ const PACK = {
   active: true,
 };
 
+/** Ancêtres tels que la propagation les rapporte (RETURNING sous verrou). */
+const ANCESTORS = [
+  {
+    id: 1,
+    distance: 0,
+    status: MemberStatus.ACTIVE,
+    activationTierBv: 1000,
+    activationSnapshot: {},
+    carriedLeftPoints: 1000,
+    carriedRightPoints: 0,
+    lifetimeBalanceCount: 0,
+    startupBonusUsed: false,
+    activatedDescendants: 1,
+  },
+  {
+    id: 2,
+    distance: 1,
+    status: MemberStatus.REGISTERED,
+    activationTierBv: null,
+    activationSnapshot: null,
+    carriedLeftPoints: 0,
+    carriedRightPoints: 0,
+    lifetimeBalanceCount: 0,
+    startupBonusUsed: false,
+    activatedDescendants: 1,
+  },
+];
+
 interface Scenario {
   status?: MemberStatus;
+  sponsorId?: number | null;
+  sponsorStatus?: MemberStatus;
   pack?: (typeof PACK & { active: boolean }) | null;
-  startupBonus?: string | null;
   payment?: ActivationPayment;
 }
 
@@ -46,30 +76,31 @@ function makeService(scenario: Scenario = {}) {
     { baselineLeft: 700, baselineRight: 300 },
   ]);
   const auditCreate = jest.fn(async (..._args: unknown[]) => ({}));
+  const sponsorId =
+    scenario.sponsorId === undefined ? 7 : scenario.sponsorId;
   // Depuis la Tranche 6, `activateInTx` compose DANS la transaction de l'appelant (le
-  // checkout) : toutes ses lectures — paramètre système compris — passent par `tx`, jamais
-  // par le client Prisma racine.
+  // checkout) : toutes ses lectures passent par `tx`, jamais par le client Prisma racine.
+  // Deux lectures `member.findUnique` : le membre activé (avec son sponsorId), puis le
+  // sponsor (éligibilité de la commission directe, évaluée à l'instant même — D-034).
+  const memberFindUnique = jest.fn(
+    async (args: { where: { id: number } }) =>
+      args.where.id === sponsorId
+        ? {
+            id: sponsorId,
+            status: scenario.sponsorStatus ?? MemberStatus.ACTIVE,
+          }
+        : {
+            id: 42,
+            memberCode: 'NP000970',
+            status: scenario.status ?? MemberStatus.REGISTERED,
+            sponsorId,
+          },
+  );
   const tx = {
     $executeRawUnsafe: executeRawUnsafe,
     $queryRaw: queryRaw,
-    member: {
-      findUnique: jest.fn(async () => ({
-        id: 42,
-        memberCode: 'NP000970',
-        status: scenario.status ?? MemberStatus.REGISTERED,
-      })),
-    },
+    member: { findUnique: memberFindUnique },
     pack: { findUnique: jest.fn(async () => scenario.pack ?? PACK) },
-    setting: {
-      findUnique: jest.fn(async () =>
-        scenario.startupBonus === null
-          ? null
-          : {
-              key: 'startup_bonus_default',
-              value: scenario.startupBonus ?? '6',
-            },
-      ),
-    },
     auditLog: { create: auditCreate },
   };
 
@@ -87,11 +118,23 @@ function makeService(scenario: Scenario = {}) {
     ids: [1, 2, 42],
     ancestorCount: 2,
   }));
-  const propagateInTx = jest.fn(async () => [{ id: 1 }, { id: 2 }]);
+  const propagateInTx = jest.fn(async () => ANCESTORS);
   const placement = {
     lockChainInTx,
     propagateInTx,
   } as unknown as PlacementService;
+
+  // Temps 1 du moteur (D-035), mocké : la mécanique des événements est testée dans
+  // `commissions/` — ici on vérifie qu'il est appelé au bon moment, avec le bon contexte.
+  const recordActivationEventsInTx = jest.fn(async (..._args: unknown[]) => ({
+    direct: 1,
+    balance: 1,
+    startupBonus: 0,
+    rewardPoint: 0,
+  }));
+  const commissionEvents = {
+    recordActivationEventsInTx,
+  } as unknown as CommissionEventsService;
 
   // Stratégie par défaut : la VRAIE `BalanceActivationPayment` (grand livre mocké). Depuis
   // D-025, c'est elle qui porte le débit ACTIVATION — plus `ActivationService` : le mocker
@@ -103,10 +146,16 @@ function makeService(scenario: Scenario = {}) {
     balancePayment) as unknown as BalanceActivationPayment;
 
   return {
-    service: new ActivationService(prisma, placement, payment),
+    service: new ActivationService(
+      prisma,
+      placement,
+      commissionEvents,
+      payment,
+    ),
     lockChainInTx,
     propagateInTx,
     recordMovementInTx,
+    recordActivationEventsInTx,
     settleInTx,
     queryRaw,
     auditCreate,
@@ -114,18 +163,21 @@ function makeService(scenario: Scenario = {}) {
 }
 
 describe('ActivationService.activate — séquence', () => {
-  it('verrouille la chaîne AVANT tout, règle le palier, puis propage', async () => {
+  it('verrouille la chaîne AVANT tout, règle le palier, propage, puis écrit les événements', async () => {
     const s = makeService();
     await s.service.activate({ memberId: 42, packId: PACK.id });
 
     const lock = s.lockChainInTx.mock.invocationCallOrder[0];
     const settle = s.settleInTx.mock.invocationCallOrder[0];
     const propagate = s.propagateInTx.mock.invocationCallOrder[0];
+    const events = s.recordActivationEventsInTx.mock.invocationCallOrder[0];
 
     // Verrou (Member) toujours en premier, règlement ensuite (D-024 : Member → Ecard),
-    // propagation en dernier — rien ne remonte dans l'arbre avant que le palier soit payé.
+    // propagation après — rien ne remonte dans l'arbre avant que le prix soit payé — et
+    // les événements de commission en dernier : ils lisent les pools APRÈS crédit (D-035).
     expect(lock).toBeLessThan(settle);
     expect(settle).toBeLessThan(propagate);
+    expect(propagate).toBeLessThan(events);
   });
 
   it('règlement sur le solde : débite exactement le PRIX DU PACK (en DT), en mouvement ACTIVATION', async () => {
@@ -196,13 +248,45 @@ describe('ActivationService.activate — séquence', () => {
     });
   });
 
-  it('fige la baseline et la réserve de bonus de démarrage', async () => {
-    const s = makeService({ startupBonus: '6' });
+  it('temps 1 (D-035) : événements écrits avec le sponsor, le snapshot du filleul et les ancêtres propagés', async () => {
+    const s = makeService({ sponsorId: 7, sponsorStatus: MemberStatus.ACTIVE });
+    const result = await s.service.activate({ memberId: 42, packId: PACK.id });
+
+    const input = s.recordActivationEventsInTx.mock.calls[0][1] as {
+      sourceMemberId: number;
+      sourceSnapshot: { directCommissionDt: string };
+      sponsor: { id: number; status: MemberStatus } | null;
+      ancestors: unknown[];
+    };
+    expect(input.sourceMemberId).toBe(42);
+    // Le montant de la DIRECTE vient du pack DU FILLEUL, figé dans SON snapshot (§6.2).
+    expect(input.sourceSnapshot.directCommissionDt).toBe('500.000');
+    expect(input.sponsor).toEqual({ id: 7, status: MemberStatus.ACTIVE });
+    expect(input.ancestors).toBe(ANCESTORS); // l'état relu SOUS verrou, pas une relecture
+    expect(result.commissionEvents).toEqual({
+      direct: 1,
+      balance: 1,
+      startupBonus: 0,
+      rewardPoint: 0,
+    });
+  });
+
+  it('membre sans sponsor (racine, seed) : aucun événement DIRECT demandé', async () => {
+    const s = makeService({ sponsorId: null });
+    await s.service.activate({ memberId: 42, packId: PACK.id });
+
+    const input = s.recordActivationEventsInTx.mock.calls[0][1] as {
+      sponsor: unknown;
+    };
+    expect(input.sponsor).toBeNull();
+  });
+
+  it('fige la baseline (calculée en SQL, sous verrou)', async () => {
+    const s = makeService();
     const result = await s.service.activate({ memberId: 42, packId: PACK.id });
 
     expect(result.baselineLeft).toBe(700);
     expect(result.baselineRight).toBe(300);
-    expect(result.startupBonusRemaining).toBe(6);
     // baseline = points courants, calculée en SQL sous verrou (le tagged template passe le
     // tableau de fragments en premier argument).
     expect(String(s.queryRaw.mock.calls[0][0])).toContain(
@@ -222,7 +306,7 @@ describe('ActivationService.activate — séquence', () => {
 });
 
 describe('ActivationService.activate — gardes', () => {
-  it('membre déjà ACTIF → refusé, aucun mouvement BV, aucune propagation', async () => {
+  it('membre déjà ACTIF → refusé, aucun mouvement BV, aucune propagation, aucun événement', async () => {
     const s = makeService({ status: MemberStatus.ACTIVE });
     await expect(
       s.service.activate({ memberId: 42, packId: PACK.id }),
@@ -230,6 +314,7 @@ describe('ActivationService.activate — gardes', () => {
 
     expect(s.recordMovementInTx).not.toHaveBeenCalled();
     expect(s.propagateInTx).not.toHaveBeenCalled();
+    expect(s.recordActivationEventsInTx).not.toHaveBeenCalled();
   });
 
   it('membre INACTIF → refusé (le renouvellement n’est pas une activation)', async () => {
@@ -247,21 +332,7 @@ describe('ActivationService.activate — gardes', () => {
     expect(s.recordMovementInTx).not.toHaveBeenCalled();
   });
 
-  it('paramètre startup_bonus_default corrompu → refuse plutôt que d’écrire NaN', async () => {
-    const s = makeService({ startupBonus: 'six' });
-    await expect(
-      s.service.activate({ memberId: 42, packId: PACK.id }),
-    ).rejects.toBeInstanceOf(InvalidSettingError);
-    expect(s.recordMovementInTx).not.toHaveBeenCalled();
-  });
-
-  it('paramètre absent → réserve par défaut de 6 paliers', async () => {
-    const s = makeService({ startupBonus: null });
-    const result = await s.service.activate({ memberId: 42, packId: PACK.id });
-    expect(result.startupBonusRemaining).toBe(6);
-  });
-
-  it('moyen de paiement qui échoue → rien n’est débité ni propagé', async () => {
+  it('moyen de paiement qui échoue → rien n’est débité, propagé ni écrit', async () => {
     const failing: ActivationPayment = {
       settleInTx: jest.fn(async () => {
         throw new Error('e-card invalide');
@@ -274,5 +345,6 @@ describe('ActivationService.activate — gardes', () => {
 
     expect(s.recordMovementInTx).not.toHaveBeenCalled();
     expect(s.propagateInTx).not.toHaveBeenCalled();
+    expect(s.recordActivationEventsInTx).not.toHaveBeenCalled();
   });
 });

@@ -6,6 +6,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { CommissionsModule } from './commissions/commissions.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { EcardsModule } from './ecards/ecards.module';
 import { MembersModule } from './members/members.module';
@@ -22,6 +23,7 @@ import { ShopModule } from './shop/shop.module';
     PrismaModule,
     AuthModule,
     LedgerModule,
+    CommissionsModule,
     MembersModule,
     EcardsModule,
     ShopModule,

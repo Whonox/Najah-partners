@@ -1,48 +1,100 @@
 # Règle — Moteur de commissions
 
-> Source : `docs/spec.md` §5.8, §6, §10. Cette règle est le cœur métier : tout changement passe d'abord par la spec et `docs/decisions.md`.
+> Source : `docs/spec.md` §5.8, §6, §10 ; décisions **D-031 à D-035** (D-031 **ANNULE D-012** —
+> l'ancien bonus « réserve de 6 paliers déséquilibrés » n'existe plus, ni en code ni en base).
+> Implémenté en Tranche 7 (`backend/src/commissions/`). Tout changement passe d'abord par la
+> spec et `docs/decisions.md`.
 
-## Cadre
+## Architecture (D-035) — deux temps, pas de rejeu
 
-- Calcul **hebdomadaire** par cron. Clôture le **vendredi 23:59, heure de Tunis** (UTC+1, pas de changement d'heure → bornes déterministes).
-- Les membres **INSCRIT** (non activés) sont ignorés : pas de compteur de commissions.
-- **Deux dimensions (D-028)** : les **jambes, le palier et les cycles** se comptent en **POINTS** ; les **commissions versées et le plafond** sont en **DINARS**. On ne convertit jamais l'un en l'autre — le nombre de cycles (points) multiplie un montant par cycle (DT). Colonnes : `Pack.tierBv` (Int, points) ; `directCommissionDt` / `indirectCommissionDt` / `weeklyCapDt` (`Decimal(12,3)`, DT).
+Le moteur n'est PAS un moteur de recalcul : les événements de commission sont écrits **au fil
+de l'eau**, pendant la remontée d'arbre de l'activation, dans la **même transaction** qu'elle
+(`CommissionEventsService.recordActivationEventsInTx`, appelé par `ActivationService`).
+Le run hebdomadaire ne fait plus qu'appliquer le plafond en chronologie et créditer.
 
-## Plan de rémunération (paramétrable, valeurs par défaut — D-028/D-029)
+- **Temps 1 — à l'activation.** La propagation (une seule instruction ensembliste, D-014/D-024)
+  entretient trois compteurs par ancêtre : le **cumul à vie** des jambes (`leftPoints`/
+  `rightPoints`, crédité quel que soit l'état — D-020), la **pool appariable**
+  (`carriedLeftPoints`/`carriedRightPoints`, créditée **seulement si l'ancêtre est ACTIF**) et
+  `activatedDescendants` (+1 partout). Son RETURNING fournit l'état sous verrou ; le service
+  d'événements décide alors : équilibres complétés (`floor(min(poolG, poolD) / palier)` — un
+  événement **par cycle**), bonus de démarrage, Points Fidélité. Les points appariés sont
+  **consommés immédiatement** ; le reste des pools EST le carry-over (aucune colonne de report
+  séparée, aucun reset hebdomadaire).
+- **Temps 2 — run hebdo** (`CommissionRunService` + cron `59 23 * * 5`, `Africa/Tunis` — D-009 ;
+  Tunis = UTC+1 fixe, la clôture est l'instant UTC « vendredi 22:59 », intervalle `[start, end)`).
+  RÉCLAMATION `SET runId WHERE runId IS NULL` = barrière d'idempotence dure : relancer un run ne
+  re-crédite jamais. Par membre (ids croissants — D-024), événements triés `(occurredAt, id)`,
+  cumul au fil de l'eau, versement plafonné, crédit via `LedgerService.recordMovementInTx`
+  (type `COMMISSION`), Points Fidélité sur `Member.rewardPoints`. UNE transaction pour tout le
+  run ; l'échec rollback tout et persiste une trace `ERROR` hors transaction.
 
-| Pack | Palier (points) | Comm. directe (DT) | Comm. indirecte /cycle (DT) | Plafond hebdo (DT) |
-|---|---|---|---|---|
-| Silver | 1000 | 500 | 250 | 10000 |
-| Gold | 2000 | 700 | 400 | 16000 |
-| Safari | 3000 | 900 | 600 | 24000 |
-| Diamond | 4000 | 1200 | 900 | 36000 |
+## La pool appariable rend baseline et gel corrects PAR CONSTRUCTION
 
-*(Le prix du pack — Silver 2200 DT, etc. — sert à l'activation, D-029 ; il n'entre pas dans le calcul des commissions.)*
+- **Baseline (D-013)** : un INSCRIT n'a pas de pool (jamais créditée avant ACTIF) → ses points
+  d'avant activation ne comptent jamais pour lui. `baselineLeft/Right` restent des instantanés
+  documentaires (audit), figés à l'activation et à chaque réactivation.
+- **Gel (D-034)** : un INACTIF ne reçoit rien en pool → les points du gel ne rapporteront
+  jamais rien, mais ils **traversent** (cumul à vie + `activatedDescendants` montent, et les
+  uplines ACTIFS au-dessus sont crédités normalement). Le **carry-over d'avant gel est
+  conservé** (la pool n'est pas touchée par le gel ni par la réactivation). Aucun événement
+  d'équilibre ne peut donc naître chez un gelé ; ses commissions DIRECTES naissent
+  `eligible=false` — tracées, jamais payées. Gel/réactivation : `RenewalService` (le circuit
+  admin du renouvellement 100 DT arrive en T8).
 
-## Algorithme (par membre ACTIF, chaque semaine)
+## Événements (`CommissionEvent`) — décidés à l'instant, figés pour toujours
 
-1. **Baseline** : ne compter que les points arrivés après l'activation du membre (baseline figée à l'activation, soustraite une seule fois).
-2. **Totaux par jambe** : `totalG = reportG + semaineG` ; `totalD = reportD + semaineD`.
-3. **Cycles équilibrés** : `matched = min(totalG, totalD)` ; `nbCycles = floor(matched / palier)`.
-4. **Commission indirecte (équilibre)** = `nbCycles × commIndirecte`. Consommé = `nbCycles × palier` sur chaque jambe.
-5. **Bonus de démarrage** : `reste = bonusDemarrageRestant` (défaut initial 6). Sur l'excédent de la jambe forte après les cycles : `nbBonus = min(reste, floor(excedentJambeForte / palier))`. Bonus = `nbBonus × commIndirecte`. Décrémenter `bonusDemarrageRestant` de `nbBonus` et consommer `nbBonus × palier` sur la jambe forte.
-6. **Report** : les points restants (non appariés et non payés au bonus) sont reportés à la semaine suivante.
-7. **Commission directe** = somme sur les filleuls activés dans la période de `commDirecte(pack du filleul)`.
-8. **Total** = directe + indirecte + bonus. Si `Total > plafond` : verser `plafond`, l'excédent est **perdu** (non reporté).
-9. **Crédit** : montant retenu crédité en **DT** au solde (grand livre) ; chaque ligne de commission fige ses paramètres (snapshot).
+- `DIRECT` : pour le **sponsor** du membre activé, montant = `directCommissionDt` du pack
+  **du filleul** (snapshot d'activation du filleul). Écrit **avant** les équilibres (D-033) :
+  même `occurredAt` (timestamp de transaction), l'`id` porte l'ordre fin.
+- `BALANCE` : un par équilibre complété, montant = `indirectCommissionDt` du snapshot de
+  l'**ancêtre**, `balanceIndex` = n° d'équilibre **à vie** (D-032, jamais remis à zéro).
+- `STARTUP_BONUS` (D-031) : à l'activation qui porte le sous-arbre d'un ancêtre ACTIF à
+  **exactement 2 membres activés** (peu importe la jambe), s'il n'a jamais eu le bonus et que
+  cette activation n'a pas déjà produit un équilibre naturel (le jalon est alors déjà payé —
+  la fenêtre « exactement 2 » ne se représente jamais). Montant = `indirectCommissionDt`,
+  consommation `min(palier, pool)` sur chaque jambe, `startupBonusUsed` à vie,
+  **compte comme l'équilibre n°1**.
+- `REWARD_POINT` (D-032) : chaque équilibre dont l'index à vie est un **multiple de 6** ne
+  paie AUCUN dinar — il vaut **1 Point Fidélité** (`rewardPoints`, 3ᵉ unité : ni points BV,
+  ni dinars ; leur dépense est hors scope). CHECK en base : `amountDt = 0`.
+- `eligible` est évalué **au moment de l'événement** (D-034) : sponsor INSCRIT ou gelé →
+  `false`, jamais payé — même si le bénéficiaire redevient ACTIF avant le run. Symétriquement,
+  un événement éligible reste dû même si le membre gèle avant le run.
 
-> Cycles et paliers en points ; `commIndirecte`, `commDirecte`, plafond et crédit en dinars. Le pont entre les deux est une multiplication `nbCycles (points) × montant/cycle (DT)`, jamais une conversion d'unité.
+## Plafond hebdomadaire (D-033)
+
+- Chronologie stricte : `(occurredAt, id)` ; sur une même activation, DIRECT avant BALANCE.
+- Cumul au fil de l'eau ; versé = `min(cumul, plafond)` — l'événement qui franchit le plafond
+  est payé **partiellement**, tout le reste de la semaine est **PERDU** (jamais reporté), y
+  compris le Point Fidélité d'un `REWARD_POINT` survenu après le plafond. Les **points** d'un
+  équilibre au-delà du plafond ont, eux, été consommés au temps 1 et le compteur à vie a
+  avancé : seul l'argent (ou le Point Fidélité) se perd.
+- Le plafond appliqué est `weeklyCapDt` du **snapshot d'activation du membre** — le moteur ne
+  lit jamais `Pack` en direct (invariant T4/T6.5) : modifier un pack ne touche que les
+  activations postérieures, jamais l'historique ni les membres déjà activés.
 
 ## Deux « débordements » à ne PAS confondre
 
-- Points non appariés de la jambe forte → **REPORTÉS** (sauf ceux payés au bonus, qui sont consommés).
+- Points non appariés → restent en **pool (carry-over)**, indéfiniment — jamais perdus.
 - Commission au-delà du plafond hebdo → **PERDUE** (jamais reportée).
 
-## Tests attendus (déterministes, à écrire avant de considérer le module terminé)
+## Plan de rémunération (paramétrable, valeurs par défaut — D-028/D-029)
 
-- Silver, G 3000 / D 2000 (points), bonus épuisé → 2 cycles, **500 DT** indirect, report 1000 points à gauche.
-- Silver, G 3000 / D 0 (points), bonus restant 6 → 3 paliers de bonus payés (**750 DT**), bonusRestant passe à 3, 0 reporté.
-- Plafond : total calculé > plafond du pack → versé = plafond, excédent perdu, vérifier qu'aucun report de commission.
-- Baseline : points présents avant activation non comptés ; seuls les points postérieurs génèrent des cycles.
-- Membre INSCRIT : ignoré par le run (aucune commission).
-- Snapshot : modifier un paramètre de pack après un run ne change pas les commissions déjà calculées.
+| Pack | Palier (points) | Prix (DT) | Comm. directe (DT) | Comm. indirecte /équilibre (DT) | Plafond hebdo (DT) |
+|---|---|---|---|---|---|
+| Silver | 1000 | 2200 | 500 | 250 | 10000 |
+| Gold | 2000 | 3350 | 700 | 400 | 16000 |
+| Safari | 3000 | 5400 | 900 | 600 | 24000 |
+| Diamond | 4000 | 8350 | 1200 | 900 | 36000 |
+
+## Tests (écrits en T7 — les scénarios font foi)
+
+Unitaires (`balance-math.spec`, `settlement.spec`, `period.spec`) : cycles, règle du 6e,
+consommation du bonus, plafond chronologique avec paiement partiel, Points Fidélité
+accordés/perdus, bornes Tunis. Intégration (`commissions.int-spec`, vrai Postgres) :
+équilibre simple, carry-over, bonus (même côté, une fois à vie, équilibre n°1), 6e/7e/12e,
+plafond (excédent perdu, points consommés quand même), chronologie DIRECT-avant-BALANCE,
+gel (rien perçu, points traversent), réactivation (nouvelle baseline, carry-over conservé),
+INSCRIT ignoré, snapshot (modifier un pack ne réécrit rien), idempotence du run, atomicité
+(activation interrompue → aucun événement orphelin).
