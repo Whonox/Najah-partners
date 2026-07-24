@@ -89,8 +89,9 @@ dans le document a exactement le sens défini ici.
 | Commission indirecte                    | Montant (DT) versé au titre de l'équilibre des points entre jambe gauche et jambe droite (mécanique binaire par cycles).                                                                                       |
 | Cycle / équilibre                       | Un cycle est atteint lorsque chaque jambe accumule un multiple du palier du membre. Chaque cycle complet paie la commission indirecte.                                                                         |
 | Plafond hebdomadaire                    | Montant maximal de commission (DT) qu'un membre peut percevoir sur une semaine, selon son pack. Le dépassement est perdu.                                                                                      |
-| Carry-over (report)                     | Points de la jambe forte non appariés à la fin de la semaine : ils sont reportés à la semaine suivante (jamais perdus).                                                                                        |
-| Run de commissions                      | Exécution hebdomadaire (cron) qui calcule et crédite les commissions. Reset le vendredi à 23:59, heure de Tunis.                                                                                               |
+| Carry-over (report)                     | Points de la jambe forte non appariés : ils restent en réserve et attendent le prochain équilibre, sans échéance (jamais perdus) — D-035.                                                                      |
+| Run de commissions                      | Exécution hebdomadaire (cron) qui applique le plafond sur les événements de la semaine (écrits au fil de l'eau à l'activation, D-035) et crédite les soldes. Clôture le vendredi à 23:59, heure de Tunis.      |
+| Point Fidélité                          | Troisième unité (D-032), distincte des points (BV) et des dinars : 1 Point Fidélité par 6e équilibre à vie (6, 12, 18…), à la place de la commission en DT. Dépense hors scope (tranche ultérieure).           |
 | Snapshot                                | Figement des valeurs paramétrables (palier en points, prix et commissions/plafonds en DT, valeur BV produit) au moment d'une transaction, pour préserver l'intégrité historique.                               |
 
 **5. Règles de gestion (spécification normative)**
@@ -306,51 +307,78 @@ supprimé et occupe sa place définitivement. L'adhésion suit trois états.
 
 **5.8 Moteur de commissions (règles)**
 
-- **Périodicité.** Calcul hebdomadaire par cron. Reset le vendredi à
+- **Architecture au fil de l'eau (D-035).** Chaque activation écrit,
+  dans sa propre transaction, les ÉVÉNEMENTS de commission qu'elle
+  déclenche (directe pour le sponsor, équilibres pour les uplines),
+  horodatés et figés (montants du snapshot), avec consommation immédiate
+  des points appariés. Le run hebdomadaire n'invente rien : il applique
+  le plafond sur les événements de la semaine, en chronologie, puis
+  crédite les soldes. Pas de rejeu, pas de reconstruction d'état.
+
+- **Périodicité.** Calcul hebdomadaire par cron. Clôture le vendredi à
   23:59, heure de Tunis (UTC+1, sans changement d'heure : bornes
-  déterministes).
+  déterministes) ; un événement daté de la clôture exacte appartient à
+  la semaine suivante.
 
 - **Commission directe.** Versée au sponsor pour chaque filleul ayant
-  activé un pack durant la période, selon le pack du filleul. La
-  commission directe compte dans le plafond hebdomadaire.
+  activé un pack durant la période, selon le pack du filleul. Comptée
+  dans le plafond hebdomadaire. L'éligibilité est évaluée AU MOMENT de
+  l'activation du filleul : un sponsor encore INSCRIT ou gelé voit
+  l'événement tracé (inéligible) mais ne sera jamais payé.
 
-- **Commission indirecte.** Fondée sur l'équilibre des jambes. À chaque
-  cycle complet (le palier du membre atteint sur chacune des deux
-  jambes), le membre perçoit le montant indirect de son pack.
+- **Commission indirecte (équilibre).** Fondée sur l'équilibre des
+  jambes : chaque fois que la jambe faible atteint un nouveau multiple
+  du palier (points arrivés après l'activation du membre uniquement),
+  l'équilibre est constaté À L'INSTANT MÊME — les points appariés
+  (palier sur chaque jambe) sont consommés immédiatement et le membre
+  gagne le montant indirect de son pack. Les points non appariés
+  restent en réserve (carry-over), sans limite de durée.
 
-- **Bonus de démarrage (early payout).** Décision cliente (confirmée) :
-  pour motiver les nouveaux membres, les premiers paliers déséquilibrés
-  sont rémunérés à la commission indirecte, sans exiger l'équilibre.
-  Chaque membre dispose d'une réserve à vie de 6 paliers de démarrage
-  (au total, toutes jambes confondues ; seuil paramétrable, défaut 6).
-  Tant que cette réserve n'est pas épuisée, la commission indirecte est
-  payée sur les paliers non appariés de la jambe forte (ex. Silver : 250
-  BV par tranche de 1000 points). Les points ainsi payés sont consommés
-  et ne servent plus à un futur équilibrage (pas de double paiement).
-  Réserve épuisée, le membre revient au régime normal (report des
-  points). Ce bonus démarre à l'activation et compte dans le plafond
-  hebdomadaire.
+- **Bonus de démarrage (D-031 — annule l'ancienne règle des 6 paliers
+  déséquilibrés).** Dès que 2 membres ACTIVÉS existent dans l'arbre d'un
+  membre (peu importe la jambe), il perçoit UNE commission indirecte au
+  montant de son pack, UNE SEULE FOIS À VIE. Les points correspondants
+  sont consommés comme un équilibre normal (au plus un palier par
+  jambe) et le bonus compte comme l'équilibre n°1 du compteur à vie. Si
+  cette deuxième activation produit d'elle-même un équilibre naturel,
+  c'est l'équilibre qui paie ce jalon — le bonus ne s'y ajoute pas.
+  Compté dans le plafond hebdomadaire.
+
+- **Règle du 6e équilibre (D-032).** Compteur d'équilibres À VIE, jamais
+  remis à zéro (bonus inclus). Chaque 6e équilibre (6, 12, 18…) ne paie
+  aucun dinar : il attribue 1 POINT FIDÉLITÉ — une troisième unité,
+  distincte des points (BV) et des dinars. L'achat de produits avec les
+  Points Fidélité est hors scope (tranche ultérieure).
 
 - **Baseline à l'activation.** Les commissions d'un membre ne portent
-  que sur les points arrivés après son passage en ACTIF. Un instantané
-  des points présents sur ses deux jambes est figé au moment de
-  l'activation ; les points antérieurs (accumulés pendant sa phase
-  INSCRIT) sont exclus de son calcul, tout en ayant profité à ses
-  uplines actifs.
+  que sur les points arrivés après son passage en ACTIF : sa réserve de
+  points appariables démarre à zéro, les points antérieurs (accumulés
+  pendant sa phase INSCRIT) ne la rejoignent jamais — tout en ayant
+  profité à ses uplines.
 
-- **Report des points (carry-over).** Les points de la jambe forte non
-  appariés en fin de semaine (et non payés au titre du bonus de
-  démarrage) sont reportés à la semaine suivante ; rien n'est perdu côté
-  points.
+- **Gel (D-034).** Un membre INACTIF (renouvellement échu) ne perçoit
+  RIEN — ni directe, ni indirecte. Les points TRAVERSENT le membre gelé
+  (ses cumuls à vie montent, ses uplines actifs sont crédités) mais
+  n'entrent jamais dans sa réserve appariable. À la réactivation :
+  nouvelle baseline (les points arrivés pendant le gel ne rapporteront
+  jamais rien), carry-over acquis avant le gel CONSERVÉ.
 
-- **Plafond hebdomadaire.** La commission totale (directe + indirecte)
-  est plafonnée selon le pack. Tout dépassement de commission est perdu
-  (non reporté).
+- **Report des points (carry-over).** Les points non appariés restent
+  acquis dans la réserve et attendent le prochain équilibre, sans
+  échéance ; rien n'est perdu côté points.
 
-- **Snapshot.** Chaque commission et activation fige les paramètres
-  applicables (palier, montants, plafond) au moment de la transaction.
-  Une modification ultérieure de la configuration ne réécrit jamais
-  l'historique et ne s'applique qu'à partir du run suivant.
+- **Plafond hebdomadaire.** La commission totale de la semaine (directe
+  + indirecte + bonus), attribuée en CHRONOLOGIE (D-033 : l'ordre réel
+  des événements ; sur une même activation, la directe avant
+  l'équilibre), est plafonnée selon le pack. Tout dépassement est perdu
+  (non reporté) — y compris le Point Fidélité d'un 6e équilibre survenu
+  après le plafond (le compteur à vie, lui, avance quand même, et les
+  points restent consommés).
+
+- **Snapshot.** Chaque événement fige ses montants au moment où il
+  naît ; le plafond appliqué est celui du snapshot d'activation du
+  membre. Une modification de configuration ne réécrit jamais
+  l'historique et ne s'applique qu'aux activations postérieures.
 
 **5.9 Renouvellement annuel**
 
@@ -421,28 +449,37 @@ indirect de son pack.
 
 Aucune commission indirecte n'est due tant que l'équilibre requis (le
 palier sur chaque jambe) n'est pas atteint — sauf au titre du bonus de
-démarrage ci-dessous. Les points non appariés de la jambe forte sont
-reportés (carry-over).
+démarrage ci-dessous. Les points non appariés de la jambe forte restent
+en réserve (carry-over), sans limite de durée.
 
-**6.4 Bonus de démarrage (early payout)**
+Chaque équilibre incrémente un **compteur à vie**, jamais remis à zéro
+(bonus de démarrage inclus). Chaque **6e équilibre** (6, 12, 18…) ne
+paie aucun dinar : il attribue **1 Point Fidélité** (D-032) — une
+troisième unité, distincte des points (BV) et des dinars ; leur dépense
+sera cadrée dans une tranche ultérieure.
 
-Pour motiver les nouveaux membres, les premiers paliers déséquilibrés
-sont rémunérés à la commission indirecte, sans exiger l'équilibre.
-Chaque membre dispose d'une réserve à vie de 6 paliers (au total, toutes
-jambes confondues ; paramétrable). Exemple Silver : les 6 premières
-tranches de 1000 points reçues sur la jambe forte, avant tout équilibre,
-rapportent 250 DT chacune. Les points payés à ce titre sont consommés
-(ils ne comptent plus pour un futur équilibre). Une fois la réserve
-épuisée, le membre revient au régime normal. Le bonus démarre à
-l'activation et compte dans le plafond hebdomadaire.
+**6.4 Bonus de démarrage**
+
+Décision cliente **D-031** (annule et remplace l'ancienne règle des « 6
+paliers déséquilibrés ») : dès que **2 membres ACTIVÉS** existent dans
+l'arbre d'un membre — peu importe la jambe —, il perçoit **UNE**
+commission indirecte au montant de son pack (ex. Silver : 250 DT), une
+seule fois à vie. Les points correspondants sont consommés comme un
+équilibre normal (au plus un palier par jambe) et le bonus compte comme
+**l'équilibre n°1** du compteur à vie. Si la deuxième activation crée
+d'elle-même un équilibre (un filleul activé de chaque côté), l'équilibre
+naturel paie ce jalon et le bonus ne s'y ajoute pas. Le bonus compte
+dans le plafond hebdomadaire.
 
 **6.5 Plafond hebdomadaire**
 
 La commission totale hebdomadaire (directe + indirecte + bonus de
-démarrage) est plafonnée : Silver 10000, Gold 16000, Safari 24000,
-Diamond 36000 (**DT**). Au-delà, la commission excédentaire de la semaine
-est perdue (non reportée). À distinguer du report des points de la jambe
-forte, qui, lui, est conservé.
+démarrage), attribuée dans l'ordre chronologique des événements (D-033),
+est plafonnée : Silver 10000, Gold 16000, Safari 24000, Diamond 36000
+(**DT**). Au-delà, la commission excédentaire de la semaine est perdue
+(non reportée), y compris le Point Fidélité d'un 6e équilibre survenu
+après le plafond. À distinguer du report des points de la jambe forte,
+qui, lui, est conservé.
 
 **7. Description fonctionnelle**
 
@@ -526,8 +563,8 @@ Table (code, nom, pack, statut, date d'activation, solde BV, upline,
 downlines G/D) avec filtres par pack / statut / période. Fiche membre :
 infos, position dans l'arbre, jambes, historique BV, e-cards,
 commissions. Actions : bloquer / débloquer, ajustement manuel de BV
-(motif tracé), consulter l'arbre, suivre le compteur de bonus de
-démarrage restant.
+(motif tracé), consulter l'arbre, suivre le compteur d'équilibres à
+vie, le bonus de démarrage (utilisé ou non) et les Points Fidélité.
 
 **7.2.3 Généalogie du réseau**
 
@@ -585,9 +622,9 @@ circulation, top affiliés. Exports CSV.
 
 Règles de commissions et plafonds par pack, mapping BV ↔ pack (paliers),
 format / préfixe des codes e-card, durée d'expiration des e-cards (-1 =
-illimité), nombre de paliers du bonus de démarrage (défaut 6),
-planification du cron (jour / heure, Tunis), valeur BV du renouvellement
-annuel, devise d'affichage.
+illimité), planification du cron (jour / heure, Tunis), valeur du
+renouvellement annuel, devise d'affichage. (Le bonus de démarrage D-031
+n'a plus de paramètre : une fois à vie, au montant du pack.)
 
 **7.2.12 Comptes admin et rôles (RBAC)**
 
@@ -634,12 +671,13 @@ commission, e-card).
 
 | **Entité**    | **Champs clés**                                                                                                                                                                                                                                                                 | **Relations**                                                  |
 |---------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------|
-| Affilie       | id, code_membre (NP…), nom, prénom, contacts, mot_de_passe (hash), statut (INSCRIT / ACTIF / INACTIF), pack_id, sponsor_id, upline_id, jambe (G/D), solde_bv, date_inscription, date_activation, baseline_gauche, baseline_droite, bonus_demarrage_restant, date_renouvellement | sponsor → Affilie ; upline → Affilie (placement) ; pack → Pack |
+| Affilie       | id, code_membre (NP…), nom, prénom, contacts, mot_de_passe (hash), statut (INSCRIT / ACTIF / INACTIF), pack_id, sponsor_id, upline_id, jambe (G/D), solde_dt, date_inscription, date_activation, baseline_gauche, baseline_droite, bonus_demarrage_utilise (D-031), compteur_equilibres_a_vie (D-032), points_fidelite, descendants_actives, date_renouvellement | sponsor → Affilie ; upline → Affilie (placement) ; pack → Pack |
 | Pack          | id, nom, palier_bv, prix_ref_dt, comm_directe_bv, comm_indirecte_bv, plafond_hebdo_bv, actif                                                                                                                                                                                    | —                                                              |
 | NoeudArbre    | affilie_id, upline_id, jambe, points_gauche, points_droite, points_reportes_gauche, points_reportes_droite                                                                                                                                                                      | affilie ↔ Affilie ; upline ↔ Affilie                           |
 | GrandLivreBV  | id, affilie_id, type_mouvement, montant_bv, reference (ecard/commission/ajustement), solde_apres, date                                                                                                                                                                          | affilie → Affilie                                              |
 | Ecard         | id, code (XXX-XXX-XXX-XXX), valeur_bv, createur_id, utilisateur_id, statut (ACTIVE/USED/REVOKED/EXPIRED), date_creation, date_utilisation, date_expiration                                                                                                                      | createur → Affilie ; utilisateur → Affilie                     |
-| Commission    | id, affilie_id, run_id, type (DIRECTE/INDIRECTE), montant_bv, plafond_applique, cycles, snapshot_params, date                                                                                                                                                                   | affilie → Affilie ; run → RunCommission                        |
+| ÉvénementCommission | id, affilie_id, type (DIRECT / BALANCE / STARTUP_BONUS / REWARD_POINT), montant_dt, date_evenement, filleul_source_id, eligible, paye, run_id, snapshot, n°_equilibre_a_vie — écrit AU FIL DE L'EAU à l'activation (D-035)                                                | affilie → Affilie ; source → Affilie ; run → RunCommission     |
+| Commission    | id, affilie_id, run_id, brut_dt, verse_dt, plafond_applique_dt, nb_evenements, points_fidelite_attribues, points_fidelite_perdus, snapshot_params, date — le règlement plafonné d'un membre sur un run                                                                          | affilie → Affilie ; run → RunCommission                        |
 | RunCommission | id, date_execution, periode_debut, periode_fin, nb_membres, bv_distribue, statut (SUCCÈS/ERREUR), log                                                                                                                                                                           | —                                                              |
 | Produit       | id, nom, description, categorie_id, prix_dt, valeur_bv, type (PHYSIQUE/VIRTUEL), stock, frais_livraison, promo_prix_dt, actif, visible_vitrine                                                                                                                                  | categorie → Categorie                                          |
 | Commande      | id, affilie_id, contexte (ACTIVATION/LIBRE), lignes\[\], total_bv, ecard_id, statut, adresse_livraison, statut_expedition, date                                                                                                                                                 | affilie → Affilie ; ecard → Ecard                              |
@@ -652,11 +690,12 @@ commission, e-card).
 **9.1 Adhésion**
 
 INSCRIT → (achat e-card finalisé) → ACTIF ; ACTIF → (renouvellement
-annuel non validé) → INACTIF ; INACTIF → (renouvellement validé par
-l'admin) → ACTIF. Il n'y a pas d'état EXPIRÉ ni d'expiration : un
+annuel non validé) → INACTIF (gel) ; INACTIF → (renouvellement validé
+par l'admin) → ACTIF. Il n'y a pas d'état EXPIRÉ ni d'expiration : un
 INSCRIT persiste indéfiniment. Le placement est définitif dès l'entrée
-en INSCRIT. À l'entrée en ACTIF, la baseline des points est figée et la
-réserve de bonus de démarrage (défaut 6) est initialisée.
+en INSCRIT. À l'entrée en ACTIF, la baseline des points est figée (la
+réserve de points appariables démarre à zéro). À la réactivation après
+gel : nouvelle baseline, carry-over d'avant gel conservé (D-034).
 
 **9.2 E-card**
 
@@ -665,59 +704,66 @@ ACTIVE → (utilisée pour un achat) → USED ; ACTIVE → (échéance atteinte)
 EXPIRED et REVOKED recréditent le BV au créateur. USED est définitif et
 irréversible.
 
-**10. Moteur de commissions — algorithme hebdomadaire**
+**10. Moteur de commissions — architecture à deux temps (D-035)**
 
-Exécuté par cron, période close le vendredi 23:59 (heure de Tunis). Pour
-chaque membre actif :
+Les événements de commission sont enregistrés AU FIL DE L'EAU, au moment
+de l'activation qui les produit ; le run hebdomadaire (cron, période
+close le vendredi 23:59, heure de Tunis) ne fait qu'appliquer le plafond
+et créditer. Les membres INSCRIT sont ignorés : leurs événements
+éventuels (commission directe d'un sponsor non activé) naissent
+inéligibles et ne sont jamais payés.
 
-Exécuté par cron, période close le vendredi 23:59 (heure de Tunis). Les
-membres INSCRIT (non activés) sont ignorés : ils n'ont pas de compteur
-de commissions. Pour chaque membre ACTIF :
+**Temps 1 — à l'activation (dans la transaction d'activation) :**
 
-- Injection des activations de la semaine : pour chaque nouvelle
-  activation, la valeur du palier du nouvel affilié a déjà été ajoutée,
-  au fil de l'eau, à la jambe correspondante de chacun de ses uplines
-  actifs (gauche ou droite selon la position).
+- Le palier du nouvel actif est ajouté au cumul à vie de la jambe
+  concernée de chaque upline jusqu'à la racine (quel que soit son état —
+  D-020), et à la RÉSERVE APPARIABLE des seuls uplines ACTIFS. C'est
+  cette réserve qui porte la baseline et le gel : un INSCRIT ou un gelé
+  n'y reçoit jamais rien — ses points d'avant activation, ou arrivés
+  pendant le gel, ne compteront jamais pour lui.
 
-- Points éligibles (baseline) : seuls les points arrivés après
-  l'activation du membre sont pris en compte. totalGauche =
-  pointsReportésGauche + pointsSemaineGauche − baseline déjà retranchée
-  ; idem à droite. (Concrètement, la baseline est soustraite une seule
-  fois, à l'activation ; ensuite on ne compte que le flux postérieur.)
+- Un événement DIRECT est écrit pour le sponsor (montant : commission
+  directe du pack du filleul), éligible seulement si le sponsor est
+  ACTIF à cet instant (D-034).
 
-- Cycles équilibrés : matched = min(totalGauche, totalDroite) ; nbCycles
-  = partie entière de (matched / palierDuMembre).
+- Pour chaque upline ACTIF dont la réserve atteint le palier sur les
+  deux jambes : un événement BALANCE par équilibre complété — points
+  consommés immédiatement (palier sur chaque jambe), compteur
+  d'équilibres à vie incrémenté. Chaque 6e équilibre à vie s'écrit
+  REWARD_POINT (0 DT, 1 Point Fidélité — D-032). Le bonus de démarrage
+  (D-031) s'écrit STARTUP_BONUS au passage à exactement 2 membres
+  activés dans le sous-arbre (voir 6.4) — il compte comme l'équilibre
+  n°1.
 
-- Commission indirecte (équilibre) = nbCycles ×
-  commissionIndirecte(pack). Consommé = nbCycles × palier sur chaque
-  jambe.
+- Sur une même activation, la DIRECTE est écrite avant les équilibres
+  (D-033). Tout est dans LA transaction de l'activation : une activation
+  annulée n'écrit aucun événement.
 
-- Bonus de démarrage : soit reste = bonusDémarrageRestant (défaut
-  initial 6). Après consommation des cycles équilibrés, on considère les
-  paliers excédentaires de la jambe forte : nbBonus = min(reste, partie
-  entière de (excédentJambeForte / palier)). Commission bonus = nbBonus
-  × commissionIndirecte(pack). On décrémente bonusDémarrageRestant de
-  nbBonus et on consomme nbBonus × palier de points sur la jambe forte
-  (ces points ne seront plus reportés).
+**Temps 2 — run hebdomadaire :**
 
-- Report : pointsReportés(suivant) sur chaque jambe = points restants
-  après consommation des cycles équilibrés ET des paliers de bonus. Les
-  points non appariés et non payés sont reportés.
+- Réclamer les événements de la période (marquage définitif par run) :
+  c'est la barrière d'idempotence — relancer un run ne double jamais un
+  crédit.
 
-- Commission directe = somme, sur les filleuls activés durant la
-  période, de commissionDirecte(pack du filleul).
+- Par membre : lire ses événements ÉLIGIBLES triés par date (occurredAt,
+  puis ordre d'écriture), additionner au fil de l'eau et payer jusqu'au
+  plafond du pack (snapshot d'activation). L'événement qui franchit le
+  plafond est payé partiellement ; tout le reste de la semaine est PERDU
+  — y compris les Points Fidélité survenus après le plafond (le compteur
+  à vie, lui, a déjà avancé au temps 1, et les points sont restés
+  consommés).
 
-- Total = commissionDirecte + commissionIndirecte + bonusDémarrage. Si
-  Total \> plafondHebdo(pack) : verser plafondHebdo, l'excédent est
-  perdu (non reporté).
+- Créditer le total retenu en DT au solde (grand livre, mouvement
+  COMMISSION) et les Points Fidélité au compteur du membre ; chaque
+  règlement fige ses paramètres (snapshot).
 
-- Crédit : le montant retenu est crédité en BV au solde du membre
-  (GrandLivreBV) ; chaque ligne de commission fige ses paramètres
-  (snapshot).
+- Journaliser le run (période, membres réglés, total distribué, Points
+  Fidélité, statut, log). Un échec annule tout le run (aucun crédit
+  partiel) et laisse une trace en erreur.
 
-|                                                                                                                                                                                                                                                                                                                            |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Distinction essentielle —** Deux « débordements » au comportement opposé : les points non appariés de la jambe forte sont REPORTÉS (jamais perdus, sauf s'ils ont été payés au titre du bonus de démarrage, auquel cas ils sont consommés) ; la commission au-delà du plafond hebdomadaire est PERDUE (jamais reportée). |
+|                                                                                                                                                                                                                                                                              |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Distinction essentielle —** Deux « débordements » au comportement opposé : les points non appariés restent en RÉSERVE (carry-over — jamais perdus, sauf consommés par un équilibre ou le bonus) ; la commission au-delà du plafond hebdomadaire est PERDUE (jamais reportée). |
 
 **11. Description technique**
 

@@ -56,9 +56,10 @@ Ordre par dépendance. Chaque tranche est testable et se termine par un commit. 
 - [x] Docs (spec §5.1/§6, decisions D-028/D-029 + révision D-002 + point ouvert e-card, rules, CLAUDE.md) ; tests des 2 suites adaptés (build OK, typecheck 0, migrate status propre, 126 unit + 63 int verts).
 
 ## Tranche 7 — Moteur de commissions (réf. rules/commission-engine.md) — LE joyau
-- [ ] Cron hebdo (vendredi 23:59 Tunis), run + supervision.
-- [ ] Cycles équilibrés, bonus de démarrage, carry-over, plafond, snapshot.
-- [ ] **Tests de scénarios déterministes** (voir la règle) — bloquant.
+- [x] Temps 1 (D-035) : événements écrits au fil de l'eau à l'activation — équilibres (consommation immédiate, carry-over en réserve), bonus de démarrage (D-031, annule D-012), Points Fidélité du 6e équilibre (D-032), éligibilité à l'instant (D-034), snapshot.
+- [x] Temps 2 : cron hebdo (vendredi 23:59 Tunis), plafond chronologique (D-033, paiement partiel au franchissement), crédit grand livre + Points Fidélité, run journalisé (supervision UI en T8), idempotence par réclamation.
+- [x] Gel / réactivation — partie moteur (D-034) : `RenewalService`, nouvelle baseline, carry-over conservé (circuit admin 100 DT en T8).
+- [x] **Tests de scénarios déterministes** (voir la règle) — bloquant. (149 unit + 76 int verts.)
 
 ## Tranche 8 — Back-office admin (réf. spec §7.2) — 12 modules
 - [ ] Dashboard, membres, généalogie, packs, produits, commandes.
