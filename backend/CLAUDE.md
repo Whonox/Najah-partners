@@ -5,7 +5,7 @@ Cœur métier de Najah Partners. Voir la spec racine (`../docs/spec.md`) et `../
 ## Rôle
 - Toute la logique MLM : arbre binaire, grand livre (DINARS), e-cards, moteur de commissions, inscription/activation.
 - **Modèle à deux dimensions (D-028)** : POINTS (`Int`) pour le palier + l'arbre ; DINARS (`Decimal(12,3)`, via `src/common/money.ts`) pour tout l'argent. Aucune conversion nulle part. Suffixes : `…Bv`/`…Points` = points, `…Dt` = dinars.
-- **Source de vérité des types** : exposer OpenAPI/Swagger ; les fronts génèrent leur client depuis ce schéma.
+- **Source de vérité des types** : exposer OpenAPI/Swagger ; les fronts génèrent leur client depuis ce schéma. Après tout changement d'API, régénérer le contrat versionné avec `npm run export:openapi` (écrit `backend/openapi.json`) — c'est ce fichier, pas un serveur qui tourne, que `admin/` et `portal/` consomment via `npm run generate:api`. Le plugin CLI `@nestjs/swagger` (`nest-cli.json`) infère beaucoup de schémas de réponse automatiquement, mais PAS les types Prisma bruts (`Product`, `Category`…) : pour un endpoint qui en renvoie, ajouter un DTO de réponse dédié + `@ApiOkResponse` (voir `src/shop/dto/catalog-response.dto.ts` pour le patron).
 - Cron hebdo (commissions, vendredi 23:59 Tunis).
 
 ## Conventions

@@ -1,7 +1,12 @@
 import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Category, Product } from '@prisma/client';
 import { Public } from '../auth/decorators/public.decorator';
 import { CatalogService } from './catalog.service';
+import {
+  CategoryResponseDto,
+  ProductResponseDto,
+} from './dto/catalog-response.dto';
 import { ProductsQueryDto } from './dto/orders-query.dto';
 
 /**
@@ -17,7 +22,8 @@ export class CatalogController {
   @Get('categories')
   @Public()
   @ApiOperation({ summary: 'Catégories de la boutique.' })
-  categories() {
+  @ApiOkResponse({ type: CategoryResponseDto, isArray: true })
+  categories(): Promise<Category[]> {
     return this.catalog.listCategories();
   }
 
@@ -27,14 +33,16 @@ export class CatalogController {
     summary:
       'Produits visibles et actifs, éventuellement filtrés par catégorie.',
   })
-  products(@Query() query: ProductsQueryDto) {
+  @ApiOkResponse({ type: ProductResponseDto, isArray: true })
+  products(@Query() query: ProductsQueryDto): Promise<Product[]> {
     return this.catalog.listPublicProducts(query.categoryId);
   }
 
   @Get('products/:id')
   @Public()
   @ApiOperation({ summary: 'Détail d’un produit visible et actif.' })
-  product(@Param('id', ParseIntPipe) id: number) {
+  @ApiOkResponse({ type: ProductResponseDto })
+  product(@Param('id', ParseIntPipe) id: number): Promise<Product> {
     return this.catalog.getPublicProduct(id);
   }
 }

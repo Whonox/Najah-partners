@@ -2,9 +2,10 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
+import { buildOpenApiDocument } from './swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -43,13 +44,7 @@ async function bootstrap() {
   });
 
   // Swagger : source de vérité des types pour la génération du client TS des fronts.
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Najah Partners API')
-    .setDescription('API backend — plateforme MLM (BV, e-cards, commissions)')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  const document = buildOpenApiDocument(app);
   SwaggerModule.setup('docs', app, document);
 
   await app.listen(process.env.PORT ?? 3000);

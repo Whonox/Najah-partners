@@ -11,6 +11,7 @@
   "scripts": {
     "build": "nest build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "export:openapi": "nest build && node dist/src/scripts/export-openapi.js",
     "db:seed": "ts-node prisma/seed.ts",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",

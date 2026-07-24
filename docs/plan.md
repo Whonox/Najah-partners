@@ -6,7 +6,7 @@ Ordre par dépendance. Chaque tranche est testable et se termine par un commit. 
 - [ ] Dépôt git initialisé, kit de démarrage en place, premier commit.
 - [ ] `backend/` scaffoldé (NestJS), connexion PostgreSQL OK.
 - [x] `vitrine/`, `admin/`, `portal/` scaffoldés (Next.js / Vite+React+shadcn).
-- [ ] Swagger/OpenAPI activé côté backend ; génération du client TS côté fronts vérifiée sur un endpoint bidon.
+- [x] Swagger/OpenAPI activé côté backend ; génération du client TS côté fronts vérifiée sur un endpoint bidon.
 
 ## Tranche 1 — Modèle de données (réf. spec §8)
 - [x] Schéma PostgreSQL : Affilie, Pack, NoeudArbre, GrandLivreBV, Ecard, Commission, RunCommission, Produit, Commande, AdminUser, Parametre, JournalAudit.

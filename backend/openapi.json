@@ -1,0 +1,2125 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "AppController_getHello",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
+    "/auth/member/login": {
+      "post": {
+        "operationId": "AuthController_memberLogin",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberLoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Connexion affilié (email / téléphone / code membre)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/admin/login": {
+      "post": {
+        "operationId": "AuthController_adminLogin",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminLoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Connexion administrateur",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "operationId": "AuthController_refresh",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Émet un nouvel access token à partir du cookie refresh",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "AuthController_logout",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Déconnexion : révoque le refresh et efface le cookie",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/member/password/forgot": {
+      "post": {
+        "operationId": "AuthController_forgotPassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Demande de réinitialisation (réponse toujours neutre)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/member/password/reset": {
+      "post": {
+        "operationId": "AuthController_resetPassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Applique un nouveau mot de passe via token usage unique",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "operationId": "AuthController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Acteur authentifié (n'importe quel type)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/admin/ping": {
+      "get": {
+        "operationId": "AuthController_adminPing",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Route réservée ADMIN (rejette un token MEMBER)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/member/ping": {
+      "get": {
+        "operationId": "AuthController_memberPing",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Route réservée MEMBER (rejette un token ADMIN)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/admin/ledger/members/{memberId}/adjustment": {
+      "post": {
+        "operationId": "LedgerAdminController_adjust",
+        "parameters": [
+          {
+            "name": "memberId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdjustBalanceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Ajustement manuel du solde en DT (motif obligatoire, tracé)",
+        "tags": [
+          "ledger-admin"
+        ]
+      }
+    },
+    "/admin/ledger/members/{memberId}/genesis": {
+      "post": {
+        "operationId": "LedgerAdminController_genesis",
+        "parameters": [
+          {
+            "name": "memberId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenesisBalanceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Génération de solde en DT (amorçage / promo, ADMIN_GENESIS)",
+        "tags": [
+          "ledger-admin"
+        ]
+      }
+    },
+    "/admin/ledger/members/{memberId}/balance": {
+      "get": {
+        "operationId": "LedgerAdminController_balance",
+        "parameters": [
+          {
+            "name": "memberId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Solde courant d’un membre (DT)",
+        "tags": [
+          "ledger-admin"
+        ]
+      }
+    },
+    "/admin/ledger/members/{memberId}/history": {
+      "get": {
+        "operationId": "LedgerAdminController_history",
+        "parameters": [
+          {
+            "name": "memberId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Historique paginé des mouvements de solde d’un membre (DT)",
+        "tags": [
+          "ledger-admin"
+        ]
+      }
+    },
+    "/members/register": {
+      "post": {
+        "description": "Les e-cards fournies doivent totaliser EXACTEMENT les frais d’inscription (100 DT, paramétrable) ; elles sont brûlées dans la même transaction que la création du membre (D-036). Ce montant vaut ACOMPTE : il sera déduit du prix du pack à l’activation (D-037). Aucun point n’est injecté dans l’arbre à ce stade (D-005).",
+        "operationId": "MembersController_register",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterMemberDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Inscription : frais réglés par e-card(s), membre INSCRIT, code attribué, place définitive.",
+        "tags": [
+          "members"
+        ]
+      }
+    },
+    "/members/me/tree": {
+      "get": {
+        "operationId": "MembersController_tree",
+        "parameters": [
+          {
+            "name": "depth",
+            "required": false,
+            "in": "query",
+            "description": "Nombre de niveaux de downlines à ramener. Borné : un sous-arbre binaire double à chaque niveau.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 8,
+              "default": 3,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Sous-arbre binaire du membre connecté (spec §7.1.5).",
+        "tags": [
+          "members"
+        ]
+      }
+    },
+    "/members/me/renewal": {
+      "post": {
+        "description": "Le total des e-cards doit valoir exactement le montant annuel. Le paiement NE RÉACTIVE PAS : il crée une demande en attente de validation par l’administration (D-038). Un membre gelé le reste, et ne perçoit toujours rien, jusqu’à cette validation.",
+        "operationId": "MembersController_payRenewal",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayRenewalDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Régler le renouvellement annuel par e-card(s) (spec §5.9).",
+        "tags": [
+          "members"
+        ]
+      }
+    },
+    "/members/me/renewals": {
+      "get": {
+        "operationId": "MembersController_myRenewals",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Mes renouvellements annuels : montant, date, état de la validation.",
+        "tags": [
+          "members"
+        ]
+      }
+    },
+    "/admin/members/{memberId}/tree": {
+      "get": {
+        "operationId": "MembersAdminController_tree",
+        "parameters": [
+          {
+            "name": "memberId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "depth",
+            "required": false,
+            "in": "query",
+            "description": "Nombre de niveaux de downlines à ramener. Borné : un sous-arbre binaire double à chaque niveau.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 8,
+              "default": 3,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Sous-arbre binaire d’un membre (généalogie).",
+        "tags": [
+          "members-admin"
+        ]
+      }
+    },
+    "/admin/renewals/pending": {
+      "get": {
+        "operationId": "RenewalsAdminController_pending",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Renouvellements payés en attente de validation (plus anciens d’abord).",
+        "tags": [
+          "renewals-admin"
+        ]
+      }
+    },
+    "/admin/renewals/{paymentId}/validate": {
+      "post": {
+        "description": "Un membre INACTIF est RÉACTIVÉ (nouvelle baseline figée, carry-over d’avant le gel conservé — D-034) ; un membre encore ACTIF voit seulement son échéance repoussée. L’opération n’est pas rejouable : un renouvellement déjà validé est refusé.",
+        "operationId": "RenewalsAdminController_validate",
+        "parameters": [
+          {
+            "name": "paymentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Valider un renouvellement : régularise le membre (D-038).",
+        "tags": [
+          "renewals-admin"
+        ]
+      }
+    },
+    "/ecards": {
+      "post": {
+        "operationId": "EcardsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEcardDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Créer une e-card en DT (valeur ≤ solde disponible ; le solde est débité immédiatement).",
+        "tags": [
+          "ecards"
+        ]
+      }
+    },
+    "/ecards/mine": {
+      "get": {
+        "operationId": "EcardsController_mine",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Mes e-cards : valeur, statut, dates de création / utilisation / expiration.",
+        "tags": [
+          "ecards"
+        ]
+      }
+    },
+    "/ecards/verify": {
+      "post": {
+        "operationId": "EcardsController_verify",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyEcardDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Vérifier un code : validité et valeur, SANS le consommer.",
+        "tags": [
+          "ecards"
+        ]
+      }
+    },
+    "/ecards/{id}/extend": {
+      "post": {
+        "operationId": "EcardsController_extend",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtendEcardDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Prolonger l’échéance d’une de MES e-cards ACTIVE (D-026 : le créateur en a le droit — prolonger ne crée aucune valeur, cela retarde son propre remboursement).",
+        "tags": [
+          "ecards"
+        ]
+      }
+    },
+    "/admin/ecards/genesis": {
+      "post": {
+        "operationId": "EcardsAdminController_genesis",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenesisEcardDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Générer une e-card ex nihilo (amorçage / promo). Aucun solde débité ; expiration/révocation ne rembourse personne.",
+        "tags": [
+          "ecards-admin"
+        ]
+      }
+    },
+    "/admin/ecards/{id}/revoke": {
+      "post": {
+        "operationId": "EcardsAdminController_revoke",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Révoquer une e-card ACTIVE : statut REVOKED, BV recrédité au créateur.",
+        "tags": [
+          "ecards-admin"
+        ]
+      }
+    },
+    "/admin/ecards/{id}/extend": {
+      "post": {
+        "operationId": "EcardsAdminController_extend",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtendEcardDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Prolonger l’échéance de n’importe quelle e-card ACTIVE (support, D-026).",
+        "tags": [
+          "ecards-admin"
+        ]
+      }
+    },
+    "/shop/categories": {
+      "get": {
+        "operationId": "CatalogController_categories",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Catégories de la boutique.",
+        "tags": [
+          "shop"
+        ]
+      }
+    },
+    "/shop/products": {
+      "get": {
+        "operationId": "CatalogController_products",
+        "parameters": [
+          {
+            "name": "categoryId",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer par catégorie.",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProductResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Produits visibles et actifs, éventuellement filtrés par catégorie.",
+        "tags": [
+          "shop"
+        ]
+      }
+    },
+    "/shop/products/{id}": {
+      "get": {
+        "operationId": "CatalogController_product",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Détail d’un produit visible et actif.",
+        "tags": [
+          "shop"
+        ]
+      }
+    },
+    "/admin/shop/categories": {
+      "get": {
+        "operationId": "CatalogAdminController_listCategories",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Lister les catégories.",
+        "tags": [
+          "shop-admin"
+        ]
+      },
+      "post": {
+        "operationId": "CatalogAdminController_createCategory",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Créer une catégorie.",
+        "tags": [
+          "shop-admin"
+        ]
+      }
+    },
+    "/admin/shop/categories/{id}": {
+      "patch": {
+        "operationId": "CatalogAdminController_updateCategory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Modifier une catégorie.",
+        "tags": [
+          "shop-admin"
+        ]
+      },
+      "delete": {
+        "operationId": "CatalogAdminController_deleteCategory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Supprimer une catégorie VIDE (sinon refusée).",
+        "tags": [
+          "shop-admin"
+        ]
+      }
+    },
+    "/admin/shop/products": {
+      "get": {
+        "operationId": "CatalogAdminController_listProducts",
+        "parameters": [
+          {
+            "name": "categoryId",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer par catégorie.",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Lister TOUS les produits (y compris inactifs et masqués).",
+        "tags": [
+          "shop-admin"
+        ]
+      },
+      "post": {
+        "operationId": "CatalogAdminController_createProduct",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Créer un produit (valeur BV > 0 ; stock obligatoire si PHYSIQUE, interdit si VIRTUEL).",
+        "tags": [
+          "shop-admin"
+        ]
+      }
+    },
+    "/admin/shop/products/{id}": {
+      "get": {
+        "operationId": "CatalogAdminController_getProduct",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Détail d’un produit (vue admin).",
+        "tags": [
+          "shop-admin"
+        ]
+      },
+      "patch": {
+        "operationId": "CatalogAdminController_updateProduct",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Modifier un produit (désactiver = retirer de la vente ; les commandes passées gardent leur snapshot).",
+        "tags": [
+          "shop-admin"
+        ]
+      }
+    },
+    "/shop/checkout/activation": {
+      "post": {
+        "operationId": "CheckoutController_activation",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivationCheckoutDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Activer son compte : panier totalisant EXACTEMENT le palier du pack en POINTS (D-006), réglé par une ou plusieurs e-cards dont la SOMME vaut le prix du pack MOINS l’acompte d’inscription (D-030, D-037). Commande, e-cards, activation, arbre et stock committent ensemble ou pas du tout.",
+        "tags": [
+          "checkout"
+        ]
+      }
+    },
+    "/shop/checkout/free": {
+      "post": {
+        "operationId": "CheckoutController_free",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FreeCheckoutDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Achat libre (membre ACTIF) : e-cards dont la SOMME égale exactement le total des prix DT du panier. Aucun effet sur l’arbre, aucun solde crédité (D-005, D-025).",
+        "tags": [
+          "checkout"
+        ]
+      }
+    },
+    "/orders": {
+      "get": {
+        "operationId": "OrdersController_mine",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Mes commandes (plus récentes d’abord).",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/orders/{id}": {
+      "get": {
+        "operationId": "OrdersController_one",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Détail d’une de MES commandes (lignes + snapshots).",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/admin/orders": {
+      "get": {
+        "operationId": "OrdersAdminController_list",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "context",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVATION",
+                "FREE"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "PAID",
+                "CANCELLED"
+              ]
+            }
+          },
+          {
+            "name": "shipmentStatus",
+            "required": false,
+            "in": "query",
+            "description": "File de préparation / expédition.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PREPARATION",
+                "SHIPPED",
+                "DELIVERED"
+              ]
+            }
+          },
+          {
+            "name": "memberId",
+            "required": false,
+            "in": "query",
+            "description": "Commandes d’un membre donné.",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Lister les commandes (filtres : membre, contexte, statut, étape d’expédition).",
+        "tags": [
+          "orders-admin"
+        ]
+      }
+    },
+    "/admin/orders/{id}": {
+      "get": {
+        "operationId": "OrdersAdminController_one",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Détail d’une commande (lignes + snapshots BV/DT).",
+        "tags": [
+          "orders-admin"
+        ]
+      }
+    },
+    "/admin/orders/{id}/shipment": {
+      "patch": {
+        "operationId": "OrdersAdminController_shipment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateShipmentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Avancer le suivi d’expédition : PREPARATION → SHIPPED → DELIVERED (produits physiques ; la livraison se règle hors système).",
+        "tags": [
+          "orders-admin"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Najah Partners API",
+    "description": "API backend — plateforme MLM (BV, e-cards, commissions)",
+    "version": "1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "MemberLoginDto": {
+        "type": "object",
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "E-mail, téléphone ou code membre (NP…)",
+            "example": "NP001024"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Mot de passe"
+          }
+        },
+        "required": [
+          "identifier",
+          "password"
+        ]
+      },
+      "AdminLoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 255,
+            "format": "email",
+            "example": "admin@najah.local"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Mot de passe"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "ForgotPasswordDto": {
+        "type": "object",
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "E-mail, téléphone ou code membre du compte à récupérer"
+          }
+        },
+        "required": [
+          "identifier"
+        ]
+      },
+      "ResetPasswordDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Token de réinitialisation (usage unique)"
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 255,
+            "description": "Nouveau mot de passe"
+          }
+        },
+        "required": [
+          "token",
+          "newPassword"
+        ]
+      },
+      "AdjustBalanceDto": {
+        "type": "object",
+        "properties": {
+          "amountDt": {
+            "type": "number",
+            "description": "Montant signé en DINARS (+ crédit / − débit), non nul. 3 décimales au maximum (le millime).",
+            "example": -500
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Motif obligatoire (tracé dans le grand livre et l’audit).",
+            "example": "Régularisation suite à une erreur de saisie"
+          }
+        },
+        "required": [
+          "amountDt",
+          "reason"
+        ]
+      },
+      "GenesisBalanceDto": {
+        "type": "object",
+        "properties": {
+          "amountDt": {
+            "type": "number",
+            "minimum": 0.001,
+            "description": "Montant en DINARS à générer (amorçage réseau / promo), strictement positif. 3 décimales au maximum.",
+            "example": 2200
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Motif optionnel (tracé dans l’audit).",
+            "example": "Amorçage réseau — dotation initiale"
+          }
+        },
+        "required": [
+          "amountDt"
+        ]
+      },
+      "RegisterMemberDto": {
+        "type": "object",
+        "properties": {
+          "lastName": {
+            "type": "string",
+            "maxLength": 80,
+            "example": "Ben Salah"
+          },
+          "firstName": {
+            "type": "string",
+            "maxLength": 80,
+            "example": "Mohamed"
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 180,
+            "format": "email",
+            "example": "mohamed@example.tn",
+            "description": "E-mail ou téléphone : au moins l’un des deux est requis (contrôlé au service)."
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 30,
+            "example": "+21620123456"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 72,
+            "example": "MotDePasse123!"
+          },
+          "sponsorCode": {
+            "type": "string",
+            "pattern": "^NP\\d+$",
+            "example": "NP000963",
+            "description": "Code du parrain (commission directe)."
+          },
+          "uplineCode": {
+            "type": "string",
+            "pattern": "^NP\\d+$",
+            "example": "NP000964",
+            "description": "Code de l’upline de placement (position dans l’arbre). Doit appartenir au réseau du sponsor."
+          },
+          "leg": {
+            "enum": [
+              "LEFT",
+              "RIGHT"
+            ],
+            "type": "string",
+            "example": "LEFT",
+            "description": "Jambe sous l’upline."
+          },
+          "ecardCodes": {
+            "minItems": 1,
+            "example": [
+              "HHD-7Z7-JJD-77D",
+              "K4M-8P2-QRS-33T"
+            ],
+            "description": "Codes des e-cards réglant les frais d’inscription (D-036). Leur SOMME doit valoir exactement 100 DT (paramétrable) : plusieurs cartes sont cumulables (D-030), ni appoint ni trop-perçu. Sans e-card valide, pas d’inscription.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "idDocumentType": {
+            "enum": [
+              "ID_CARD",
+              "DRIVING_LICENSE",
+              "PASSPORT"
+            ],
+            "type": "string",
+            "description": "Type de la pièce d’identité jointe (D-018)."
+          },
+          "idDocumentNumber": {
+            "type": "string",
+            "maxLength": 40,
+            "example": "09876543",
+            "description": "Numéro de la pièce d’identité, saisi à la main (D-039). L’admin le compare à l’image ; la vérification reste NON bloquante."
+          },
+          "idDocument": {
+            "type": "string",
+            "format": "binary",
+            "description": "Image de la pièce d’identité (JPEG, PNG, WebP ou PDF, 5 Mo max)."
+          }
+        },
+        "required": [
+          "lastName",
+          "firstName",
+          "password",
+          "sponsorCode",
+          "uplineCode",
+          "leg",
+          "ecardCodes",
+          "idDocumentType",
+          "idDocumentNumber"
+        ]
+      },
+      "PayRenewalDto": {
+        "type": "object",
+        "properties": {
+          "ecardCodes": {
+            "minItems": 1,
+            "example": [
+              "HHD-7Z7-JJD-77D"
+            ],
+            "description": "Codes des e-cards réglant le renouvellement. Leur SOMME doit valoir exactement le montant annuel (100 DT, paramétrable) : cumulables (D-030), ni appoint ni trop-perçu.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ecardCodes"
+        ]
+      },
+      "CreateEcardDto": {
+        "type": "object",
+        "properties": {
+          "valueDt": {
+            "type": "number",
+            "minimum": 0.001,
+            "description": "Valeur de l’e-card en DINARS — une e-card est de l’argent (D-028). Doit être couverte par le solde disponible du créateur (débité immédiatement). 3 décimales au maximum (le millime).",
+            "example": 2200
+          }
+        },
+        "required": [
+          "valueDt"
+        ]
+      },
+      "VerifyEcardDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Code e-card au format XXX-XXX-XXX-XXX.",
+            "example": "HHD-7Z7-JJD-77D"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "ExtendEcardDto": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 365,
+            "description": "Nombre de jours dont l’échéance est repoussée (depuis l’échéance courante, ou depuis maintenant si elle est déjà passée).",
+            "example": 30
+          }
+        },
+        "required": [
+          "days"
+        ]
+      },
+      "GenesisEcardDto": {
+        "type": "object",
+        "properties": {
+          "valueDt": {
+            "type": "number",
+            "minimum": 0.001,
+            "description": "Valeur en DINARS de l’e-card générée ex nihilo (amorçage du réseau / promotion). Aucun solde n’est débité. 3 décimales au maximum (le millime).",
+            "example": 2200
+          },
+          "expirationDays": {
+            "type": "number",
+            "minimum": -1,
+            "description": "Durée de validité en jours ; -1 = illimité. Omis : le paramètre système ecard_expiration_days s’applique.",
+            "example": 90
+          },
+          "reason": {
+            "type": "string",
+            "description": "Motif (promo, amorçage…) — tracé dans l’AuditLog.",
+            "example": "Promotion lancement — 10 e-cards Silver"
+          }
+        },
+        "required": [
+          "valueDt"
+        ]
+      },
+      "CategoryResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "sortOrder"
+        ]
+      },
+      "ProductResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "categoryId": {
+            "type": "number"
+          },
+          "priceDt": {
+            "type": "string",
+            "example": "45.000",
+            "description": "DINARS — prix effectif hors promo, sérialisé en string."
+          },
+          "valueBv": {
+            "type": "number",
+            "example": 250,
+            "description": "POINTS (BV) — compose le palier d’un pack, sans valeur monétaire."
+          },
+          "type": {
+            "enum": [
+              "PHYSICAL",
+              "VIRTUAL"
+            ],
+            "type": "string"
+          },
+          "stock": {
+            "type": "number",
+            "nullable": true,
+            "example": 100,
+            "description": "null = illimité (VIRTUAL)."
+          },
+          "shippingFeeDt": {
+            "type": "string",
+            "example": "7.000",
+            "description": "DINARS — affiché, réglé hors système, sérialisé en string."
+          },
+          "promoPriceDt": {
+            "type": "string",
+            "nullable": true,
+            "example": "39.900",
+            "description": "DINARS — prix promo s’il existe, sérialisé en string."
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "visibleOnSite": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "categoryId",
+          "priceDt",
+          "valueBv",
+          "type",
+          "shippingFeeDt",
+          "images",
+          "active",
+          "visibleOnSite"
+        ]
+      },
+      "CreateCategoryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "example": "Huiles d’olive"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "example": "Huiles extra-vierges pressées à froid."
+          },
+          "sortOrder": {
+            "type": "number",
+            "minimum": 0,
+            "default": 0,
+            "description": "Ordre d’affichage croissant."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UpdateCategoryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "example": "Huiles d’olive"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "example": "Huiles extra-vierges pressées à froid."
+          },
+          "sortOrder": {
+            "type": "number",
+            "minimum": 0,
+            "default": 0,
+            "description": "Ordre d’affichage croissant."
+          }
+        }
+      },
+      "CreateProductDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 160,
+            "example": "Huile d’olive extra-vierge 1 L"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "categoryId": {
+            "type": "number",
+            "minimum": 1,
+            "example": 1
+          },
+          "priceDt": {
+            "type": "number",
+            "minimum": 0,
+            "example": 45,
+            "description": "Prix en DINARS — montant dû en achat libre (le prix promo prime s’il existe)."
+          },
+          "valueBv": {
+            "type": "number",
+            "minimum": 1,
+            "example": 250,
+            "description": "Valeur en POINTS (BV) — compose le palier d’un pack à l’activation. Sans valeur monétaire."
+          },
+          "type": {
+            "enum": [
+              "PHYSICAL",
+              "VIRTUAL"
+            ],
+            "type": "string"
+          },
+          "stock": {
+            "type": "number",
+            "minimum": 0,
+            "example": 100,
+            "description": "Stock — obligatoire si PHYSICAL, doit être absent si VIRTUAL (illimité)."
+          },
+          "shippingFeeDt": {
+            "type": "number",
+            "minimum": 0,
+            "example": 7,
+            "description": "Frais de livraison en DT — AFFICHÉS puis réglés hors système, jamais dans le montant BV dû."
+          },
+          "promoPriceDt": {
+            "type": "number",
+            "minimum": 0,
+            "example": 39.9,
+            "description": "Prix promotionnel en DT (≤ prix de référence). La valeur BV reste inchangée."
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "active": {
+            "type": "boolean",
+            "default": true,
+            "description": "Achetable."
+          },
+          "visibleOnSite": {
+            "type": "boolean",
+            "default": true,
+            "description": "Visible sur la vitrine publique."
+          }
+        },
+        "required": [
+          "name",
+          "categoryId",
+          "priceDt",
+          "valueBv",
+          "type"
+        ]
+      },
+      "UpdateProductDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 160,
+            "example": "Huile d’olive extra-vierge 1 L"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "categoryId": {
+            "type": "number",
+            "minimum": 1,
+            "example": 1
+          },
+          "priceDt": {
+            "type": "number",
+            "minimum": 0,
+            "example": 45,
+            "description": "Prix en DINARS — montant dû en achat libre (le prix promo prime s’il existe)."
+          },
+          "valueBv": {
+            "type": "number",
+            "minimum": 1,
+            "example": 250,
+            "description": "Valeur en POINTS (BV) — compose le palier d’un pack à l’activation. Sans valeur monétaire."
+          },
+          "type": {
+            "enum": [
+              "PHYSICAL",
+              "VIRTUAL"
+            ],
+            "type": "string"
+          },
+          "stock": {
+            "type": "number",
+            "minimum": 0,
+            "example": 100,
+            "description": "Stock — obligatoire si PHYSICAL, doit être absent si VIRTUAL (illimité)."
+          },
+          "shippingFeeDt": {
+            "type": "number",
+            "minimum": 0,
+            "example": 7,
+            "description": "Frais de livraison en DT — AFFICHÉS puis réglés hors système, jamais dans le montant BV dû."
+          },
+          "promoPriceDt": {
+            "type": "number",
+            "minimum": 0,
+            "example": 39.9,
+            "description": "Prix promotionnel en DT (≤ prix de référence). La valeur BV reste inchangée."
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "active": {
+            "type": "boolean",
+            "default": true,
+            "description": "Achetable."
+          },
+          "visibleOnSite": {
+            "type": "boolean",
+            "default": true,
+            "description": "Visible sur la vitrine publique."
+          }
+        }
+      },
+      "CartItemDto": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "number",
+            "minimum": 1,
+            "example": 12
+          },
+          "quantity": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 1000,
+            "example": 2
+          }
+        },
+        "required": [
+          "productId",
+          "quantity"
+        ]
+      },
+      "ActivationCheckoutDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "minItems": 1,
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CartItemDto"
+            }
+          },
+          "ecardCodes": {
+            "minItems": 1,
+            "example": [
+              "HHD-7Z7-JJD-77D",
+              "K4M-8P2-QRS-33T"
+            ],
+            "description": "Codes des e-cards réglant la commande. Leur SOMME doit égaler EXACTEMENT le montant dû en DT (D-007 révisé par D-030 : plusieurs cartes sont cumulables), ni appoint, ni trop-perçu.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "shippingAddress": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Adresse de livraison (produits physiques). Les frais se règlent hors système."
+          },
+          "packId": {
+            "type": "number",
+            "minimum": 1,
+            "example": 1,
+            "description": "Pack à activer (le panier doit valoir son palier)."
+          }
+        },
+        "required": [
+          "items",
+          "ecardCodes",
+          "packId"
+        ]
+      },
+      "FreeCheckoutDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "minItems": 1,
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CartItemDto"
+            }
+          },
+          "ecardCodes": {
+            "minItems": 1,
+            "example": [
+              "HHD-7Z7-JJD-77D",
+              "K4M-8P2-QRS-33T"
+            ],
+            "description": "Codes des e-cards réglant la commande. Leur SOMME doit égaler EXACTEMENT le montant dû en DT (D-007 révisé par D-030 : plusieurs cartes sont cumulables), ni appoint, ni trop-perçu.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "shippingAddress": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Adresse de livraison (produits physiques). Les frais se règlent hors système."
+          }
+        },
+        "required": [
+          "items",
+          "ecardCodes"
+        ]
+      },
+      "UpdateShipmentDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "enum": [
+              "PREPARATION",
+              "SHIPPED",
+              "DELIVERED"
+            ],
+            "type": "string",
+            "description": "Étape suivante : PREPARATION → SHIPPED → DELIVERED (jamais en arrière)."
+          }
+        }
+      }
+    }
+  }
+}
