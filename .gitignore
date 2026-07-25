@@ -29,6 +29,9 @@ yarn-error.log*
 # Claude Code (local, non partagé)
 CLAUDE.local.md
 .claude/settings.local.json
+# Mémoire de travail d'une session : réécrite à chaque phase, propre à la machine.
+# La connaissance DURABLE du projet vit dans les CLAUDE.md, qui eux sont versionnés.
+MEMORY.md
 
 # Client TS généré (regénéré depuis l'OpenAPI)
 **/src/api/generated/
