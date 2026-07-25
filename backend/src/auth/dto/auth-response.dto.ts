@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ActorType, AdminRole } from '@prisma/client';
+import { ActorType, AdminRole, MemberStatus } from '@prisma/client';
 
 /**
  * Miroir de doc des réponses d'authentification. Le plugin CLI `@nestjs/swagger` infère
@@ -51,6 +51,39 @@ export class AdminLoginResponseDto {
 
   @ApiProperty({ type: AuthenticatedActorDto })
   actor!: AuthenticatedActorDto;
+}
+
+/**
+ * Identité minimale du membre, rendue à la connexion pour que le portail affiche un nom
+ * avant même son premier appel de données.
+ *
+ * DÉLIBÉRÉMENT MAIGRE : la réponse rendait jusqu'ici la ligne `Member` entière (solde,
+ * snapshot d'activation, compteurs du moteur, statut de vérification…). Un écran de connexion
+ * n'a besoin de rien de tout cela, et une réponse de login est le pire endroit où faire
+ * circuler l'état financier d'un compte — elle traverse les journaux et les caches avant même
+ * qu'une session existe. Le portail lit le reste par `GET /members/me`, sous token.
+ */
+export class MemberSummaryDto {
+  @ApiProperty() id!: number;
+  @ApiProperty({ example: 'NP000042' }) memberCode!: string;
+  @ApiProperty() firstName!: string;
+  @ApiProperty() lastName!: string;
+  @ApiProperty({
+    enum: MemberStatus,
+    description: 'REGISTERED (inscrit non activé) · ACTIVE · INACTIVE (gelé, D-034).',
+  })
+  status!: MemberStatus;
+}
+
+export class MemberLoginResponseDto {
+  @ApiProperty({
+    description:
+      "Access token court (~15 min). À garder EN MÉMOIRE côté portail, jamais en localStorage.",
+  })
+  accessToken!: string;
+
+  @ApiProperty({ type: MemberSummaryDto })
+  member!: MemberSummaryDto;
 }
 
 export class AccessTokenResponseDto {

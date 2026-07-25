@@ -41,6 +41,9 @@ export class RunsQueryDto extends PageQueryDto {
 
 export class RunMembersQueryDto extends PageQueryDto {}
 
+/** Pagination de MON historique de commissions (portail affilié). */
+export class MyCommissionsQueryDto extends PageQueryDto {}
+
 /**
  * Relance de secours (§7.2.7). On demande la CLÔTURE de la période, pas « la dernière semaine » :
  * un rattrapage vise une semaine précise, et la laisser deviner par le serveur ferait dépendre

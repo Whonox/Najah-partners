@@ -26,6 +26,7 @@ import {
 } from './ecards.errors';
 import {
   ConsumedEcards,
+  CreatedEcardView,
   EcardVerification,
   EcardView,
   ExpirationSweepResult,
@@ -94,7 +95,10 @@ export class EcardsService {
    * ensuite rattachée à l'e-card (`ecardId`) — impossible à faire en une passe, l'identifiant
    * de la carte n'existant pas encore.
    */
-  async create(input: { creatorId: number; valueDt: Money }): Promise<EcardView> {
+  async create(input: {
+    creatorId: number;
+    valueDt: Money;
+  }): Promise<CreatedEcardView> {
     const expiresAt = await this.computeExpiresAt();
 
     // Une collision de code fait échouer l'INSERT, ce qui AVORTE la transaction Postgres :
@@ -125,7 +129,9 @@ export class EcardsService {
               data: { ecardId: ecard.id },
             });
 
-            return this.toView(ecard);
+            // Le code est rendu ICI, et ICI SEULEMENT (D-048) : le créateur ne pourra plus
+            // jamais le relire. C'est ce qui rend le masquage réel plutôt que cosmétique.
+            return this.toCreatedView(ecard);
           },
           { timeout: TX_TIMEOUT_MS },
         );
@@ -461,7 +467,7 @@ export class EcardsService {
     valueDt: Money;
     expirationDays?: number;
     reason?: string;
-  }): Promise<EcardView> {
+  }): Promise<CreatedEcardView> {
     // Durée saisie par l'admin : erreur d'UTILISATEUR (400), à distinguer d'un paramètre
     // système corrompu (500) — d'où deux exceptions distinctes.
     const days = input.expirationDays;
@@ -505,7 +511,7 @@ export class EcardsService {
               },
             });
 
-            return this.toView(ecard);
+            return this.toCreatedView(ecard);
           },
           { timeout: TX_TIMEOUT_MS },
         );
@@ -681,7 +687,6 @@ export class EcardsService {
   private toView(ecard: Ecard): EcardView {
     return {
       id: ecard.id,
-      code: ecard.code,
       valueDt: moneyToApi(ecard.valueDt),
       status: ecard.status,
       origin: ecard.origin,
@@ -690,5 +695,10 @@ export class EcardsService {
       expiresAt: ecard.expiresAt,
       closedAt: ecard.closedAt,
     };
+  }
+
+  /** Vue de création : la vue ordinaire PLUS le code, rendu une seule fois (D-048). */
+  private toCreatedView(ecard: Ecard): CreatedEcardView {
+    return { ...this.toView(ecard), code: ecard.code };
   }
 }

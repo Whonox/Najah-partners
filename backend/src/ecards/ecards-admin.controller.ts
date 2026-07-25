@@ -26,7 +26,6 @@ import { GenesisEcardDto } from './dto/genesis-ecard.dto';
 import { RevokeEcardDto } from './dto/revoke-ecard.dto';
 import { EcardsAdminService } from './ecards-admin.service';
 import { EcardsService } from './ecards.service';
-import type { EcardView } from './ecards.types';
 
 /**
  * Surface admin des e-cards. RBAC aligné sur D-017b : l'action la plus sensible — CRÉER de
@@ -114,13 +113,11 @@ export class EcardsAdminController {
     @Body() dto: RevokeEcardDto,
     @CurrentUser() admin: AuthenticatedActor,
   ): Promise<EcardAdminActionDto> {
-    return withoutCode(
-      await this.ecards.revoke({
-        ecardId: id,
-        adminId: admin.id,
-        reason: dto?.reason,
-      }),
-    );
+    return this.ecards.revoke({
+      ecardId: id,
+      adminId: admin.id,
+      reason: dto?.reason,
+    });
   }
 
   @Post(':id/extend')
@@ -135,27 +132,12 @@ export class EcardsAdminController {
     @Body() dto: ExtendEcardDto,
     @CurrentUser() admin: AuthenticatedActor,
   ): Promise<EcardAdminActionDto> {
-    return withoutCode(
-      await this.ecards.extend({
-        ecardId: id,
-        days: dto.days,
-        actorMemberId: null, // admin : aucun contrôle de propriété
-        actorAdminId: admin.id,
-      }),
-    );
+    return this.ecards.extend({
+      ecardId: id,
+      days: dto.days,
+      actorMemberId: null, // admin : aucun contrôle de propriété
+      actorAdminId: admin.id,
+    });
   }
 }
 
-/**
- * Retire le `code` de la vue renvoyée par `EcardsService`.
- *
- * Les services de domaine rendent une `EcardView` qui PORTE le code — c'est légitime côté
- * portail (un membre a besoin du code de sa propre carte). Côté admin, le laisser passer aurait
- * suffi à le faire circuler dans la réponse HTTP d'une simple révocation. La destructuration
- * nommée le rend explicite : si `EcardView` gagne un jour un champ sensible, il faudra repasser
- * ici — et le compilateur y forcera, puisque le retour est typé sur le DTO sans code.
- */
-function withoutCode(view: EcardView): EcardAdminActionDto {
-  const { code: _code, ...rest } = view;
-  return rest;
-}

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { RegisterMemberDto } from './dto/register-member.dto';
 import { IdentityDocumentService } from './identity-document.service';
 import { InvalidIdDocumentError } from './members.errors';
@@ -60,10 +60,38 @@ export class MembersFacade {
     }
   }
 
-  /** Sous-arbre imbriqué : une seule requête récursive, assemblage en mémoire. */
-  async tree(memberId: number, depth?: number): Promise<TreeNode | null> {
+  /**
+   * Sous-arbre imbriqué : une seule requête récursive, assemblage en mémoire.
+   *
+   * `rootMemberId` RECENTRE l'affichage sur un downline (T9, spec §7.1.5) — c'est ce qui
+   * permet de descendre de proche en proche sans jamais charger l'arbre entier : chaque
+   * descente est une nouvelle requête BORNÉE, et non un dépliage qui s'accumule.
+   *
+   * Il est vérifié qu'il appartient bien au sous-arbre de l'appelant. Sans ce contrôle, la
+   * route deviendrait « l'arbre de n'importe qui » : il suffirait de changer un nombre dans
+   * l'URL pour lire le réseau d'un inconnu. `isSponsorOnPathOf(a, b)` répond exactement à la
+   * question posée — « a est-il sur le chemin de PLACEMENT de b, ou b lui-même ? » —, en
+   * REMONTANT depuis le candidat (chemin court) plutôt qu'en descendant depuis la racine
+   * (sous-arbre potentiellement énorme).
+   */
+  async tree(
+    memberId: number,
+    depth?: number,
+    rootMemberId?: number,
+  ): Promise<TreeNode | null> {
+    const root = rootMemberId ?? memberId;
+
+    if (root !== memberId) {
+      const inMySubtree = await this.placement.isSponsorOnPathOf(memberId, root);
+      if (!inMySubtree) {
+        throw new ForbiddenException(
+          'Ce membre n’appartient pas à votre réseau.',
+        );
+      }
+    }
+
     const rows = await this.placement.descendants(
-      memberId,
+      root,
       depth ?? DEFAULT_TREE_DEPTH,
     );
     return buildTree(rows);

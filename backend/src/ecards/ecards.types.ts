@@ -4,12 +4,19 @@ import { Money } from '../common/money';
 /**
  * Vue d'une e-card renvoyée au membre (spec §7.1.3 : valeur, statut, dates).
  *
+ * ═══ CE TYPE NE PORTE PAS DE CHAMP `code`, ET C'EST STRUCTUREL (D-048) ═══
+ * Un code d'e-card est de la VALEUR AU PORTEUR : le connaître suffit à la dépenser. Il n'est
+ * donc restitué qu'UNE FOIS, à l'instant de la création, par `CreatedEcardView` — jamais par
+ * une liste, une prolongation ou une révocation, qui sont rejouables à volonté. Le masquer
+ * côté front n'aurait rien protégé : il aurait circulé en clair dans la réponse HTTP, dans le
+ * cache du navigateur et dans les journaux du reverse-proxy. Même geste que `EcardAdminRowDto`
+ * côté admin (D-045) : l'oubli devient impossible à COMPILER, pas seulement déconseillé.
+ *
  * `valueDt` est une CHAÎNE à 3 décimales (`"2200.000"`) et non un `number` : JSON n'a que des
  * flottants, et un montant qui traverse un `double` peut revenir faux au millime près.
  */
 export interface EcardView {
   id: number;
-  code: string;
   valueDt: string;
   status: EcardStatus;
   origin: EcardOrigin;
@@ -17,6 +24,19 @@ export interface EcardView {
   usedAt: Date | null;
   expiresAt: Date | null;
   closedAt: Date | null;
+}
+
+/**
+ * La SEULE vue qui porte le code en clair : celle rendue à qui vient de créer la carte
+ * (membre — `create`) ou de la faire naître ex nihilo (SUPER_ADMIN — `genesis`).
+ *
+ * Pourquoi une seule fois : il n'existe aucun canal de transmission (pas d'e-mail, D-011). Sans
+ * cette réponse, on fabriquerait une carte que personne ne pourrait jamais dépenser. Passé cet
+ * instant, le code n'est plus consultable nulle part — c'est au porteur de le conserver, comme
+ * un billet.
+ */
+export interface CreatedEcardView extends EcardView {
+  code: string;
 }
 
 /**

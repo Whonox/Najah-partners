@@ -9,6 +9,8 @@ import { MemberCodeService } from './member-code.service';
 import { MembersAdminController } from './members-admin.controller';
 import { MembersAdminService } from './members-admin.service';
 import { MembersController } from './members.controller';
+import { MembersPortalController } from './members-portal.controller';
+import { MembersPortalService } from './members-portal.service';
 import { MembersFacade } from './members.facade';
 import { MembersService } from './members.service';
 import { MembershipFeeService } from './membership-fee.service';
@@ -34,6 +36,7 @@ import { RenewalsAdminController } from './renewals-admin.controller';
   imports: [LedgerModule, CommissionsModule, EcardsModule],
   controllers: [
     MembersController,
+    MembersPortalController,
     MembersAdminController,
     RenewalsAdminController,
   ],
@@ -52,6 +55,9 @@ import { RenewalsAdminController } from './renewals-admin.controller';
     // Verdict de vérification d'identité (T8c) : n'écrit que des colonnes documentaires — la
     // vérification reste NON BLOQUANTE (D-018).
     IdentityVerificationService,
+    // Surface AFFILIÉ (T9) : lecture de MON espace, plus profil et mot de passe. Ne participe
+    // à aucune transaction métier — le portail affiche et déclenche, il ne calcule rien.
+    MembersPortalService,
   ],
   exports: [
     MembersService,

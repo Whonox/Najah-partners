@@ -17,4 +17,17 @@ export class TreeQueryDto {
   @Min(1)
   @Max(MAX_TREE_DEPTH)
   depth?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'RECENTRER l’affichage sur ce membre au lieu de moi. Il doit appartenir à MON sous-arbre ' +
+      '— sinon 403. C’est ce qui permet de descendre de proche en proche sans jamais charger ' +
+      'l’arbre entier : chaque descente est une nouvelle requête BORNÉE, pas un dépliage qui ' +
+      's’accumule. Omis : la racine est le membre connecté.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  rootMemberId?: number;
 }

@@ -14,8 +14,9 @@ import {
  * côté front n'aurait rien protégé — il aurait circulé en clair dans la réponse HTTP, dans le
  * cache du navigateur, dans les outils de développement et dans les journaux du reverse-proxy.
  * Il est donc absent du CONTRAT : l'API admin ne le renvoie jamais, quelle que soit la route.
- * `EcardView` (portail affilié) le porte, lui, parce qu'un membre a besoin du code de SA carte —
- * d'où deux DTO distincts plutôt qu'un champ optionnel qu'on oublierait de retirer un jour.
+ * Depuis D-048, la surface AFFILIÉ suit exactement la même règle : `EcardView` ne porte pas de
+ * code non plus, et seule la réponse de CRÉATION (`CreatedEcardView`, rendue une fois) en
+ * expose un. Deux types distincts plutôt qu'un champ optionnel qu'on oublierait de retirer.
  *
  * La recherche PAR code reste possible (l'admin le saisit) : on cherche une correspondance
  * exacte et on renvoie la carte SANS son code. Chercher n'est pas restituer.

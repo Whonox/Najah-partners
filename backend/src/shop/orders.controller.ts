@@ -1,9 +1,10 @@
 import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ActorType } from '@prisma/client';
 import type { AuthenticatedActor } from '../auth/auth.types';
 import { RequireActor } from '../auth/decorators/actor-type.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { OrderPageResponseDto, OrderResponseDto } from './dto/order-response.dto';
 import { OrdersQueryDto } from './dto/orders-query.dto';
 import { OrdersService } from './orders.service';
 
@@ -16,6 +17,7 @@ export class OrdersController {
 
   @Get()
   @ApiOperation({ summary: 'Mes commandes (plus récentes d’abord).' })
+  @ApiOkResponse({ type: OrderPageResponseDto })
   mine(
     @Query() query: OrdersQueryDto,
     @CurrentUser() actor: AuthenticatedActor,
@@ -27,6 +29,7 @@ export class OrdersController {
   @ApiOperation({
     summary: 'Détail d’une de MES commandes (lignes + snapshots).',
   })
+  @ApiOkResponse({ type: OrderResponseDto })
   one(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() actor: AuthenticatedActor,

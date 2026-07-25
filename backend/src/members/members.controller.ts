@@ -8,7 +8,14 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiConsumes,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { ActorType } from '@prisma/client';
 import { memoryStorage } from 'multer';
@@ -16,7 +23,9 @@ import type { AuthenticatedActor } from '../auth/auth.types';
 import { RequireActor } from '../auth/decorators/actor-type.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
+import { MembershipPaymentResponseDto } from './dto/renewal-response.dto';
 import { PayRenewalDto } from './dto/pay-renewal.dto';
+import { TreeNodeDto } from './dto/tree-response.dto';
 import { RegisterMemberDto } from './dto/register-member.dto';
 import { TreeQueryDto } from './dto/tree-query.dto';
 import { MAX_ID_DOCUMENT_BYTES } from './identity-document.service';
@@ -89,9 +98,16 @@ export class MembersController {
 
   @Get('me/tree')
   @RequireActor(ActorType.MEMBER)
-  @ApiOperation({ summary: 'Sous-arbre binaire du membre connecté (spec §7.1.5).' })
+  @ApiOperation({
+    summary: 'Sous-arbre binaire du membre connecté (spec §7.1.5).',
+    description:
+      'BORNÉ en profondeur. `rootMemberId` recentre sur un downline — il doit appartenir à MON ' +
+      'sous-arbre, sinon 403 : sans ce contrôle, changer un nombre dans l’URL donnerait accès ' +
+      'au réseau d’un inconnu.',
+  })
+  @ApiOkResponse({ type: TreeNodeDto })
   tree(@CurrentUser() actor: AuthenticatedActor, @Query() query: TreeQueryDto) {
-    return this.facade.tree(actor.id, query.depth);
+    return this.facade.tree(actor.id, query.depth, query.rootMemberId);
   }
 
   @Post('me/renewal')
@@ -103,6 +119,7 @@ export class MembersController {
       'RÉACTIVE PAS : il crée une demande en attente de validation par l’administration ' +
       '(D-038). Un membre gelé le reste, et ne perçoit toujours rien, jusqu’à cette validation.',
   })
+  @ApiCreatedResponse({ type: MembershipPaymentResponseDto })
   payRenewal(
     @CurrentUser() actor: AuthenticatedActor,
     @Body() dto: PayRenewalDto,
@@ -118,6 +135,7 @@ export class MembersController {
   @ApiOperation({
     summary: 'Mes renouvellements annuels : montant, date, état de la validation.',
   })
+  @ApiOkResponse({ type: MembershipPaymentResponseDto, isArray: true })
   myRenewals(@CurrentUser() actor: AuthenticatedActor) {
     return this.renewals.listForMember(actor.id);
   }

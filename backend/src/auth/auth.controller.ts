@@ -26,6 +26,7 @@ import {
   AdminLoginResponseDto,
   AdminProfileResponseDto,
   AuthenticatedActorDto,
+  MemberLoginResponseDto,
   SuccessResponseDto,
 } from './dto/auth-response.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -53,17 +54,29 @@ export class AuthController {
   @Post('member/login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Connexion affilié (email / téléphone / code membre)' })
+  @ApiOkResponse({ type: MemberLoginResponseDto })
   async memberLogin(
     @Body() dto: MemberLoginDto,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
-  ) {
+  ): Promise<MemberLoginResponseDto> {
     const { member, ...actor } = await this.authService.validateMember(
       dto.identifier,
       dto.password,
     );
     const accessToken = await this.issueSession(actor, req, res);
-    return { accessToken, member };
+    // Projection explicite : la réponse ne porte que l'identité, jamais l'état financier
+    // du compte (voir MemberSummaryDto). Le portail lit le reste sous token.
+    return {
+      accessToken,
+      member: {
+        id: member.id,
+        memberCode: member.memberCode,
+        firstName: member.firstName,
+        lastName: member.lastName,
+        status: member.status,
+      },
+    };
   }
 
   @Public()
@@ -129,6 +142,7 @@ export class AuthController {
   @Post('member/password/forgot')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Demande de réinitialisation (réponse toujours neutre)' })
+  @ApiOkResponse({ type: SuccessResponseDto })
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     await this.passwordReset.requestReset(dto.identifier);
     return { success: true };
@@ -139,6 +153,7 @@ export class AuthController {
   @Post('member/password/reset')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Applique un nouveau mot de passe via token usage unique' })
+  @ApiOkResponse({ type: SuccessResponseDto })
   async resetPassword(@Body() dto: ResetPasswordDto) {
     await this.passwordReset.resetPassword(dto.token, dto.newPassword);
     return { success: true };

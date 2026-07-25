@@ -1,122 +1,40 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useState } from "react"
+import { QueryClientProvider } from "@tanstack/react-query"
+import { BrowserRouter } from "react-router"
+import { createQueryClient } from "@/api/query-client"
+import { AuthProvider } from "@/auth/auth-provider"
+import { Toaster } from "@/components/ui/sonner"
+import { I18nProvider } from "@/i18n/i18n-provider"
+import { AppRoutes } from "@/routes/app-routes"
+import { ThemeProvider } from "@/theme/theme-provider"
 
-function App() {
-  const [count, setCount] = useState(0)
+/**
+ * Ordre des fournisseurs, et pourquoi :
+ *   QueryClient  → AuthProvider s'en sert pour vider le cache à la déconnexion ;
+ *   Theme        → le Toaster et toute l'interface lisent le mode courant ;
+ *   I18n         → pose `lang`/`dir` sur <html> (prêt pour l'arabe/RTL) ;
+ *   BrowserRouter→ AuthProvider et les gardes de route naviguent ;
+ *   Auth         → dernière barrière avant les écrans.
+ */
+export default function App() {
+  // Instance unique, créée au premier rendu (et pas à chaque rendu, ce qui viderait le cache).
+  const [queryClient] = useState(createQueryClient)
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <I18nProvider locale="fr">
+          <BrowserRouter>
+            <AuthProvider>
+              <AppRoutes />
+              {/* En HAUT sur le portail : la barre d'onglets occupe le bas de l'écran sur
+                  téléphone, et un toast posé dessous serait masqué par elle au moment précis
+                  où il compte (« code copié », « paiement enregistré »). */}
+              <Toaster position="top-center" />
+            </AuthProvider>
+          </BrowserRouter>
+        </I18nProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   )
 }
-
-export default App

@@ -2,10 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, RunStatus } from '@prisma/client';
 import { ZERO_DT, money, moneyToApi } from '../common/money';
 import { PrismaService } from '../prisma/prisma.service';
+import { CommissionExplainService } from './commission-explain.service';
 import {
   PendingEventsDto,
   RunDetailDto,
-  RunEventDto,
   RunMemberEventsDto,
   RunMemberPageDto,
   RunMemberRefDto,
@@ -14,7 +14,6 @@ import {
 } from './dto/commissions-response.dto';
 import { RunMembersQueryDto, RunsQueryDto } from './dto/runs-query.dto';
 import { latestClosedPeriod, nextClosingAt } from './period';
-import { SettleableEvent, settleWeek } from './settlement';
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -33,16 +32,16 @@ const MEMBER_REF_SELECT = {
  *
  * UNE exception assumée à la règle « on ne recalcule rien » : la ventilation PAR ÉVÉNEMENT
  * (combien cet événement a-t-il réellement payé, combien a-t-il perdu au plafond) n'est pas
- * stockée — `Commission` n'en garde que l'agrégat. Elle est donc rejouée par `settleWeek`,
- * c'est-à-dire par LA fonction qu'a exécutée le run, sur les MÊMES entrées (les événements
- * réclamés par ce run, et le plafond figé dans `Commission.appliedCapDt`). Le résultat est donc
- * l'explication exacte du versement, et non une reconstitution approchée. Écrire ici une
- * seconde logique de plafond aurait garanti qu'un jour l'écran explique autre chose que ce qui
- * a été payé.
+ * stockée — `Commission` n'en garde que l'agrégat. Elle est donc REJOUÉE, et elle l'est dans
+ * `CommissionExplainService` (D-047), que ce service et le portail affilié partagent : une
+ * seule implémentation, donc une seule explication d'un même versement.
  */
 @Injectable()
 export class CommissionsAdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly explain: CommissionExplainService,
+  ) {}
 
   async listRuns(query: RunsQueryDto = {}): Promise<RunPageDto> {
     const page = query.page ?? 1;
@@ -177,86 +176,15 @@ export class CommissionsAdminService {
 
   /**
    * La chronologie d'un membre sur un run : l'écran qui répond à « pourquoi ai-je touché ce
-   * montant ? ». L'ordre est celui de l'application du plafond, `(occurredAt, id)` — le même
-   * qu'a suivi le run (D-033 : sur une même activation, DIRECT avant BALANCE).
+   * montant ? ».
+   *
+   * DÉLÉGUÉE à `CommissionExplainService` depuis la Tranche 9, parce que le PORTAIL AFFILIÉ
+   * pose la même question sur le même règlement. Deux implémentations auraient fini par donner
+   * deux explications d'un même versement — l'une à l'administration, l'autre au membre qui la
+   * conteste. Il n'y en a donc qu'une, et c'est elle.
    */
-  async memberEvents(
-    runId: number,
-    memberId: number,
-  ): Promise<RunMemberEventsDto> {
-    const [member, settlement, events] = await Promise.all([
-      this.prisma.member.findUnique({
-        where: { id: memberId },
-        select: MEMBER_REF_SELECT,
-      }),
-      this.prisma.commission.findUnique({
-        where: { memberId_runId: { memberId, runId } },
-      }),
-      this.prisma.commissionEvent.findMany({
-        where: { runId, memberId },
-        include: { sourceMember: { select: MEMBER_REF_SELECT } },
-        orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }],
-      }),
-    ]);
-
-    if (!member) {
-      throw new NotFoundException(`Membre inconnu : ${memberId}`);
-    }
-    if (events.length === 0) {
-      throw new NotFoundException(
-        `Aucun événement de commission pour le membre ${memberId} sur le run ${runId}.`,
-      );
-    }
-
-    // Pas de règlement = tous les événements étaient inéligibles (le run passe le membre) :
-    // le plafond n'a alors jamais eu à s'appliquer, et `settleWeek` le confirme en ne payant
-    // rien. On lui passe donc un plafond nul, qui ne peut pas fabriquer un versement.
-    const capDt = settlement ? money(settlement.appliedCapDt) : ZERO_DT;
-    const settleable: SettleableEvent[] = events.map((event) => ({
-      id: event.id,
-      type: event.type,
-      amountDt: money(event.amountDt),
-      eligible: event.eligible,
-      occurredAt: event.occurredAt,
-    }));
-    const replay = settleWeek(settleable, capDt);
-    const lines = new Map(replay.lines.map((line) => [line.eventId, line]));
-
-    const items: RunEventDto[] = events.map((event) => {
-      const line = lines.get(event.id);
-      const amount = money(event.amountDt);
-      return {
-        id: event.id,
-        type: event.type,
-        amountDt: moneyToApi(amount),
-        occurredAt: event.occurredAt,
-        sourceMember: event.sourceMember,
-        eligible: event.eligible,
-        balanceIndex: event.balanceIndex,
-        cumulativeBeforeDt: moneyToApi(line?.cumulativeBeforeDt ?? ZERO_DT),
-        paidDt: moneyToApi(line?.paidDt ?? ZERO_DT),
-        // « Perdu » ne dit qu'une chose : perdu AU PLAFOND. Un événement inéligible affiche donc
-        // 0 et non son montant — cette somme n'a jamais été due (D-034), et la compter comme
-        // perdue casserait l'égalité « Σ perdu = brut − versé » du run. C'est l'indicateur
-        // `eligible` qui porte l'information, et l'écran l'affiche en clair.
-        lostDt: moneyToApi(line?.lostDt ?? ZERO_DT),
-        crossesCap: line?.crossesCap ?? false,
-        rewardPointGranted: line?.rewardPointGranted ?? false,
-        rewardPointLost: line?.rewardPointLost ?? false,
-      };
-    });
-
-    const gross = money(settlement?.grossDt ?? 0);
-    const paid = money(settlement?.paidDt ?? 0);
-
-    return {
-      member,
-      appliedCapDt: settlement ? moneyToApi(capDt) : null,
-      grossDt: moneyToApi(gross),
-      paidDt: moneyToApi(paid),
-      lostDt: moneyToApi(gross.minus(paid)),
-      events: items,
-    };
+  memberEvents(runId: number, memberId: number): Promise<RunMemberEventsDto> {
+    return this.explain.memberEvents(runId, memberId);
   }
 
   /**

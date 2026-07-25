@@ -6,7 +6,7 @@ import {
   ParseIntPipe,
   Post,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { ActorType } from '@prisma/client';
 import type { AuthenticatedActor } from '../auth/auth.types';
@@ -14,6 +14,11 @@ import { RequireActor } from '../auth/decorators/actor-type.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { money } from '../common/money';
 import { CreateEcardDto } from './dto/create-ecard.dto';
+import {
+  CreatedEcardResponseDto,
+  EcardResponseDto,
+  EcardVerificationResponseDto,
+} from './dto/ecard-response.dto';
 import { ExtendEcardDto } from './dto/extend-ecard.dto';
 import { VerifyEcardDto } from './dto/verify-ecard.dto';
 import { EcardsService } from './ecards.service';
@@ -35,7 +40,11 @@ export class EcardsController {
   @ApiOperation({
     summary:
       'Créer une e-card en DT (valeur ≤ solde disponible ; le solde est débité immédiatement).',
+    description:
+      'La réponse porte le CODE EN CLAIR — c’est la seule et unique fois (D-048). Aucune autre ' +
+      'route ne le restituera jamais : le membre doit le conserver comme un billet.',
   })
+  @ApiCreatedResponse({ type: CreatedEcardResponseDto })
   create(
     @Body() dto: CreateEcardDto,
     @CurrentUser() actor: AuthenticatedActor,
@@ -50,7 +59,10 @@ export class EcardsController {
   @ApiOperation({
     summary:
       'Mes e-cards : valeur, statut, dates de création / utilisation / expiration.',
+    description:
+      'SANS les codes (D-048) : une liste se recharge à volonté, un code ne se révèle qu’une fois.',
   })
+  @ApiOkResponse({ type: EcardResponseDto, isArray: true })
   mine(@CurrentUser() actor: AuthenticatedActor) {
     return this.ecards.listCreatedBy(actor.id);
   }
@@ -62,6 +74,7 @@ export class EcardsController {
   @ApiOperation({
     summary: 'Vérifier un code : validité et valeur, SANS le consommer.',
   })
+  @ApiOkResponse({ type: EcardVerificationResponseDto })
   verify(@Body() dto: VerifyEcardDto) {
     return this.ecards.verify(dto.code);
   }
@@ -71,6 +84,7 @@ export class EcardsController {
     summary:
       'Prolonger l’échéance d’une de MES e-cards ACTIVE (D-026 : le créateur en a le droit — prolonger ne crée aucune valeur, cela retarde son propre remboursement).',
   })
+  @ApiCreatedResponse({ type: EcardResponseDto })
   extend(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: ExtendEcardDto,

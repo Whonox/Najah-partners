@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PacksAdminController } from './packs-admin.controller';
+import { PacksController } from './packs.controller';
 import { PacksService } from './packs.service';
 
 /**
@@ -12,7 +13,7 @@ import { PacksService } from './packs.service';
  * que modifier un pack ne peut rien réécrire.
  */
 @Module({
-  controllers: [PacksAdminController],
+  controllers: [PacksAdminController, PacksController],
   providers: [PacksService],
   exports: [PacksService],
 })

@@ -113,3 +113,52 @@ export class PackResponseDto {
   })
   memberCount!: number;
 }
+
+/**
+ * Un pack tel qu'un AFFILIÉ le voit avant d'acheter (spec §7.1.4a).
+ *
+ * Reprend `PackResponseDto` MOINS `memberCount` : combien de membres ont acheté ce pack est un
+ * indicateur d'exploitation, utile à l'administration, sans objet pour l'acheteur — et c'est
+ * une donnée sur les autres membres, qui n'a pas à sortir sur la surface affilié, même agrégée.
+ * Deux DTO plutôt qu'un champ optionnel qu'on oublierait de retirer un jour.
+ *
+ * `active` n'y figure pas non plus : la route ne rend que des packs actifs, un booléen
+ * toujours vrai n'informe personne.
+ */
+export class PackOfferDto {
+  @ApiProperty() id!: number;
+  @ApiProperty({ example: 'Silver' }) name!: string;
+
+  @ApiProperty({
+    example: 1000,
+    description:
+      'POINTS — le palier. Le panier d’activation devra le totaliser EXACTEMENT (D-006), et c’est ce nombre qui sera injecté dans l’arbre.',
+  })
+  tierBv!: number;
+
+  @ApiProperty({
+    example: '2200.000',
+    description:
+      'DINARS — prix du pack. Le montant RÉELLEMENT dû à l’activation en déduit l’acompte d’inscription déjà versé (D-037).',
+  })
+  priceDt!: string;
+
+  @ApiProperty({
+    example: '500.000',
+    description: 'DINARS — ce que touchera mon parrain quand j’activerai, et ce que je toucherai pour chacun de MES filleuls activés sur leur propre pack.',
+  })
+  directCommissionDt!: string;
+
+  @ApiProperty({
+    example: '250.000',
+    description: 'DINARS — ce que rapporte chacun de mes équilibres.',
+  })
+  indirectCommissionDt!: string;
+
+  @ApiProperty({
+    example: '10000.000',
+    description:
+      'DINARS — plafond HEBDOMADAIRE. Au-delà, l’argent de la semaine est PERDU, jamais reporté (D-033).',
+  })
+  weeklyCapDt!: string;
+}

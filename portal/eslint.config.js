@@ -19,4 +19,12 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // `src/components/ui/` est VENDORISÉ : ces fichiers viennent de la CLI shadcn et sont
+    // réécrits à chaque `shadcn add`. Plusieurs exportent une variante CVA à côté de leur
+    // composant (`buttonVariants`, `badgeVariants`), ce que la règle de rafraîchissement
+    // rapide interdit. Les corriger serait perdu à la prochaine mise à jour.
+    files: ['src/components/ui/**/*.tsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
 ])

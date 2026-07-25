@@ -2,7 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { Pack, Prisma } from '@prisma/client';
 import { money, moneyToApi, type Money } from '../common/money';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreatePackDto, PackResponseDto, UpdatePackDto } from './dto/pack.dto';
+import {
+  CreatePackDto,
+  PackOfferDto,
+  PackResponseDto,
+  UpdatePackDto,
+} from './dto/pack.dto';
 import {
   PackNameTakenError,
   PackNotFoundError,
@@ -44,6 +49,26 @@ export class PacksService {
       orderBy: [{ tierBv: 'asc' }, { id: 'asc' }],
     });
     return packs.map((pack) => this.toView(pack));
+  }
+
+  /**
+   * L'offre vue par un AFFILIÉ (T9) : packs ACTIFS seulement, sans le compteur de membres.
+   * Proposer un pack désactivé serait proposer un achat que l'activation refuserait ensuite.
+   */
+  async listOffers(): Promise<PackOfferDto[]> {
+    const packs = await this.prisma.pack.findMany({
+      where: { active: true },
+      orderBy: [{ tierBv: 'asc' }, { id: 'asc' }],
+    });
+    return packs.map((pack) => ({
+      id: pack.id,
+      name: pack.name,
+      tierBv: pack.tierBv,
+      priceDt: moneyToApi(money(pack.priceDt)),
+      directCommissionDt: moneyToApi(money(pack.directCommissionDt)),
+      indirectCommissionDt: moneyToApi(money(pack.indirectCommissionDt)),
+      weeklyCapDt: moneyToApi(money(pack.weeklyCapDt)),
+    }));
   }
 
   async getOne(id: number): Promise<PackResponseDto> {
