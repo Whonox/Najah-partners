@@ -106,7 +106,10 @@ export class MembersPortalService {
       // Le pack RENDU est le SNAPSHOT d'activation, jamais le pack vivant (§5.8) : c'est lui
       // que le moteur applique. Afficher les valeurs courantes ferait promettre à l'écran un
       // plafond ou une commission que ce membre n'aura jamais.
-      pack: this.readSnapshot(member.activationSnapshot, member.activationTierBv),
+      pack: this.readSnapshot(
+        member.activationSnapshot,
+        member.activationTierBv,
+      ),
       sponsor: member.sponsor,
       upline: member.upline,
       leg: member.leg,
@@ -119,6 +122,10 @@ export class MembersPortalService {
         decidedAt: member.verificationAt,
       },
       renewal: await this.renewalState(memberId, member.renewalAt),
+      // Le portail décide sur CETTE valeur s'il ouvre l'espace membre ou le parcours d'accueil
+      // (D-050). Elle est LUE, jamais déduite des trois étapes : c'est la même colonne que le
+      // garde serveur applique, donc l'écran et l'API ne peuvent pas diverger.
+      onboardingCompleted: member.onboardingCompletedAt !== null,
     };
   }
 
@@ -164,7 +171,10 @@ export class MembersPortalService {
 
     const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
     await this.prisma.$transaction(async (tx) => {
-      await tx.member.update({ where: { id: memberId }, data: { passwordHash } });
+      await tx.member.update({
+        where: { id: memberId },
+        data: { passwordHash },
+      });
       await tx.refreshToken.updateMany({
         where: { memberId, revokedAt: null },
         data: { revokedAt: new Date() },

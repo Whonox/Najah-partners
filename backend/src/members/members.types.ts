@@ -17,8 +17,14 @@ import { Money } from '../common/money';
  */
 export interface StoredIdDocument {
   type: IdDocumentType;
-  relativePath: string;
   number: string;
+  /**
+   * Chemin du fichier déposé. OPTIONNEL depuis D-050/D-060 : à l'inscription, seuls le type
+   * et le numéro sont saisis — l'IMAGE se dépose à la première connexion, sous identité
+   * connue. Reste renseignable par les appelants internes (seed, tests) qui fournissent le
+   * fichier d'un bloc.
+   */
+  relativePath?: string;
 }
 
 /** Entrée d'inscription (le contrôleur a déjà validé le DTO et stocké le fichier). */

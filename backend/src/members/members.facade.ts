@@ -1,7 +1,6 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { RegisterMemberDto } from './dto/register-member.dto';
 import { IdentityDocumentService } from './identity-document.service';
-import { InvalidIdDocumentError } from './members.errors';
 import { MembersService } from './members.service';
 import { RegisteredMember, TreeNode } from './members.types';
 import { DEFAULT_TREE_DEPTH, PlacementService } from './placement.service';
@@ -21,19 +20,44 @@ export class MembersFacade {
   ) {}
 
   /**
-   * Le fichier est écrit AVANT la transaction (l'inscription a besoin de son chemin) ; si
-   * l'inscription échoue — position prise, contact déjà utilisé, paiement refusé, course
-   * perdue —, le fichier est supprimé. Il n'existe donc jamais de membre sans son document,
-   * ni de document sans son membre.
+   * ═══ L'IMAGE DE LA PIÈCE N'EST PLUS EXIGÉE ICI (D-050, D-060) ═══
+   * Le TYPE et le NUMÉRO restent saisis au formulaire (D-039) ; l'IMAGE se dépose à la
+   * première connexion, dans le parcours d'accueil bloquant. Trois raisons :
+   *  - cet endpoint est PUBLIC et ANONYME (D-021) : il n'a pas à recevoir un binaire de 5 Mo
+   *    d'un inconnu, ni à en écrire un sur disque avant toute authentification ;
+   *  - c'était l'étape la plus coûteuse d'un formulaire rempli au téléphone, donc celle où
+   *    l'inscription s'abandonnait ;
+   *  - déposé sous identité connue, le fichier devient traçable et le dépôt réessayable.
+   *
+   * L'invariant de la Tranche 4 (« jamais de membre sans son document ») est délibérément
+   * remplacé par « jamais de membre DANS LE PORTAIL sans son document » : le parcours
+   * d'accueil est bloquant (D-057), le membre ne peut donc pas différer indéfiniment — il ne
+   * peut simplement plus le faire avant d'exister.
+   *
+   * Le fichier reste accepté s'il est fourni (compatibilité d'appelants, tests, seed) : il est
+   * alors écrit AVANT la transaction, et supprimé si l'inscription échoue — position prise,
+   * contact déjà utilisé, paiement refusé, course perdue.
    */
   async register(
     dto: RegisterMemberDto,
     file?: Express.Multer.File,
   ): Promise<RegisteredMember> {
     if (!file) {
-      throw new InvalidIdDocumentError(
-        'une image de la pièce d’identité est requise à l’inscription (D-018).',
-      );
+      return this.members.register({
+        lastName: dto.lastName,
+        firstName: dto.firstName,
+        email: dto.email,
+        phone: dto.phone,
+        password: dto.password,
+        sponsorCode: dto.sponsorCode,
+        uplineCode: dto.uplineCode,
+        leg: dto.leg,
+        ecardCodes: dto.ecardCodes,
+        idDocument: {
+          type: dto.idDocumentType,
+          number: dto.idDocumentNumber.trim(),
+        },
+      });
     }
 
     const stored = await this.documents.store(file);
@@ -82,7 +106,10 @@ export class MembersFacade {
     const root = rootMemberId ?? memberId;
 
     if (root !== memberId) {
-      const inMySubtree = await this.placement.isSponsorOnPathOf(memberId, root);
+      const inMySubtree = await this.placement.isSponsorOnPathOf(
+        memberId,
+        root,
+      );
       if (!inMySubtree) {
         throw new ForbiddenException(
           'Ce membre n’appartient pas à votre réseau.',

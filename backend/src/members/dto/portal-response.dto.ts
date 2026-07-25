@@ -33,7 +33,10 @@ export class MemberLinkDto {
  */
 export class MemberPackSnapshotDto {
   @ApiProperty({ example: 'Silver' }) packName!: string;
-  @ApiProperty({ example: 1000, description: 'POINTS — le palier, injecté entier dans l’arbre.' })
+  @ApiProperty({
+    example: 1000,
+    description: 'POINTS — le palier, injecté entier dans l’arbre.',
+  })
   tierBv!: number;
 
   // ─────────────────────────────────────────────────────────────────────────────────────
@@ -51,7 +54,8 @@ export class MemberPackSnapshotDto {
   @ApiPropertyOptional({
     nullable: true,
     example: '2200.000',
-    description: 'DINARS — prix du pack. `null` pour une activation antérieure à D-028.',
+    description:
+      'DINARS — prix du pack. `null` pour une activation antérieure à D-028.',
   })
   priceDt!: string | null;
 
@@ -83,7 +87,10 @@ export class MemberVerificationDto {
   @ApiProperty({ enum: VerificationStatus }) status!: VerificationStatus;
   @ApiPropertyOptional({ nullable: true, enum: IdDocumentType })
   documentType!: IdDocumentType | null;
-  @ApiPropertyOptional({ nullable: true, description: 'Numéro saisi à l’inscription (D-039).' })
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Numéro saisi à l’inscription (D-039).',
+  })
   documentNumber!: string | null;
   @ApiPropertyOptional({
     nullable: true,
@@ -97,7 +104,8 @@ export class MemberVerificationDto {
 export class MemberRenewalStateDto {
   @ApiPropertyOptional({
     nullable: true,
-    description: 'Échéance courante. `null` tant que le membre n’a jamais été activé.',
+    description:
+      'Échéance courante. `null` tant que le membre n’a jamais été activé.',
   })
   renewalAt!: Date | null;
 
@@ -119,7 +127,11 @@ export class MemberRenewalStateDto {
   })
   lastPaymentStatus!: MembershipPaymentStatus | null;
 
-  @ApiPropertyOptional({ nullable: true, example: '100.000', description: 'DINARS — montant figé au paiement.' })
+  @ApiPropertyOptional({
+    nullable: true,
+    example: '100.000',
+    description: 'DINARS — montant figé au paiement.',
+  })
   lastPaymentAmountDt!: string | null;
 
   @ApiPropertyOptional({ nullable: true }) lastPaymentAt!: Date | null;
@@ -141,7 +153,8 @@ export class MemberProfileDto {
 
   @ApiPropertyOptional({
     nullable: true,
-    description: 'IDENTIFIANT DE CONNEXION — non modifiable par le membre (D-049), comme l’e-mail.',
+    description:
+      'IDENTIFIANT DE CONNEXION — non modifiable par le membre (D-049), comme l’e-mail.',
   })
   phone!: string | null;
 
@@ -178,7 +191,11 @@ export class MemberProfileDto {
   })
   upline!: MemberLinkDto | null;
 
-  @ApiPropertyOptional({ nullable: true, enum: Leg, description: 'Ma jambe sous mon upline de placement.' })
+  @ApiPropertyOptional({
+    nullable: true,
+    enum: Leg,
+    description: 'Ma jambe sous mon upline de placement.',
+  })
   leg!: Leg | null;
 
   @ApiProperty({
@@ -193,23 +210,43 @@ export class MemberProfileDto {
 
   @ApiProperty({ type: MemberRenewalStateDto })
   renewal!: MemberRenewalStateDto;
+
+  @ApiProperty({
+    description:
+      'Parcours de première connexion terminé (D-050). C’est la SEULE information dont le ' +
+      'portail a besoin au démarrage pour décider s’il ouvre l’espace membre ou le parcours ' +
+      'd’accueil — d’où sa présence ici plutôt qu’un second appel. À `false`, toutes les ' +
+      'autres routes membre répondent 403 `ONBOARDING_REQUIRED` (D-057). ' +
+      'À NE PAS CONFONDRE avec `verification`, qui elle ne bloque RIEN (D-018).',
+  })
+  onboardingCompleted!: boolean;
 }
 
 /** Le dernier run qui m'a réglé quelque chose. */
 export class MemberLastRunDto {
   @ApiProperty() runId!: number;
-  @ApiProperty({ description: 'Clôture de la semaine du moteur (vendredi 23:59 Tunis).' })
+  @ApiProperty({
+    description: 'Clôture de la semaine du moteur (vendredi 23:59 Tunis).',
+  })
   periodEnd!: Date;
-  @ApiProperty({ example: '750.000', description: 'DINARS — dû brut de la semaine.' })
+  @ApiProperty({
+    example: '750.000',
+    description: 'DINARS — dû brut de la semaine.',
+  })
   grossDt!: string;
-  @ApiProperty({ example: '750.000', description: 'DINARS — réellement versé.' })
+  @ApiProperty({
+    example: '750.000',
+    description: 'DINARS — réellement versé.',
+  })
   paidDt!: string;
   @ApiProperty({
     example: '0.000',
     description: 'DINARS — PERDU au plafond (jamais reporté, D-033).',
   })
   lostDt!: string;
-  @ApiProperty({ description: 'Points Fidélité obtenus sur ce run (3ᵉ unité — D-032).' })
+  @ApiProperty({
+    description: 'Points Fidélité obtenus sur ce run (3ᵉ unité — D-032).',
+  })
   rewardPointsGranted!: number;
 }
 
@@ -220,12 +257,16 @@ export class MemberLastRunDto {
  */
 export class MemberDashboardDto {
   // ── L'argent (DINARS) ──
-  @ApiProperty({ example: '1250.500', description: 'DINARS — mon solde courant.' })
+  @ApiProperty({
+    example: '1250.500',
+    description: 'DINARS — mon solde courant.',
+  })
   balanceDt!: string;
 
   @ApiProperty({
     example: '4300.000',
-    description: 'DINARS — total des commissions RÉELLEMENT PERÇUES depuis toujours (Σ des runs).',
+    description:
+      'DINARS — total des commissions RÉELLEMENT PERÇUES depuis toujours (Σ des runs).',
   })
   lifetimeEarnedDt!: string;
 
@@ -239,16 +280,27 @@ export class MemberDashboardDto {
   })
   pendingGrossDt!: string;
 
-  @ApiProperty({ description: 'Nombre d’événements de commission en attente du prochain run.' })
+  @ApiProperty({
+    description:
+      'Nombre d’événements de commission en attente du prochain run.',
+  })
   pendingEventCount!: number;
 
-  @ApiProperty({ description: 'Clôture du PROCHAIN run (vendredi 23:59, Tunis — D-009).' })
+  @ApiProperty({
+    description: 'Clôture du PROCHAIN run (vendredi 23:59, Tunis — D-009).',
+  })
   nextRunAt!: Date;
 
   // ── L'arbre (POINTS) ──
-  @ApiProperty({ example: 3000, description: 'POINTS — cumul À VIE reçu sur ma jambe GAUCHE.' })
+  @ApiProperty({
+    example: 3000,
+    description: 'POINTS — cumul À VIE reçu sur ma jambe GAUCHE.',
+  })
   leftPoints!: number;
-  @ApiProperty({ example: 2000, description: 'POINTS — cumul À VIE reçu sur ma jambe DROITE.' })
+  @ApiProperty({
+    example: 2000,
+    description: 'POINTS — cumul À VIE reçu sur ma jambe DROITE.',
+  })
   rightPoints!: number;
 
   @ApiProperty({
@@ -257,7 +309,10 @@ export class MemberDashboardDto {
       'POINTS — carry-over GAUCHE : points pas encore appariés, en réserve SANS ÉCHÉANCE. Jamais perdus (à ne pas confondre avec l’argent au-delà du plafond, lui perdu).',
   })
   carriedLeftPoints!: number;
-  @ApiProperty({ example: 0, description: 'POINTS — carry-over DROIT, même règle.' })
+  @ApiProperty({
+    example: 0,
+    description: 'POINTS — carry-over DROIT, même règle.',
+  })
   carriedRightPoints!: number;
 
   @ApiPropertyOptional({
@@ -282,18 +337,24 @@ export class MemberDashboardDto {
   rewardPoints!: number;
 
   @ApiProperty({
-    description: 'Bonus de démarrage déjà consommé — une seule fois à vie (D-031).',
+    description:
+      'Bonus de démarrage déjà consommé — une seule fois à vie (D-031).',
   })
   startupBonusUsed!: boolean;
 
   // ── Le réseau ──
-  @ApiProperty({ description: 'Membres dans mon sous-arbre, tous états confondus.' })
+  @ApiProperty({
+    description: 'Membres dans mon sous-arbre, tous états confondus.',
+  })
   downlineCount!: number;
   @ApiProperty({
-    description: 'Parmi eux, ceux qui ont ACTIVÉ (seuls ceux-là ont injecté des points).',
+    description:
+      'Parmi eux, ceux qui ont ACTIVÉ (seuls ceux-là ont injecté des points).',
   })
   activatedDownlineCount!: number;
-  @ApiProperty({ description: 'Filleuls que j’ai PARRAINÉS (sponsoring ≠ placement).' })
+  @ApiProperty({
+    description: 'Filleuls que j’ai PARRAINÉS (sponsoring ≠ placement).',
+  })
   referralCount!: number;
 
   // ── Mes e-cards ──
@@ -301,13 +362,15 @@ export class MemberDashboardDto {
   activeEcardCount!: number;
   @ApiProperty({
     example: '450.000',
-    description: 'DINARS — valeur totale de mes e-cards actives (argent sorti de mon solde).',
+    description:
+      'DINARS — valeur totale de mes e-cards actives (argent sorti de mon solde).',
   })
   activeEcardValueDt!: string;
 
   // ── Mon état ──
   @ApiProperty({ enum: MemberStatus }) status!: MemberStatus;
-  @ApiPropertyOptional({ nullable: true, example: 'Silver' }) packName!: string | null;
+  @ApiPropertyOptional({ nullable: true, example: 'Silver' }) packName!:
+    string | null;
   @ApiProperty({ type: MemberRenewalStateDto }) renewal!: MemberRenewalStateDto;
   @ApiPropertyOptional({
     nullable: true,
@@ -339,7 +402,8 @@ export class DownlineRowDto {
 
   @ApiProperty({
     enum: Leg,
-    description: 'DE QUEL CÔTÉ DE MOI il se trouve — la jambe par laquelle ses points me sont arrivés.',
+    description:
+      'DE QUEL CÔTÉ DE MOI il se trouve — la jambe par laquelle ses points me sont arrivés.',
   })
   rootLeg!: Leg;
 
@@ -361,14 +425,17 @@ export class DownlineRowDto {
   contributedPoints!: number | null;
 
   @ApiProperty({
-    description: 'Est-ce un de MES filleuls (parrainage direct) ? Distinct de la position dans l’arbre.',
+    description:
+      'Est-ce un de MES filleuls (parrainage direct) ? Distinct de la position dans l’arbre.',
   })
   isDirectReferral!: boolean;
 }
 
 export class DownlinePageDto {
   @ApiProperty({ type: [DownlineRowDto] }) items!: DownlineRowDto[];
-  @ApiProperty({ description: 'Total FILTRÉ (pas la taille du sous-arbre entier).' })
+  @ApiProperty({
+    description: 'Total FILTRÉ (pas la taille du sous-arbre entier).',
+  })
   total!: number;
   @ApiProperty() page!: number;
   @ApiProperty() pageSize!: number;

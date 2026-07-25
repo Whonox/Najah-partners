@@ -15,6 +15,10 @@ import {
   REGISTRATION_FEE_SETTING,
 } from '../members/membership-fee.service';
 import { MembersService } from '../members/members.service';
+import {
+  normalizeSecurityAnswer,
+  type SecurityQuestionKey,
+} from '../members/onboarding/security-questions';
 import { RenewalService } from '../members/renewal.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildNetworkPlan, PlannedMember, summarizePlan } from './network-plan';
@@ -22,6 +26,36 @@ import { buildNetworkPlan, PlannedMember, summarizePlan } from './network-plan';
 const ROOT_CODE = 'NP000963';
 const SEED_PASSWORD = 'ChangeMe123!';
 const ADMIN_EMAIL = 'admin@najah.local';
+
+/**
+ * Parcours de première connexion des comptes d'amorçage (D-050, T9.5).
+ *
+ * ═══ POURQUOI LE SEED DOIT S'EN OCCUPER ═══
+ * Le parcours est BLOQUANT (D-057) : sans cette étape, les 500 comptes d'amorçage seraient
+ * tous enfermés dehors et aucun écran du portail ne serait consultable — le réseau de
+ * développement redeviendrait muet, comme il l'était avant D-056.
+ *
+ * ═══ CE QUE LE SEED NE SIMULE PAS ═══
+ * L'IMAGE de la pièce d'identité. Ces comptes n'en ont jamais eu (le seed n'a jamais fourni de
+ * fichier), et inventer un chemin donnerait une image illisible à la file de vérification de
+ * l'admin. Le parcours est donc marqué terminé SANS passer par `OnboardingService` : ce sont
+ * des comptes de développement antérieurs au parcours, pas des membres qui l'ont suivi.
+ *
+ * ═══ LES DERNIERS COMPTES RESTENT NON ACCUEILLIS ═══
+ * `SEED_NOT_ONBOARDED_TAIL` comptes sont laissés intacts pour que le parcours réel soit
+ * TESTABLE sans créer un membre à la main à chaque fois. Un seed qui n'expose que l'état final
+ * ne permet pas de vérifier le chemin qui y mène.
+ */
+const SEED_PIN = '4827';
+const SEED_NOT_ONBOARDED_TAIL = 5;
+const SEED_SECURITY_ANSWERS: ReadonlyArray<{
+  questionKey: SecurityQuestionKey;
+  answer: string;
+}> = [
+  { questionKey: 'FIRST_SCHOOL', answer: 'Ibn Khaldoun' },
+  { questionKey: 'CHILDHOOD_NICKNAME', answer: 'Momo' },
+  { questionKey: 'FIRST_PET_NAME', answer: 'Bella' },
+];
 
 /** Cadence du journal de progression : un seed de 500 comptes dure des minutes, pas des ms. */
 const PROGRESS_STEP = 50;
@@ -423,9 +457,16 @@ export class SeedService {
     for (const [rank, node] of toActivate.entries()) {
       const pack = packs.get(node.packName!);
       if (!pack) {
-        throw new Error(`Pack inconnu dans le plan d’amorçage : ${node.packName}.`);
+        throw new Error(
+          `Pack inconnu dans le plan d’amorçage : ${node.packName}.`,
+        );
       }
-      await this.activateSeedMember(ids[node.index], pack, adminId, codes[node.index]);
+      await this.activateSeedMember(
+        ids[node.index],
+        pack,
+        adminId,
+        codes[node.index],
+      );
       this.progress('Activations', rank + 1, toActivate.length);
     }
 
@@ -436,6 +477,9 @@ export class SeedService {
     for (const node of toFreeze) {
       await this.renewal.freeze(ids[node.index]);
     }
+
+    // ── 4. Parcours de première connexion (D-050) ──
+    const onboarded = await this.completeSeedOnboarding(ids);
 
     const seconds = Math.round((Date.now() - startedAt) / 1000);
     const packMix = Object.entries(stats.packs)
@@ -452,6 +496,59 @@ export class SeedService {
     this.logger.log(
       `Connexion affilié : code ${ROOT_CODE} (ou ${plan[0].email}), mot de passe ${SEED_PASSWORD}.`,
     );
+    this.logger.log(
+      `Première connexion (D-050) : ${onboarded} comptes accueillis, PIN ${SEED_PIN}, ` +
+        `réponses secrètes « ${SEED_SECURITY_ANSWERS.map((a) => a.answer).join(' / ')} ». ` +
+        `Les ${SEED_NOT_ONBOARDED_TAIL} derniers comptes (${codes[plan.length - SEED_NOT_ONBOARDED_TAIL]} → ` +
+        `${codes[plan.length - 1]}) sont laissés NON accueillis pour tester le parcours.`,
+    );
+  }
+
+  /**
+   * Marque le parcours d'accueil comme terminé pour les comptes d'amorçage — sauf les
+   * derniers, laissés intacts pour que le parcours réel reste testable.
+   *
+   * ═══ POURQUOI UN SEUL HACHAGE POUR TOUS ═══
+   * Le PIN et les trois réponses sont hachés UNE fois et le même hash est réutilisé pour les
+   * ~495 comptes. C'est inacceptable en production — deux membres au même PIN auraient le même
+   * hash, ce que le sel de bcrypt existe précisément pour empêcher — et sans conséquence ici :
+   * ce sont des comptes de développement au secret PUBLIC (il est écrit dans le journal
+   * ci-dessus). Hacher 495 × 4 fois coûterait plusieurs minutes pour protéger un secret que
+   * l'on imprime à l'écran. Le vrai chemin, lui, hache par membre (`OnboardingService`).
+   */
+  private async completeSeedOnboarding(ids: number[]): Promise<number> {
+    const targets = ids.slice(
+      0,
+      Math.max(0, ids.length - SEED_NOT_ONBOARDED_TAIL),
+    );
+    if (targets.length === 0) return 0;
+
+    const rounds = this.bcryptRounds();
+    const pinHash = await bcrypt.hash(SEED_PIN, rounds);
+    const answerHashes = await Promise.all(
+      SEED_SECURITY_ANSWERS.map(async (a) => ({
+        questionKey: a.questionKey,
+        // MÊME normalisation que le service : sinon aucune réponse saisie au portail ne
+        // correspondrait à ce que le seed a écrit, et la seconde auth serait intestable.
+        answerHash: await bcrypt.hash(
+          normalizeSecurityAnswer(a.answer),
+          rounds,
+        ),
+      })),
+    );
+
+    await this.prisma.member.updateMany({
+      where: { id: { in: targets } },
+      data: { pinHash, onboardingCompletedAt: new Date() },
+    });
+    await this.prisma.memberSecurityAnswer.createMany({
+      data: targets.flatMap((memberId) =>
+        answerHashes.map((h) => ({ memberId, ...h })),
+      ),
+      skipDuplicates: true, // relance du seed sur une base déjà amorcée
+    });
+
+    return targets.length;
   }
 
   /**

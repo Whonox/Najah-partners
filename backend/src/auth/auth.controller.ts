@@ -33,11 +33,21 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { MemberLoginDto } from './dto/member-login.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { PasswordResetService } from './password-reset.service';
+import { AllowIncompleteOnboarding } from './decorators/allow-incomplete-onboarding.decorator';
 import { RefreshContext, TokenService } from './token.service';
 
 const REFRESH_COOKIE = 'refresh_token';
 
+/**
+ * L'AUTHENTIFICATION N'EST JAMAIS BLOQUÉE PAR LE PARCOURS D'ACCUEIL (D-050/D-057).
+ *
+ * Se connecter, rafraîchir son jeton, se déconnecter et savoir qui l'on est doivent rester
+ * possibles avant d'avoir déposé sa pièce ou créé son PIN — sinon le membre serait enfermé
+ * dehors : il lui faudrait avoir terminé le parcours pour pouvoir s'authentifier et donc le
+ * commencer. Aucune de ces routes n'expose de surface métier : ni argent, ni arbre, ni achat.
+ */
 @ApiTags('auth')
+@AllowIncompleteOnboarding()
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -53,7 +63,9 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('member/login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Connexion affilié (email / téléphone / code membre)' })
+  @ApiOperation({
+    summary: 'Connexion affilié (email / téléphone / code membre)',
+  })
   @ApiOkResponse({ type: MemberLoginResponseDto })
   async memberLogin(
     @Body() dto: MemberLoginDto,
@@ -100,7 +112,9 @@ export class AuthController {
   @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Émet un nouvel access token à partir du cookie refresh' })
+  @ApiOperation({
+    summary: 'Émet un nouvel access token à partir du cookie refresh',
+  })
   @ApiOkResponse({ type: AccessTokenResponseDto })
   async refresh(
     @Req() req: Request,
@@ -121,12 +135,11 @@ export class AuthController {
   @Public()
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Déconnexion : révoque le refresh et efface le cookie' })
+  @ApiOperation({
+    summary: 'Déconnexion : révoque le refresh et efface le cookie',
+  })
   @ApiOkResponse({ type: SuccessResponseDto })
-  async logout(
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ) {
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const presented = this.readRefreshCookie(req);
     if (presented) {
       await this.tokens.revokeRefreshToken(presented);
@@ -141,7 +154,9 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('member/password/forgot')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Demande de réinitialisation (réponse toujours neutre)' })
+  @ApiOperation({
+    summary: 'Demande de réinitialisation (réponse toujours neutre)',
+  })
   @ApiOkResponse({ type: SuccessResponseDto })
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     await this.passwordReset.requestReset(dto.identifier);
@@ -152,7 +167,9 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('member/password/reset')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Applique un nouveau mot de passe via token usage unique' })
+  @ApiOperation({
+    summary: 'Applique un nouveau mot de passe via token usage unique',
+  })
   @ApiOkResponse({ type: SuccessResponseDto })
   async resetPassword(@Body() dto: ResetPasswordDto) {
     await this.passwordReset.resetPassword(dto.token, dto.newPassword);
@@ -172,7 +189,8 @@ export class AuthController {
   @Roles(AdminRole.SUPER_ADMIN, AdminRole.MANAGER, AdminRole.SUPPORT)
   @Get('admin/me')
   @ApiOperation({
-    summary: 'Profil de l’admin connecté (nom, e-mail, rôle) — en-tête du back-office',
+    summary:
+      'Profil de l’admin connecté (nom, e-mail, rôle) — en-tête du back-office',
   })
   @ApiOkResponse({ type: AdminProfileResponseDto })
   adminMe(@CurrentUser() user: AuthenticatedActor) {
@@ -224,9 +242,7 @@ export class AuthController {
 
   private cookieOptions() {
     const sameSite = this.config.get<string>('COOKIE_SAMESITE', 'lax') as
-      | 'lax'
-      | 'strict'
-      | 'none';
+      'lax' | 'strict' | 'none';
     return {
       httpOnly: true,
       secure: this.config.get<string>('COOKIE_SECURE', 'false') === 'true',

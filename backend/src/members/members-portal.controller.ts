@@ -3,6 +3,7 @@ import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ActorType } from '@prisma/client';
 import type { AuthenticatedActor } from '../auth/auth.types';
 import { RequireActor } from '../auth/decorators/actor-type.decorator';
+import { AllowIncompleteOnboarding } from '../auth/decorators/allow-incomplete-onboarding.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { SuccessResponseDto } from '../auth/dto/auth-response.dto';
 import { HistoryQueryDto } from '../ledger/dto/history-query.dto';
@@ -39,8 +40,15 @@ export class MembersPortalController {
   ) {}
 
   @Get()
+  // SEULE route de ce contrôleur ouverte avant la fin du parcours d'accueil (D-050/D-057).
+  // Sans elle, le portail ne pourrait pas démarrer : il appelle `/members/me` au chargement
+  // pour savoir qui est connecté, et un 403 le déconnecterait au lieu de l'envoyer terminer
+  // sa première connexion. Ce qu'elle rend est de l'identité et de la position — ni solde,
+  // ni commissions, ni e-cards : ceux-là vivent sur des routes qui restent fermées.
+  @AllowIncompleteOnboarding()
   @ApiOperation({
-    summary: 'Mon profil (spec §7.1.7) : identité, position, pack figé, vérification, renouvellement.',
+    summary:
+      'Mon profil (spec §7.1.7) : identité, position, pack figé, vérification, renouvellement.',
     description:
       'Le pack rendu est le SNAPSHOT d’activation, jamais le pack vivant : c’est lui que le ' +
       'moteur applique. Sponsor (parrainage → commission directe) et upline de placement ' +
@@ -87,7 +95,8 @@ export class MembersPortalController {
 
   @Get('dashboard')
   @ApiOperation({
-    summary: 'Mon tableau de bord (spec §7.1.1) : solde, jambes, carry-over, gains, réseau, e-cards.',
+    summary:
+      'Mon tableau de bord (spec §7.1.1) : solde, jambes, carry-over, gains, réseau, e-cards.',
     description:
       'Aucun calcul de règle : chaque chiffre est lu tel qu’une activation, un run ou un ' +
       'paiement l’a écrit. Rappel des DEUX débordements, qu’il ne faut jamais confondre — les ' +
@@ -103,7 +112,8 @@ export class MembersPortalController {
 
   @Get('downlines')
   @ApiOperation({
-    summary: 'Mes downlines (spec §7.1.6) : position, état, points apportés — paginé et filtrable.',
+    summary:
+      'Mes downlines (spec §7.1.6) : position, état, points apportés — paginé et filtrable.',
     description:
       'Ne porte NI e-mail, NI téléphone, NI solde : voir le sous-arbre de quelqu’un ne donne ' +
       'aucun droit sur ses coordonnées ni sur son argent. `rootLeg` dit de quel côté DE MOI il ' +

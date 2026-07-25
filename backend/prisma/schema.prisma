@@ -253,6 +253,29 @@ model Member {
   // comprise) — c'est la vérité historique : ils n'ont rien versé DANS le système.
   registrationPaidDt Decimal @default(0) @db.Decimal(12, 3)
 
+  // ─── Parcours de première connexion (D-050, D-057) — BLOQUANT ───
+  // Les trois étapes (image de la pièce, trois questions secrètes, PIN) sont faites.
+  // Nul = le garde serveur refuse toute route membre hors `/auth/*` et `/members/me/onboarding/*`.
+  // Colonne et non calcul dérivé : le garde s'exécute à CHAQUE requête membre — une lecture de
+  // colonne indexée par clé primaire, plutôt qu'un COUNT sur les réponses à chaque appel. Elle
+  // est écrite dans la MÊME transaction que la troisième étape, jamais séparément.
+  //
+  // À NE PAS CONFONDRE avec `verificationStatus` : ce parcours bloque l'entrée dans le portail,
+  // la vérification par l'admin ne bloque toujours RIEN (D-018 — un membre PENDING achète,
+  // s'active et perçoit normalement).
+  onboardingCompletedAt DateTime?
+
+  // PIN de seconde authentification (D-051), haché comme un mot de passe — jamais en clair,
+  // jamais dans un log ni dans l'AuditLog. Nul tant que l'étape 3 n'est pas faite.
+  pinHash String?
+
+  // ─── Seconde authentification (D-051, D-058) ───
+  // UN SEUL compteur pour les DEUX voies (PIN et question secrète) : deux compteurs séparés
+  // doubleraient mécaniquement la surface d'attaque — un attaquant épuiserait l'un puis
+  // passerait à l'autre. Remis à zéro au premier succès.
+  stepUpFailedCount Int       @default(0)
+  stepUpLockedUntil DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -270,12 +293,48 @@ model Member {
   refreshTokens       RefreshToken[]
   passwordResetTokens PasswordResetToken[]
 
+  // Parcours d'accueil (D-050) : exactement trois réponses une fois l'étape 2 faite.
+  securityAnswers MemberSecurityAnswer[]
+
   @@unique([uplineId, leg]) // 1 enfant gauche + 1 droit max → placement immuable, pas de spillover
   @@index([uplineId])
   @@index([sponsorId])
   @@index([leg])
   @@index([status])
   @@index([verificationStatus]) // file de vérification admin (Tranche 8)
+  // Créé par la migration `t8c_identity_verification` mais jamais déclaré ici : le schéma et la
+  // base avaient divergé depuis la Tranche 8c, et toute migration ultérieure aurait supprimé
+  // l'index en silence. Déclaré en Tranche 9.5 — aucune migration ne le recrée, il existe déjà.
+  @@index([verificationByAdminId])
+}
+
+// ─────────────────── Questions secrètes (D-050, D-051, D-057) ───────────────────
+
+// Les trois réponses secrètes d'un membre. Deuxième voie de la seconde authentification, à
+// parité avec le PIN (D-051), et SEUL recours pour réinitialiser un PIN oublié : aucun canal
+// e-mail ni SMS n'existe (D-011).
+//
+// Le LIBELLÉ de la question n'est pas ici — seule sa CLÉ. Le catalogue est une constante
+// TypeScript (`security-questions.ts`) et non une table : ses clés sont du code (anglais,
+// D-015), ses libellés de l'interface (français, i18n du portail). Aucun CRUD n'est demandé ;
+// une table n'apporterait qu'une jointure de plus et une migration à chaque libellé retouché.
+//
+// `answerHash` est un bcrypt de la réponse NORMALISÉE (trim, espaces internes réduits,
+// minuscules, accents dépliés). Sans cette normalisation, « Sfax » et « sfax  » seraient deux
+// réponses différentes et l'unique recours de réinitialisation du PIN serait inutilisable en
+// pratique. La réponse en clair n'existe nulle part : ni en base, ni en log, ni dans l'AuditLog.
+model MemberSecurityAnswer {
+  id          Int      @id @default(autoincrement())
+  memberId    Int
+  member      Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  questionKey String // clé du catalogue, ex. FIRST_SCHOOL
+  answerHash  String // bcrypt sur la réponse normalisée
+  createdAt   DateTime @default(now())
+
+  // On ne choisit pas deux fois la même question : trois réponses identiques n'en feraient
+  // qu'une, et le tirage aléatoire de la seconde auth n'aurait plus rien à tirer.
+  @@unique([memberId, questionKey])
+  @@index([memberId])
 }
 
 // ─────────────────────────── Pack (palier) ───────────────────────────

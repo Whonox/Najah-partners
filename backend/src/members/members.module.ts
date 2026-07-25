@@ -13,6 +13,8 @@ import { MembersPortalController } from './members-portal.controller';
 import { MembersPortalService } from './members-portal.service';
 import { MembersFacade } from './members.facade';
 import { MembersService } from './members.service';
+import { OnboardingController } from './onboarding/onboarding.controller';
+import { OnboardingService } from './onboarding/onboarding.service';
 import { MembershipFeeService } from './membership-fee.service';
 import { BalanceActivationPayment } from './payment/balance-activation-payment';
 import { PlacementService } from './placement.service';
@@ -39,6 +41,9 @@ import { RenewalsAdminController } from './renewals-admin.controller';
     MembersPortalController,
     MembersAdminController,
     RenewalsAdminController,
+    // Parcours de première connexion (T9.5, D-050) : la SEULE surface membre ouverte tant
+    // que le parcours n'est pas terminé — sans quoi il faudrait l'avoir fini pour le commencer.
+    OnboardingController,
   ],
   providers: [
     MembersService,
@@ -58,6 +63,9 @@ import { RenewalsAdminController } from './renewals-admin.controller';
     // Surface AFFILIÉ (T9) : lecture de MON espace, plus profil et mot de passe. Ne participe
     // à aucune transaction métier — le portail affiche et déclenche, il ne calcule rien.
     MembersPortalService,
+    // Parcours de première connexion (T9.5, D-050) : dépôt de la pièce, questions secrètes,
+    // PIN. N'écrit que des colonnes d'accès — aucune surface métier, aucun montant.
+    OnboardingService,
   ],
   exports: [
     MembersService,

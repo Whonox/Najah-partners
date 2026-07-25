@@ -41,7 +41,8 @@ export class RegisterMemberDto {
 
   @ApiPropertyOptional({
     example: 'mohamed@example.tn',
-    description: 'E-mail ou téléphone : au moins l’un des deux est requis (contrôlé au service).',
+    description:
+      'E-mail ou téléphone : au moins l’un des deux est requis (contrôlé au service).',
   })
   @IsOptional()
   @IsEmail({}, { message: 'E-mail invalide.' })
@@ -61,9 +62,14 @@ export class RegisterMemberDto {
   @MaxLength(72) // bcrypt ignore silencieusement les octets au-delà de 72
   password!: string;
 
-  @ApiProperty({ example: 'NP000963', description: 'Code du parrain (commission directe).' })
+  @ApiProperty({
+    example: 'NP000963',
+    description: 'Code du parrain (commission directe).',
+  })
   @IsString()
-  @Matches(/^NP\d+$/, { message: 'Code sponsor invalide (format attendu : NP000963).' })
+  @Matches(/^NP\d+$/, {
+    message: 'Code sponsor invalide (format attendu : NP000963).',
+  })
   sponsorCode!: string;
 
   @ApiProperty({
@@ -72,10 +78,16 @@ export class RegisterMemberDto {
       'Code de l’upline de placement (position dans l’arbre). Doit appartenir au réseau du sponsor.',
   })
   @IsString()
-  @Matches(/^NP\d+$/, { message: 'Code upline invalide (format attendu : NP000964).' })
+  @Matches(/^NP\d+$/, {
+    message: 'Code upline invalide (format attendu : NP000964).',
+  })
   uplineCode!: string;
 
-  @ApiProperty({ enum: Leg, example: Leg.LEFT, description: 'Jambe sous l’upline.' })
+  @ApiProperty({
+    enum: Leg,
+    example: Leg.LEFT,
+    description: 'Jambe sous l’upline.',
+  })
   @IsEnum(Leg)
   leg!: Leg;
 
@@ -119,10 +131,15 @@ export class RegisterMemberDto {
   @MaxLength(40)
   idDocumentNumber!: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     type: 'string',
     format: 'binary',
-    description: 'Image de la pièce d’identité (JPEG, PNG, WebP ou PDF, 5 Mo max).',
+    description:
+      'Image de la pièce (JPEG, PNG, WebP ou PDF, 5 Mo max). **N’est plus attendue ici** ' +
+      '(D-050/D-060) : elle se dépose à la PREMIÈRE CONNEXION, sous identité connue, via ' +
+      '`POST /members/me/onboarding/id-document`. Cet endpoint est public et anonyme (D-021) ' +
+      '— il n’a pas à recevoir un binaire de 5 Mo d’un inconnu. Le champ reste toléré pour ' +
+      'les appelants internes (seed, tests) qui fournissent le dossier d’un bloc.',
   })
   @IsOptional() // le fichier est porté par multer, pas par le corps validé
   idDocument?: unknown;
