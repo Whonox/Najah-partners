@@ -22,12 +22,16 @@ import {
 
 describe('normalizeSecurityAnswer', () => {
   it('déplie les accents — « Béja » et « Beja » sont la même réponse', () => {
-    expect(normalizeSecurityAnswer('Béja')).toBe(normalizeSecurityAnswer('Beja'));
+    expect(normalizeSecurityAnswer('Béja')).toBe(
+      normalizeSecurityAnswer('Beja'),
+    );
     expect(normalizeSecurityAnswer('Sfâx')).toBe('sfax');
   });
 
   it('ignore la casse', () => {
-    expect(normalizeSecurityAnswer('BELLA')).toBe(normalizeSecurityAnswer('bella'));
+    expect(normalizeSecurityAnswer('BELLA')).toBe(
+      normalizeSecurityAnswer('bella'),
+    );
   });
 
   it('ignore les espaces de bord et réduit les espaces internes', () => {

@@ -47,8 +47,11 @@ function makeMock(initial: Partial<MemberState> = {}) {
     ...initial,
   };
 
-  const created: Array<{ memberId: number; questionKey: string; answerHash: string }> =
-    [];
+  const created: Array<{
+    memberId: number;
+    questionKey: string;
+    answerHash: string;
+  }> = [];
   const calls = {
     deleteMany: jest.fn(),
     updateMany: jest.fn(),
@@ -67,14 +70,18 @@ function makeMock(initial: Partial<MemberState> = {}) {
       findUnique,
       update: jest.fn((args: { data: Record<string, unknown> }) => {
         calls.update(args);
-        if (typeof args.data.pinHash === 'string') state.pinHash = args.data.pinHash;
+        if (typeof args.data.pinHash === 'string')
+          state.pinHash = args.data.pinHash;
         if (typeof args.data.idDocumentPath === 'string') {
           state.idDocumentPath = args.data.idDocumentPath;
         }
         return Promise.resolve({});
       }),
       updateMany: jest.fn(
-        (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+        (args: {
+          where: Record<string, unknown>;
+          data: Record<string, unknown>;
+        }) => {
           calls.updateMany(args);
           // Reproduit la GARDE : l'écriture n'a lieu que si la colonne est encore nulle.
           if (
@@ -100,7 +107,11 @@ function makeMock(initial: Partial<MemberState> = {}) {
       }),
       createMany: jest.fn(
         (args: {
-          data: Array<{ memberId: number; questionKey: string; answerHash: string }>;
+          data: Array<{
+            memberId: number;
+            questionKey: string;
+            answerHash: string;
+          }>;
         }) => {
           created.push(...args.data);
           state.answerCount = created.length;
@@ -123,7 +134,10 @@ function makeMock(initial: Partial<MemberState> = {}) {
 function makeService(mock: ReturnType<typeof makeMock>) {
   const documents = {
     store: jest.fn(() =>
-      Promise.resolve({ relativePath: 'id-documents/2026-07/x.jpg', mime: 'image/jpeg' }),
+      Promise.resolve({
+        relativePath: 'id-documents/2026-07/x.jpg',
+        mime: 'image/jpeg',
+      }),
     ),
     discard: jest.fn(() => Promise.resolve()),
   };
@@ -224,15 +238,23 @@ describe('OnboardingService — PIN', () => {
   it('refuse un format invalide', async () => {
     const mock = makeMock();
     const { service } = makeService(mock);
-    await expect(service.setPin(42, '12')).rejects.toBeInstanceOf(InvalidPinError);
-    await expect(service.setPin(42, 'abcd')).rejects.toBeInstanceOf(InvalidPinError);
+    await expect(service.setPin(42, '12')).rejects.toBeInstanceOf(
+      InvalidPinError,
+    );
+    await expect(service.setPin(42, 'abcd')).rejects.toBeInstanceOf(
+      InvalidPinError,
+    );
   });
 
   it('refuse un PIN trop devinable', async () => {
     const mock = makeMock();
     const { service } = makeService(mock);
-    await expect(service.setPin(42, '1234')).rejects.toBeInstanceOf(InvalidPinError);
-    await expect(service.setPin(42, '0000')).rejects.toBeInstanceOf(InvalidPinError);
+    await expect(service.setPin(42, '1234')).rejects.toBeInstanceOf(
+      InvalidPinError,
+    );
+    await expect(service.setPin(42, '0000')).rejects.toBeInstanceOf(
+      InvalidPinError,
+    );
   });
 
   it('hache le PIN — il n’existe jamais en clair', async () => {
@@ -276,11 +298,12 @@ describe('OnboardingService — complétion du parcours (D-057)', () => {
     const { service } = makeService(mock);
     await service.setPin(42, '4827');
 
-    expect(mock.calls.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ onboardingCompletedAt: null }),
-      }),
-    );
+    // La garde est lue sur l'appel réellement passé, plutôt que par un matcher imbriqué :
+    // c'est elle qui empêche deux étapes finales concurrentes d'écrire deux horodatages.
+    const calls = mock.calls.updateMany.mock.calls as Array<
+      [{ where: Record<string, unknown> }]
+    >;
+    expect(calls[0][0].where.onboardingCompletedAt).toBeNull();
   });
 
   it('rapporte l’état des trois étapes sans le recalculer', async () => {
@@ -313,11 +336,15 @@ describe('OnboardingService — dépôt de la pièce', () => {
     await expect(
       service.uploadIdDocument(42, { buffer: Buffer.alloc(20), size: 20 }),
     ).rejects.toThrow('boom');
-    expect(documents.discard).toHaveBeenCalledWith('id-documents/2026-07/x.jpg');
+    expect(documents.discard).toHaveBeenCalledWith(
+      'id-documents/2026-07/x.jpg',
+    );
   });
 
   it('supprime l’ANCIENNE image seulement après un remplacement réussi', async () => {
-    const mock = makeMock({ idDocumentPath: 'id-documents/2026-06/ancien.jpg' });
+    const mock = makeMock({
+      idDocumentPath: 'id-documents/2026-06/ancien.jpg',
+    });
     const { service, documents } = makeService(mock);
 
     await service.uploadIdDocument(42, { buffer: Buffer.alloc(20), size: 20 });

@@ -1,15 +1,10 @@
-import {
-  Controller,
-  Get,
-  Param,
-  ParseIntPipe,
-  Query,
-} from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ActorType } from '@prisma/client';
 import type { AuthenticatedActor } from '../auth/auth.types';
 import { RequireActor } from '../auth/decorators/actor-type.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { RequireStepUp } from '../auth/decorators/require-step-up.decorator';
 import { CommissionsPortalService } from './commissions-portal.service';
 import { MyCommissionPageDto } from './dto/commissions-portal.dto';
 import { RunMemberEventsDto } from './dto/commissions-response.dto';
@@ -24,6 +19,11 @@ import { MyCommissionsQueryDto } from './dto/runs-query.dto';
  */
 @ApiTags('portal')
 @RequireActor(ActorType.MEMBER)
+// SECONDE AUTHENTIFICATION (D-051/D-058) : « Mes gains » est un écran d'ARGENT — il montre
+// ce que le membre a perçu, semaine par semaine. La garde porte sur la LECTURE et pas
+// seulement sur les mutations : ne fermer que ce qui déplace de la valeur ferait de « l'accès
+// aux écrans d'argent » une barrière d'affichage, contournée par un simple appel à l'API.
+@RequireStepUp()
 @Controller('commissions')
 export class CommissionsPortalController {
   constructor(private readonly portal: CommissionsPortalService) {}
@@ -47,7 +47,8 @@ export class CommissionsPortalController {
 
   @Get('mine/:runId')
   @ApiOperation({
-    summary: 'Pourquoi ce montant : la chronologie de MES événements sur une semaine.',
+    summary:
+      'Pourquoi ce montant : la chronologie de MES événements sur une semaine.',
     description:
       'Ordre STRICT `(occurredAt, id)` — l’ordre même d’application du plafond (D-033 : sur une ' +
       'même activation, la commission DIRECTE précède les ÉQUILIBRES). La ventilation est ' +

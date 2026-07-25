@@ -5,6 +5,7 @@ import { ActorType } from '@prisma/client';
 import type { AuthenticatedActor } from '../auth/auth.types';
 import { RequireActor } from '../auth/decorators/actor-type.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { RequireStepUp } from '../auth/decorators/require-step-up.decorator';
 import { CheckoutService } from './checkout.service';
 import { ActivationCheckoutDto, FreeCheckoutDto } from './dto/checkout.dto';
 import { OrderResponseDto } from './dto/order-response.dto';
@@ -20,6 +21,11 @@ import { OrderResponseDto } from './dto/order-response.dto';
  */
 @ApiTags('checkout')
 @RequireActor(ActorType.MEMBER)
+// SECONDE AUTHENTIFICATION (D-051) : payer est l'opération la plus lourde de conséquences du
+// portail — elle brûle des e-cards irréversiblement (D-025) et, en activation, fixe pour la
+// vie le pack et le snapshot de commission du membre. C'est exactement ce qu'une session
+// laissée ouverte ne doit jamais permettre à quelqu'un d'autre de déclencher.
+@RequireStepUp()
 @Throttle({ default: { limit: 10, ttl: 60_000 } })
 @Controller('shop/checkout')
 export class CheckoutController {

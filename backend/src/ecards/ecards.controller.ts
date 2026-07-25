@@ -6,12 +6,18 @@ import {
   ParseIntPipe,
   Post,
 } from '@nestjs/common';
-import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { ActorType } from '@prisma/client';
 import type { AuthenticatedActor } from '../auth/auth.types';
 import { RequireActor } from '../auth/decorators/actor-type.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { RequireStepUp } from '../auth/decorators/require-step-up.decorator';
 import { money } from '../common/money';
 import { CreateEcardDto } from './dto/create-ecard.dto';
 import {
@@ -30,8 +36,17 @@ import { EcardsService } from './ecards.service';
  * limitée en débit. Sans quota, l'endpoint offrirait un oracle pour énumérer l'espace des
  * codes et découvrir les e-cards actives des autres membres.
  */
+/**
+ * SECONDE AUTHENTIFICATION (D-051/D-058) : tout ce contrôleur est derrière `@RequireStepUp()`.
+ *
+ * Une e-card EST de l'argent — la créer débite un solde, la prolonger repousse un
+ * remboursement, la lister expose ce que le membre détient, la vérifier révèle la valeur d'un
+ * code. Les quatre routes relèvent donc du même régime, et l'apposer au niveau de la CLASSE
+ * évite le trou classique : une cinquième route ajoutée demain sans le décorateur.
+ */
 @ApiTags('ecards')
 @RequireActor(ActorType.MEMBER)
+@RequireStepUp()
 @Controller('ecards')
 export class EcardsController {
   constructor(private readonly ecards: EcardsService) {}

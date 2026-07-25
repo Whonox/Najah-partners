@@ -23,6 +23,7 @@ import type { AuthenticatedActor } from '../auth/auth.types';
 import { RequireActor } from '../auth/decorators/actor-type.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
+import { RequireStepUp } from '../auth/decorators/require-step-up.decorator';
 import { MembershipPaymentResponseDto } from './dto/renewal-response.dto';
 import { PayRenewalDto } from './dto/pay-renewal.dto';
 import { TreeNodeDto } from './dto/tree-response.dto';
@@ -112,6 +113,10 @@ export class MembersController {
 
   @Post('me/renewal')
   @RequireActor(ActorType.MEMBER)
+  // SECONDE AUTHENTIFICATION (D-051) : ce paiement BRÛLE des e-cards, irréversiblement
+  // (D-025), et sans chemin de refus côté admin (point ouvert D-038) — déclenché par erreur
+  // depuis une session laissée ouverte, la valeur ne revient pas.
+  @RequireStepUp()
   @ApiOperation({
     summary: 'Régler le renouvellement annuel par e-card(s) (spec §5.9).',
     description:
@@ -133,7 +138,8 @@ export class MembersController {
   @Get('me/renewals')
   @RequireActor(ActorType.MEMBER)
   @ApiOperation({
-    summary: 'Mes renouvellements annuels : montant, date, état de la validation.',
+    summary:
+      'Mes renouvellements annuels : montant, date, état de la validation.',
   })
   @ApiOkResponse({ type: MembershipPaymentResponseDto, isArray: true })
   myRenewals(@CurrentUser() actor: AuthenticatedActor) {

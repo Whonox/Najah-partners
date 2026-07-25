@@ -5,6 +5,7 @@ import type { AuthenticatedActor } from '../auth/auth.types';
 import { RequireActor } from '../auth/decorators/actor-type.decorator';
 import { AllowIncompleteOnboarding } from '../auth/decorators/allow-incomplete-onboarding.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { RequireStepUp } from '../auth/decorators/require-step-up.decorator';
 import { SuccessResponseDto } from '../auth/dto/auth-response.dto';
 import { HistoryQueryDto } from '../ledger/dto/history-query.dto';
 import { LedgerHistoryPageDto } from '../ledger/dto/ledger-response.dto';
@@ -128,6 +129,11 @@ export class MembersPortalController {
   }
 
   @Get('ledger')
+  // SECONDE AUTHENTIFICATION (D-051/D-058) : le journal des mouvements est l'écran d'argent le
+  // plus détaillé du portail — chaque commission perçue, chaque e-card émise, avec le solde
+  // après. Seule route de ce contrôleur à être fermée : les autres montrent l'identité, la
+  // position et le réseau, qui n'ont pas à coûter un PIN à chaque consultation.
+  @RequireStepUp()
   @ApiOperation({
     summary: 'Mes mouvements de solde (DINARS), paginés.',
     description:
