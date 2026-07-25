@@ -5,8 +5,13 @@ import { Prisma } from '@prisma/client';
 const MEMBER_CODE_PREFIX = 'NP';
 const MEMBER_CODE_WIDTH = 6;
 
-/** Le seed cale la séquence sur ce dernier numéro d'amorçage (D-019). */
-export const SEED_LAST_MEMBER_NUMBER = 969;
+/**
+ * Le seed cale la séquence sur ce dernier numéro d'amorçage (D-019, révisée : le réseau
+ * d'amorçage compte 500 comptes, NP000963 → NP001462). Le PREMIER code reste NP000963 :
+ * c'est lui qui est verrouillé par la décision, le dernier n'en est que la conséquence
+ * (963 + 500 − 1). Changer la taille du réseau change cette borne, jamais le point de départ.
+ */
+export const SEED_LAST_MEMBER_NUMBER = 1462;
 
 /** Reconnaît un code membre canonique (les fixtures de test n'en sont pas). */
 export const MEMBER_CODE_PATTERN = /^NP\d+$/;

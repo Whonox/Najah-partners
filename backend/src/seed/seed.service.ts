@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Leg, MemberStatus, ProductType } from '@prisma/client';
+import { MemberStatus, Pack, ProductType } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
-import { money } from '../common/money';
+import { Money, money } from '../common/money';
 import { EcardsService } from '../ecards/ecards.service';
 import { LedgerAdminService } from '../ledger/ledger-admin.service';
 import { ActivationService } from '../members/activation.service';
@@ -15,56 +15,16 @@ import {
   REGISTRATION_FEE_SETTING,
 } from '../members/membership-fee.service';
 import { MembersService } from '../members/members.service';
+import { RenewalService } from '../members/renewal.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { buildNetworkPlan, PlannedMember, summarizePlan } from './network-plan';
 
 const ROOT_CODE = 'NP000963';
 const SEED_PASSWORD = 'ChangeMe123!';
-const SEED_PACK = 'Silver';
 const ADMIN_EMAIL = 'admin@najah.local';
 
-/**
- * Réseau d'amorçage (D-019) : 3 niveaux, 7 comptes ACTIFS. Inscription TOP-DOWN (un upline
- * doit préexister), ce qui fige aussi les codes NP000963..NP000969 dans l'ordre.
- */
-const NETWORK: Array<{
-  code: string;
-  firstName: string;
-  upline: string | null;
-  leg: Leg | null;
-}> = [
-  { code: 'NP000963', firstName: 'Racine', upline: null, leg: null },
-  { code: 'NP000964', firstName: 'Niveau2G', upline: ROOT_CODE, leg: Leg.LEFT },
-  {
-    code: 'NP000965',
-    firstName: 'Niveau2D',
-    upline: ROOT_CODE,
-    leg: Leg.RIGHT,
-  },
-  {
-    code: 'NP000966',
-    firstName: 'Niveau3GG',
-    upline: 'NP000964',
-    leg: Leg.LEFT,
-  },
-  {
-    code: 'NP000967',
-    firstName: 'Niveau3GD',
-    upline: 'NP000964',
-    leg: Leg.RIGHT,
-  },
-  {
-    code: 'NP000968',
-    firstName: 'Niveau3DG',
-    upline: 'NP000965',
-    leg: Leg.LEFT,
-  },
-  {
-    code: 'NP000969',
-    firstName: 'Niveau3DD',
-    upline: 'NP000965',
-    leg: Leg.RIGHT,
-  },
-];
+/** Cadence du journal de progression : un seed de 500 comptes dure des minutes, pas des ms. */
+const PROGRESS_STEP = 50;
 
 @Injectable()
 export class SeedService {
@@ -79,6 +39,9 @@ export class SeedService {
     private readonly memberCode: MemberCodeService,
     private readonly fees: MembershipFeeService,
     private readonly ecards: EcardsService,
+    // Le gel des comptes non renouvelés (D-034) passe par le service, jamais par un UPDATE :
+    // lui seul verrouille la ligne et refuse une transition depuis un statut inattendu.
+    private readonly renewal: RenewalService,
   ) {}
 
   async run(): Promise<void> {
@@ -367,15 +330,27 @@ export class SeedService {
   }
 
   /**
-   * Les 7 comptes d'amorçage, créés PAR LES VRAIS SERVICES (inscription puis activation) :
-   * dupliquer ici la propagation de points produirait un arbre incohérent avec le code.
+   * Le réseau d'amorçage — 500 comptes dans UN SEUL arbre (révise D-019), créés PAR LES VRAIS
+   * SERVICES (inscription puis activation) : dupliquer ici la propagation de points produirait
+   * un arbre incohérent avec le code qu'il est censé amorcer.
    *
-   * L'activation se fait des FEUILLES vers la RACINE. Conséquence assumée : chaque nœud est
-   * encore INSCRIT quand ses downlines s'activent — sa pool appariable ne reçoit rien (c'est
-   * la baseline par construction, D-035) et les commissions DIRECTES s'écrivent
-   * `eligible=false` (sponsor pas encore ACTIF, D-034). Le premier run de commissions ne
-   * verse donc rien à ce réseau synthétique. (Activer la racine en premier lui laisserait
-   * 3000/3000 en pool, soit 3 équilibres payés dès le premier vendredi.)
+   * La topologie vient de `network-plan.ts` (module pur, déterministe). Ce service ne décide
+   * plus RIEN de la forme du réseau : il exécute un plan dont les invariants (racine unique,
+   * ordre top-down, D-022) sont testés à part.
+   *
+   * TROIS TEMPS, dans cet ordre — et l'ordre est le fond, pas la forme :
+   *  1. INSCRIPTIONS top-down. Un upline doit préexister à son filleul ; le plan garantit
+   *     `uplineIndex < index`, donc dérouler le tableau suffit.
+   *  2. ACTIVATIONS racine → feuilles. Chaque ancêtre est déjà ACTIF quand ses downlines
+   *     s'activent : sa pool appariable EST créditée (D-035), les équilibres se complètent,
+   *     les commissions DIRECTES naissent éligibles. C'est l'inverse de l'ancien seed (feuilles
+   *     → racine), qui produisait un réseau financièrement muet — aucun écran n'avait de
+   *     chiffres à montrer. Contrepartie assumée : le premier run hebdomadaire versera de
+   *     l'argent, ce qui est précisément ce qu'on veut voir fonctionner.
+   *  3. GEL des comptes prévus INACTIFS (D-034), APRÈS activation — un gelé est par définition
+   *     un membre qui a été actif puis n'a pas renouvelé. Le gel passe par `RenewalService`,
+   *     jamais par un UPDATE direct : lui seul sérialise la transition avec les activations
+   *     qui traversent le membre.
    */
   private async bootstrapNetwork(): Promise<void> {
     const root = await this.prisma.member.findUnique({
@@ -399,75 +374,141 @@ export class SeedService {
           'amorçage refusé pour ne pas rembobiner la séquence des codes membres.',
       );
     }
+
+    const plan = buildNetworkPlan();
+    const stats = summarizePlan(plan);
+    const startedAt = Date.now();
     await this.prisma
-      .$executeRaw`SELECT setval('member_code_seq', ${SEED_LAST_MEMBER_NUMBER - NETWORK.length}::bigint, true)`;
+      .$executeRaw`SELECT setval('member_code_seq', ${SEED_LAST_MEMBER_NUMBER - plan.length}::bigint, true)`;
 
-    const pack = await this.prisma.pack.findUniqueOrThrow({
-      where: { name: SEED_PACK },
-    });
-    const ids = new Map<string, number>();
+    const packs = new Map(
+      (await this.prisma.pack.findMany()).map((pack) => [pack.name, pack]),
+    );
+    const adminId = await this.adminId();
+    // Le tarif est lu UNE fois : 500 lectures du même paramètre pour un résultat identique.
+    // Le hachage du mot de passe, lui, reste dans `MembersService.register` — le seed n'a pas
+    // à contourner le vrai chemin d'inscription pour gagner quelques secondes.
+    const feeDt = await this.fees.read(REGISTRATION_FEE_SETTING);
 
-    // ── Inscriptions, top-down ──
-    for (const node of NETWORK) {
-      const id = node.upline
-        ? await this.registerSeedMember(
-            node.code,
-            node.firstName,
-            node.upline,
-            node.leg!,
-          )
-        : await this.createRootMember(node.code, node.firstName);
-      ids.set(node.code, id);
+    // ── 1. Inscriptions, top-down ──
+    const ids: number[] = [];
+    const codes: string[] = [];
+    for (const node of plan) {
+      const expected = this.seedMemberCode(node.index, plan.length);
+      const created =
+        node.uplineIndex === null
+          ? await this.createRootMember(node)
+          : await this.registerSeedMember(node, {
+              uplineCode: codes[node.uplineIndex],
+              sponsorCode: codes[node.sponsorIndex!],
+              adminId,
+              feeDt,
+            });
+      this.assertCode(created.memberCode, expected);
+      ids[node.index] = created.id;
+      codes[node.index] = created.memberCode;
+      this.progress('Inscriptions', node.index + 1, plan.length);
     }
 
-    // ── Activations, feuilles → racine ──
+    // ── 2. Activations, racine → feuilles ──
     // On dote chaque compte du MONTANT DÛ en dinars — prix du pack moins l'acompte déjà versé
     // à l'inscription (D-029 + D-037) —, puis on active : la stratégie de paiement par solde
     // débite exactement ce montant et le solde retombe à zéro. L'arbre, lui, reçoit le palier
     // en POINTS : les deux dimensions se croisent dans l'activation sans jamais se convertir
     // (D-028). La racine n'est pas passée par l'inscription : son acompte vaut 0, elle paie
     // donc le prix plein — et c'est exact, elle n'a rien versé.
-    for (const node of [...NETWORK].reverse()) {
-      const memberId = ids.get(node.code)!;
-      const member = await this.prisma.member.findUniqueOrThrow({
-        where: { id: memberId },
-        select: { registrationPaidDt: true },
-      });
-      await this.ledgerAdmin.genesis({
-        adminId: await this.adminId(),
-        memberId,
-        amountDt: pack.priceDt.minus(member.registrationPaidDt),
-        reason: `Amorçage du réseau (D-019) — ${node.code}`,
-      });
-      await this.activation.activate({ memberId, packId: pack.id });
+    const toActivate = plan.filter(
+      (node) => node.status !== MemberStatus.REGISTERED,
+    );
+    for (const [rank, node] of toActivate.entries()) {
+      const pack = packs.get(node.packName!);
+      if (!pack) {
+        throw new Error(`Pack inconnu dans le plan d’amorçage : ${node.packName}.`);
+      }
+      await this.activateSeedMember(ids[node.index], pack, adminId, codes[node.index]);
+      this.progress('Activations', rank + 1, toActivate.length);
     }
 
-    this.logger.log(
-      `Réseau d’amorçage créé : ${NETWORK.length} comptes ACTIFS (${ROOT_CODE} → NP000969), pack ${pack.name}.`,
+    // ── 3. Gel des comptes non renouvelés (D-034) ──
+    const toFreeze = plan.filter(
+      (node) => node.status === MemberStatus.INACTIVE,
     );
+    for (const node of toFreeze) {
+      await this.renewal.freeze(ids[node.index]);
+    }
+
+    const seconds = Math.round((Date.now() - startedAt) / 1000);
+    const packMix = Object.entries(stats.packs)
+      .map(([name, count]) => `${name} ${count}`)
+      .join(', ');
+    this.logger.log(
+      `Réseau d’amorçage créé en ${seconds} s : ${stats.total} comptes ` +
+        `(${ROOT_CODE} → ${codes[plan.length - 1]}), UN seul arbre, profondeur max ${stats.maxDepth}.`,
+    );
+    this.logger.log(
+      `Statuts : ${stats.active} ACTIFS, ${stats.registered} INSCRITS, ${stats.inactive} INACTIFS ` +
+        `(gelés). Packs des activés : ${packMix}.`,
+    );
+    this.logger.log(
+      `Connexion affilié : code ${ROOT_CODE} (ou ${plan[0].email}), mot de passe ${SEED_PASSWORD}.`,
+    );
+  }
+
+  /**
+   * Dote le membre du montant dû puis active. Deux opérations, une seule intention — mais
+   * volontairement PAS une seule transaction : `activate` ouvre la sienne et verrouille toute
+   * la chaîne d'ancêtres (D-024). Les emboîter ferait tenir un verrou de genèse pendant la
+   * remontée d'arbre, pour rien.
+   */
+  private async activateSeedMember(
+    memberId: number,
+    pack: Pack,
+    adminId: number,
+    memberCode: string,
+  ): Promise<void> {
+    const member = await this.prisma.member.findUniqueOrThrow({
+      where: { id: memberId },
+      select: { registrationPaidDt: true },
+    });
+    await this.ledgerAdmin.genesis({
+      adminId,
+      memberId,
+      amountDt: pack.priceDt.minus(member.registrationPaidDt),
+      reason: `Amorçage du réseau (D-019) — ${memberCode}`,
+    });
+    await this.activation.activate({ memberId, packId: pack.id });
+  }
+
+  /** Code attendu pour le nᵉ compte d'amorçage — le premier est toujours `ROOT_CODE`. */
+  private seedMemberCode(index: number, size: number): string {
+    const first = SEED_LAST_MEMBER_NUMBER - size + 1;
+    return `NP${String(first + index).padStart(6, '0')}`;
+  }
+
+  private progress(label: string, done: number, total: number): void {
+    if (done % PROGRESS_STEP === 0 || done === total) {
+      this.logger.log(`${label} : ${done}/${total}`);
+    }
   }
 
   /** La racine n'a ni sponsor ni upline : elle ne peut pas passer par l'inscription normale. */
   private async createRootMember(
-    code: string,
-    firstName: string,
-  ): Promise<number> {
+    node: PlannedMember,
+  ): Promise<{ id: number; memberCode: string }> {
     const passwordHash = await bcrypt.hash(SEED_PASSWORD, this.bcryptRounds());
     return this.prisma.$transaction(async (tx) => {
       const memberCode = await this.memberCode.allocate(tx);
-      this.assertCode(memberCode, code);
-      const member = await tx.member.create({
+      return tx.member.create({
         data: {
           memberCode,
-          lastName: 'Najah',
-          firstName,
-          email: `${code.toLowerCase()}@najah.local`,
+          lastName: node.lastName,
+          firstName: node.firstName,
+          email: node.email,
           passwordHash,
           status: MemberStatus.REGISTERED,
         },
-        select: { id: true },
+        select: { id: true, memberCode: true },
       });
-      return member.id;
     });
   }
 
@@ -476,32 +517,37 @@ export class SeedService {
    * une e-card de GENÈSE du montant exact des frais. C'est cohérent avec l'esprit du seed —
    * l'amorçage crée la valeur ex nihilo (D-017b), il ne la fait pas surgir dans un solde — et
    * cela fait passer les comptes de seed par le VRAI chemin d'inscription, contrôles compris.
+   *
+   * Sponsor et upline de placement sont DISTINCTS dans le plan (le sponsor est un ancêtre de
+   * la position, D-022) : le réseau amorcé exerce donc le cas réel où la commission directe
+   * remonte ailleurs que le binaire, et pas seulement le cas dégénéré sponsor = upline.
    */
   private async registerSeedMember(
-    code: string,
-    firstName: string,
-    uplineCode: string,
-    leg: Leg,
-  ): Promise<number> {
-    const feeDt = await this.fees.read(REGISTRATION_FEE_SETTING);
+    node: PlannedMember,
+    context: {
+      uplineCode: string;
+      sponsorCode: string;
+      adminId: number;
+      feeDt: Money;
+    },
+  ): Promise<{ id: number; memberCode: string }> {
     const ecard = await this.ecards.genesis({
-      adminId: await this.adminId(),
-      valueDt: feeDt,
-      reason: `Amorçage du réseau (D-019) — frais d’inscription ${code}`,
+      adminId: context.adminId,
+      valueDt: context.feeDt,
+      reason: `Amorçage du réseau (D-019) — frais d’inscription ${node.email}`,
     });
 
     const member = await this.members.register({
-      lastName: 'Najah',
-      firstName,
-      email: `${code.toLowerCase()}@najah.local`,
+      lastName: node.lastName,
+      firstName: node.firstName,
+      email: node.email,
       password: SEED_PASSWORD,
-      sponsorCode: uplineCode, // le sponsor d'amorçage est aussi l'upline de placement
-      uplineCode,
-      leg,
+      sponsorCode: context.sponsorCode,
+      uplineCode: context.uplineCode,
+      leg: node.leg!,
       ecardCodes: [ecard.code],
     });
-    this.assertCode(member.memberCode, code);
-    return member.id;
+    return { id: member.id, memberCode: member.memberCode };
   }
 
   /**

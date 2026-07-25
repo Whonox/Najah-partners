@@ -3,6 +3,10 @@
 Back-office administrateur. Voir `../docs/spec.md` §7.2 (12 modules).
 
 ## Conventions
+- **`npm install --legacy-peer-deps`** — le flag n'est pas optionnel ici. Ce projet est en
+  TypeScript 6 ; `openapi-typescript@7` déclare `typescript@^5.x` en peer. Le conflit est
+  déclaratif (la génération du client fonctionne), mais sans le flag l'installation échoue en
+  `ERESOLVE` sur une machine vierge. Voir le README racine.
 - Consomme l'API backend via le client TS généré depuis l'OpenAPI (ne pas recopier les types).
 - Les types viennent de l'API, JAMAIS recopiés à la main. Après un changement backend :
   `npm run export:openapi` côté `backend/`, puis `npm run generate:api` ici (régénère
