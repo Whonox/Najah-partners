@@ -1,8 +1,15 @@
 import type { ReactNode } from "react"
 import { Navigate, Route, Routes } from "react-router"
 import { AppShell } from "@/components/layout/app-shell"
+import { AdminUsersPage } from "@/pages/admin-users/admin-users-page"
 import { ComingSoonPage } from "@/pages/coming-soon-page"
+import { CommissionsPage } from "@/pages/commissions/commissions-page"
+import { RunDetailPage } from "@/pages/commissions/run-detail-page"
+import { DashboardPage } from "@/pages/dashboard/dashboard-page"
+import { EcardDetailPage } from "@/pages/ecards/ecard-detail-page"
+import { EcardsPage } from "@/pages/ecards/ecards-page"
 import { GenealogyPage } from "@/pages/genealogy/genealogy-page"
+import { LedgerPage } from "@/pages/ledger/ledger-page"
 import { LoginPage } from "@/pages/login-page"
 import { MemberDetailPage } from "@/pages/members/member-detail-page"
 import { MembersPage } from "@/pages/members/members-page"
@@ -11,7 +18,10 @@ import { OrderDetailPage } from "@/pages/orders/order-detail-page"
 import { OrdersPage } from "@/pages/orders/orders-page"
 import { PacksPage } from "@/pages/packs/packs-page"
 import { ProductsPage } from "@/pages/products/products-page"
+import { ReportsPage } from "@/pages/reports/reports-page"
 import { SettingsPage } from "@/pages/settings-page"
+import { RenewalsPage } from "@/pages/tasks/renewals-page"
+import { VerificationsPage } from "@/pages/tasks/verifications-page"
 import { HOME_PATH, NAV_MODULES } from "@/lib/nav"
 import { ProtectedRoute } from "./protected-route"
 import { RoleRoute } from "./role-route"
@@ -22,12 +32,21 @@ import { RoleRoute } from "./role-route"
  * les tranches suivantes n'ont qu'à ajouter une ligne ici.
  */
 const MODULE_SCREENS: Record<string, ReactNode> = {
+  dashboard: <DashboardPage />,
+  // Les deux files de TÂCHES (D-018 non bloquante, D-038 bloquante).
+  verifications: <VerificationsPage />,
+  renewals: <RenewalsPage />,
   members: <MembersPage />,
   genealogy: <GenealogyPage />,
   packs: <PacksPage />,
   products: <ProductsPage />,
   orders: <OrdersPage />,
+  commissions: <CommissionsPage />,
+  ledger: <LedgerPage />,
+  ecards: <EcardsPage />,
+  reports: <ReportsPage />,
   settings: <SettingsPage />,
+  "admin-users": <AdminUsersPage />,
 }
 
 /**
@@ -40,6 +59,8 @@ const MODULE_SCREENS: Record<string, ReactNode> = {
 const MODULE_DETAILS: Record<string, { path: string; element: ReactNode }> = {
   members: { path: ":memberId", element: <MemberDetailPage /> },
   orders: { path: ":orderId", element: <OrderDetailPage /> },
+  commissions: { path: ":runId", element: <RunDetailPage /> },
+  ecards: { path: ":ecardId", element: <EcardDetailPage /> },
 }
 
 export function AppRoutes() {

@@ -1,5 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNumber, IsOptional, IsPositive, Min } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsPositive,
+  IsString,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { MONEY_SCALE } from '../../common/money';
 
 export class GenesisEcardDto {
@@ -24,10 +33,17 @@ export class GenesisEcardDto {
   @Min(-1)
   expirationDays?: number;
 
-  @ApiPropertyOptional({
-    description: 'Motif (promo, amorçage…) — tracé dans l’AuditLog.',
-    example: 'Promotion lancement — 10 e-cards Silver',
+  /**
+   * OBLIGATOIRE depuis la Tranche 8c, comme pour la genèse de solde : c'est la seule opération
+   * qui fabrique de la valeur ex nihilo (D-017b). « Du DT est apparu » sans dire pourquoi est
+   * précisément la trace inutile.
+   */
+  @ApiProperty({
+    description: 'Motif OBLIGATOIRE (promo, amorçage…) — tracé dans l’AuditLog.',
+    example: 'Promotion lancement — e-card Silver',
   })
-  @IsOptional()
-  reason?: string;
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  reason!: string;
 }

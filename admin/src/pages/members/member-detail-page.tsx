@@ -54,7 +54,8 @@ export function MemberDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" size="sm" className="-ms-2" render={<Link to="/members" />}>
+      <Button variant="ghost" size="sm" className="-ms-2" nativeButton={false}
+              render={<Link to="/members" />}>
         <ArrowLeft />
         {t("members.title")}
       </Button>
@@ -85,6 +86,7 @@ function MemberDetailView({ member }: { member: MemberDetail }) {
             <Button
               variant="outline"
               size="sm"
+              nativeButton={false}
               render={<Link to={`/genealogy?member=${member.id}`} />}
             >
               <GitFork />
@@ -93,6 +95,7 @@ function MemberDetailView({ member }: { member: MemberDetail }) {
             <Button
               variant="outline"
               size="sm"
+              nativeButton={false}
               render={<Link to={`/orders?memberCode=${member.memberCode}`} />}
             >
               {t("member.action.orders")}
@@ -336,7 +339,8 @@ function LedgerTab({ member }: { member: MemberDetail }) {
           <p className="text-sm text-muted-foreground">
             {t("member.action.adjustHint")}
           </p>
-          <Button variant="outline" size="sm" render={<Link to="/ledger" />}>
+          <Button variant="outline" size="sm" nativeButton={false}
+              render={<Link to="/ledger" />}>
             <Wallet />
             {t("nav.ledger")}
           </Button>

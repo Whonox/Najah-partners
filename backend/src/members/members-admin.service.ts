@@ -55,6 +55,8 @@ const DETAIL_INCLUDE = {
       status: true,
     },
   },
+  // L'auteur du verdict de vérification (Tranche 8c) : un badge sans auteur n'est pas une trace.
+  verificationByAdmin: { select: { name: true } },
 } satisfies Prisma.MemberInclude;
 
 type MemberForList = Prisma.MemberGetPayload<{ include: typeof LIST_INCLUDE }>;
@@ -307,6 +309,10 @@ export class MembersAdminService {
       // Le CHEMIN ne sort pas : seul le fait qu'un document existe est une information d'API.
       hasIdDocument: member.idDocumentPath !== null,
       verificationStatus: member.verificationStatus,
+      verificationReason: member.verificationReason,
+      verificationAt: member.verificationAt,
+      verificationByAdminId: member.verificationByAdminId,
+      verificationByAdminName: member.verificationByAdmin?.name ?? null,
 
       packId: member.packId,
       packName: member.pack?.name ?? null,

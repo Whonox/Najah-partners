@@ -18,10 +18,17 @@ import { AdjustBalanceDto } from './dto/adjust-balance.dto';
 import { GenesisBalanceDto } from './dto/genesis-balance.dto';
 import { HistoryQueryDto } from './dto/history-query.dto';
 import {
+  BalancePageDto,
+  MovementPageDto,
+} from './dto/ledger-registry.dto';
+import {
+  LedgerEntryResponseDto,
   LedgerHistoryPageDto,
   MemberBalanceResponseDto,
 } from './dto/ledger-response.dto';
+import { BalancesQueryDto, MovementsQueryDto } from './dto/registry-query.dto';
 import { LedgerAdminService } from './ledger-admin.service';
+import { LedgerRegistryService } from './ledger-registry.service';
 import { LedgerService } from './ledger.service';
 
 /**
@@ -40,13 +47,41 @@ export class LedgerAdminController {
   constructor(
     private readonly ledger: LedgerService,
     private readonly ledgerAdmin: LedgerAdminService,
+    private readonly registry: LedgerRegistryService,
   ) {}
+
+  /**
+   * Le REGISTRE (§7.2.8) : tous les soldes d'un coup, avec leur total. Les routes « par membre »
+   * ci-dessous répondent à « et lui, combien ? » ; celle-ci répond à « où est l'argent ? ».
+   */
+  @Get('balances')
+  @Roles(AdminRole.SUPER_ADMIN, AdminRole.MANAGER, AdminRole.SUPPORT)
+  @ApiOperation({
+    summary:
+      'Registre des soldes par membre (recherche, filtre d’état, tri, pagination) + somme des soldes filtrés.',
+  })
+  @ApiOkResponse({ type: BalancePageDto })
+  balances(@Query() query: BalancesQueryDto): Promise<BalancePageDto> {
+    return this.registry.balances(query);
+  }
+
+  @Get('movements')
+  @Roles(AdminRole.SUPER_ADMIN, AdminRole.MANAGER, AdminRole.SUPPORT)
+  @ApiOperation({
+    summary:
+      'Journal GLOBAL des mouvements de solde (type, montant signé, solde après, source, date).',
+  })
+  @ApiOkResponse({ type: MovementPageDto })
+  movements(@Query() query: MovementsQueryDto): Promise<MovementPageDto> {
+    return this.registry.movements(query);
+  }
 
   @Post('members/:memberId/adjustment')
   @Roles(AdminRole.SUPER_ADMIN, AdminRole.MANAGER)
   @ApiOperation({
     summary: 'Ajustement manuel du solde en DT (motif obligatoire, tracé)',
   })
+  @ApiOkResponse({ type: LedgerEntryResponseDto })
   adjust(
     @Param('memberId', ParseIntPipe) memberId: number,
     @Body() dto: AdjustBalanceDto,
@@ -63,8 +98,10 @@ export class LedgerAdminController {
   @Post('members/:memberId/genesis')
   @Roles(AdminRole.SUPER_ADMIN)
   @ApiOperation({
-    summary: 'Génération de solde en DT (amorçage / promo, ADMIN_GENESIS)',
+    summary:
+      'Génération de solde en DT ex nihilo (amorçage / promo, ADMIN_GENESIS) — motif OBLIGATOIRE, tracé.',
   })
+  @ApiOkResponse({ type: LedgerEntryResponseDto })
   genesis(
     @Param('memberId', ParseIntPipe) memberId: number,
     @Body() dto: GenesisBalanceDto,

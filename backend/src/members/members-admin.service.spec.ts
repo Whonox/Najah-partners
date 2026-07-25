@@ -54,6 +54,11 @@ const BASE = {
   idDocumentNumber: '01234567',
   idDocumentPath: 'id-documents/2026-01/secret.jpg',
   verificationStatus: VerificationStatus.PENDING,
+  // Traçabilité du verdict (T8c) : nulle tant que personne n'a statué.
+  verificationReason: null,
+  verificationAt: null,
+  verificationByAdminId: null,
+  verificationByAdmin: null,
   registrationPaidDt: money(100),
   downlines: [
     {

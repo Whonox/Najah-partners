@@ -5,13 +5,16 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AdminUsersModule } from './admin-users/admin-users.module';
 import { AuthModule } from './auth/auth.module';
 import { CommissionsModule } from './commissions/commissions.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 import { LedgerModule } from './ledger/ledger.module';
 import { EcardsModule } from './ecards/ecards.module';
 import { MembersModule } from './members/members.module';
 import { PacksModule } from './packs/packs.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ReportsModule } from './reports/reports.module';
 import { SettingsModule } from './settings/settings.module';
 import { ShopModule } from './shop/shop.module';
 
@@ -41,6 +44,11 @@ import { ShopModule } from './shop/shop.module';
     ShopModule,
     PacksModule,
     SettingsModule,
+    // Tranche 8c — surfaces de supervision du back-office : agrégats du tableau de bord,
+    // rapports, comptes administrateurs. Aucune ne porte de logique métier.
+    DashboardModule,
+    ReportsModule,
+    AdminUsersModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

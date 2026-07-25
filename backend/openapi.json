@@ -247,6 +247,207 @@
         ]
       }
     },
+    "/admin/ledger/balances": {
+      "get": {
+        "operationId": "LedgerAdminController_balances",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Recherche sur le code membre, le nom ou le prénom.",
+            "schema": {
+              "maxLength": 120,
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "REGISTERED",
+                "ACTIVE",
+                "INACTIVE"
+              ]
+            }
+          },
+          {
+            "name": "withBalanceOnly",
+            "required": false,
+            "in": "query",
+            "description": "N’afficher que les membres dont le solde est strictement positif.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "balanceDt",
+              "type": "string",
+              "enum": [
+                "memberCode",
+                "lastName",
+                "balanceDt"
+              ]
+            }
+          },
+          {
+            "name": "direction",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "desc",
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BalancePageDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Registre des soldes par membre (recherche, filtre d’état, tri, pagination) + somme des soldes filtrés.",
+        "tags": [
+          "ledger-admin"
+        ]
+      }
+    },
+    "/admin/ledger/movements": {
+      "get": {
+        "operationId": "LedgerAdminController_movements",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Recherche sur le code membre, le nom ou le prénom.",
+            "schema": {
+              "maxLength": 120,
+              "type": "string"
+            }
+          },
+          {
+            "name": "memberId",
+            "required": false,
+            "in": "query",
+            "description": "Restreindre à un membre.",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ECARD_CREATION",
+                "ECARD_REFUND",
+                "COMMISSION",
+                "ACTIVATION",
+                "ADMIN_ADJUSTMENT",
+                "ADMIN_GENESIS"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Mouvements à partir de cette date (incluse), au format ISO.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Mouvements jusqu’à cette date (incluse), au format ISO.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MovementPageDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Journal GLOBAL des mouvements de solde (type, montant signé, solde après, source, date).",
+        "tags": [
+          "ledger-admin"
+        ]
+      }
+    },
     "/admin/ledger/members/{memberId}/adjustment": {
       "post": {
         "operationId": "LedgerAdminController_adjust",
@@ -271,8 +472,15 @@
           }
         },
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerEntryResponseDto"
+                }
+              }
+            }
           }
         },
         "summary": "Ajustement manuel du solde en DT (motif obligatoire, tracé)",
@@ -305,11 +513,18 @@
           }
         },
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerEntryResponseDto"
+                }
+              }
+            }
           }
         },
-        "summary": "Génération de solde en DT (amorçage / promo, ADMIN_GENESIS)",
+        "summary": "Génération de solde en DT ex nihilo (amorçage / promo, ADMIN_GENESIS) — motif OBLIGATOIRE, tracé.",
         "tags": [
           "ledger-admin"
         ]
@@ -395,6 +610,288 @@
         "summary": "Historique paginé des mouvements de solde d’un membre (DT)",
         "tags": [
           "ledger-admin"
+        ]
+      }
+    },
+    "/admin/commissions/runs": {
+      "get": {
+        "operationId": "CommissionsAdminController_listRuns",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "IN_PROGRESS",
+                "SUCCESS",
+                "ERROR"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Runs exécutés à partir de cette date (incluse), au format ISO.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Runs exécutés jusqu’à cette date (incluse), au format ISO.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunPageDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Historique des runs hebdomadaires (période, membres réglés, total distribué, statut).",
+        "tags": [
+          "commissions-admin"
+        ]
+      },
+      "post": {
+        "operationId": "CommissionsAdminController_relaunch",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelaunchRunDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "memberCount": {
+                      "type": "number"
+                    },
+                    "distributedDt": {
+                      "type": "string",
+                      "example": "18750.000"
+                    },
+                    "rewardPointsGranted": {
+                      "type": "number"
+                    },
+                    "eventCount": {
+                      "type": "number"
+                    },
+                    "alreadyExecuted": {
+                      "type": "boolean"
+                    },
+                    "periodStart": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "periodEnd": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Relance de secours d’un run (SUPER_ADMIN). Idempotente : ne recrédite jamais une période déjà réglée.",
+        "tags": [
+          "commissions-admin"
+        ]
+      }
+    },
+    "/admin/commissions/pending": {
+      "get": {
+        "operationId": "CommissionsAdminController_pending",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingEventsDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Événements pas encore réclamés : ce que le prochain run réglera (dû BRUT, avant plafond).",
+        "tags": [
+          "commissions-admin"
+        ]
+      }
+    },
+    "/admin/commissions/runs/{runId}": {
+      "get": {
+        "operationId": "CommissionsAdminController_runDetail",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Détail d’un run : totaux, argent PERDU au plafond, événements inéligibles, journal d’exécution.",
+        "tags": [
+          "commissions-admin"
+        ]
+      }
+    },
+    "/admin/commissions/runs/{runId}/members": {
+      "get": {
+        "operationId": "CommissionsAdminController_runMembers",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunMemberPageDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Décomposition par membre d’un run : brut, versé, perdu au plafond, plafond appliqué, Points Fidélité.",
+        "tags": [
+          "commissions-admin"
+        ]
+      }
+    },
+    "/admin/commissions/runs/{runId}/members/{memberId}/events": {
+      "get": {
+        "description": "La part payée et la part perdue de CHAQUE événement ne sont pas stockées : elles sont rejouées par la fonction de règlement du moteur lui-même, sur les mêmes entrées. C’est l’explication exacte du versement, pas une reconstitution.",
+        "operationId": "CommissionsAdminController_memberEvents",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "memberId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunMemberEventsDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Chronologie des événements d’un membre sur un run, dans l’ordre d’application du plafond (D-033).",
+        "tags": [
+          "commissions-admin"
         ]
       }
     },
@@ -746,6 +1243,48 @@
         ]
       }
     },
+    "/admin/members/{memberId}/verification": {
+      "post": {
+        "description": "N’a AUCUN effet bloquant (D-018) : le badge informe, il n’interdit ni l’activation, ni la perception de commissions, ni le renouvellement.",
+        "operationId": "MembersAdminController_verify",
+        "parameters": [
+          {
+            "name": "memberId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyIdentityDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationResultDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Statuer sur la vérification d’identité : VERIFIED ou REJECTED (motif obligatoire au rejet). Tracé dans l’AuditLog.",
+        "tags": [
+          "members-admin"
+        ]
+      }
+    },
     "/admin/members/{memberId}/tree": {
       "get": {
         "operationId": "MembersAdminController_tree",
@@ -791,6 +1330,7 @@
     },
     "/admin/renewals/pending": {
       "get": {
+        "description": "L’état courant du membre dit ce que la validation va faire : réactiver un INACTIF (nouvelle baseline, carry-over d’avant le gel conservé — D-034) ou seulement repousser l’échéance d’un ACTIF qui renouvelle par anticipation.",
         "operationId": "RenewalsAdminController_pending",
         "parameters": [],
         "responses": {
@@ -801,14 +1341,14 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object"
+                    "$ref": "#/components/schemas/PendingRenewalDto"
                   }
                 }
               }
             }
           }
         },
-        "summary": "Renouvellements payés en attente de validation (plus anciens d’abord).",
+        "summary": "File des renouvellements payés en attente de validation (plus anciens d’abord) : membre, état courant, échéance, montant figé, ids des e-cards brûlées.",
         "tags": [
           "renewals-admin"
         ]
@@ -816,7 +1356,7 @@
     },
     "/admin/renewals/{paymentId}/validate": {
       "post": {
-        "description": "Un membre INACTIF est RÉACTIVÉ (nouvelle baseline figée, carry-over d’avant le gel conservé — D-034) ; un membre encore ACTIF voit seulement son échéance repoussée. L’opération n’est pas rejouable : un renouvellement déjà validé est refusé.",
+        "description": "Un membre INACTIF est RÉACTIVÉ (nouvelle baseline figée, carry-over d’avant le gel conservé — D-034) ; un membre encore ACTIF voit seulement son échéance repoussée. L’opération n’est pas rejouable : un renouvellement déjà validé est refusé. Il n’existe AUCUN chemin de refus (D-038, point ouvert) : les e-cards sont déjà brûlées et `USED` est irréversible — que devient la valeur ? À trancher avec la cliente.",
         "operationId": "RenewalsAdminController_validate",
         "parameters": [
           {
@@ -829,12 +1369,12 @@
           }
         ],
         "responses": {
-          "201": {
+          "200": {
             "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/MembershipPaymentResponseDto"
                 }
               }
             }
@@ -976,8 +1516,187 @@
         ]
       }
     },
+    "/admin/ecards": {
+      "get": {
+        "description": "La réponse ne contient AUCUN code, y compris quand la recherche s’est faite par code : un code est de la valeur au porteur. Chercher n’est pas restituer.",
+        "operationId": "EcardsAdminController_list",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "code",
+            "required": false,
+            "in": "query",
+            "description": "Code d’e-card, en correspondance EXACTE. La réponse ne contient JAMAIS de code (voir EcardAdminRowDto).",
+            "schema": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "USED",
+                "REVOKED",
+                "EXPIRED"
+              ]
+            }
+          },
+          {
+            "name": "origin",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "MEMBER",
+                "GENESIS"
+              ]
+            }
+          },
+          {
+            "name": "creatorMemberId",
+            "required": false,
+            "in": "query",
+            "description": "Cartes créées par ce membre.",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "userMemberId",
+            "required": false,
+            "in": "query",
+            "description": "Cartes consommées par ce membre.",
+            "schema": {
+              "minimum": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Créées à partir de cette date (incluse), au format ISO.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Créées jusqu’à cette date (incluse), au format ISO.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "createdAt",
+              "type": "string",
+              "enum": [
+                "createdAt",
+                "valueDt",
+                "expiresAt",
+                "usedAt"
+              ]
+            }
+          },
+          {
+            "name": "direction",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "desc",
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EcardAdminPageDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Lister les e-cards (filtres statut / origine / créateur / bénéficiaire / période, recherche par code EXACT, tri, pagination).",
+        "tags": [
+          "ecards-admin"
+        ]
+      }
+    },
+    "/admin/ecards/{id}": {
+      "get": {
+        "operationId": "EcardsAdminController_one",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EcardAdminDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Fiche d’une e-card : traçabilité création → utilisation, ce qu’elle a payé (commande ou adhésion), mouvements de solde liés.",
+        "tags": [
+          "ecards-admin"
+        ]
+      }
+    },
     "/admin/ecards/genesis": {
       "post": {
+        "description": "SEULE réponse de l’API admin qui contient un code en clair, et une seule fois : une carte de genèse n’a pas de créateur à qui demander son code, et aucun autre canal ne permettrait de le transmettre. Il n’est ensuite plus jamais consultable.",
         "operationId": "EcardsAdminController_genesis",
         "parameters": [],
         "requestBody": {
@@ -991,12 +1710,12 @@
           }
         },
         "responses": {
-          "201": {
+          "200": {
             "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/GenesisEcardResponseDto"
                 }
               }
             }
@@ -1021,19 +1740,29 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeEcardDto"
+              }
+            }
+          }
+        },
         "responses": {
-          "201": {
+          "200": {
             "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/EcardAdminActionDto"
                 }
               }
             }
           }
         },
-        "summary": "Révoquer une e-card ACTIVE : statut REVOKED, BV recrédité au créateur.",
+        "summary": "Révoquer une e-card ACTIVE : statut REVOKED, valeur (DT) RECRÉDITÉE au créateur — sauf carte de genèse, qui n’a débité personne.",
         "tags": [
           "ecards-admin"
         ]
@@ -1063,18 +1792,18 @@
           }
         },
         "responses": {
-          "201": {
+          "200": {
             "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/EcardAdminActionDto"
                 }
               }
             }
           }
         },
-        "summary": "Prolonger l’échéance de n’importe quelle e-card ACTIVE (support, D-026).",
+        "summary": "Prolonger l’échéance de n’importe quelle e-card ACTIVE (support, D-026). Borné à 365 jours.",
         "tags": [
           "ecards-admin"
         ]
@@ -1931,6 +2660,417 @@
           "settings-admin"
         ]
       }
+    },
+    "/admin/dashboard": {
+      "get": {
+        "operationId": "DashboardAdminController_overview",
+        "parameters": [
+          {
+            "name": "days",
+            "required": false,
+            "in": "query",
+            "description": "Profondeur des séries quotidiennes (croissance du réseau, activations par jour), en jours.",
+            "schema": {
+              "minimum": 7,
+              "maximum": 180,
+              "default": 30,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Agrégats du tableau de bord : membres, activations, packs, e-cards, dinars en circulation, dernier / prochain run, tâches en attente, séries quotidiennes.",
+        "tags": [
+          "dashboard-admin"
+        ]
+      }
+    },
+    "/admin/reports/sales": {
+      "get": {
+        "operationId": "ReportsAdminController_sales",
+        "parameters": [
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Début INCLUS, au format ISO.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Fin INCLUSE, au format ISO.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SalesReportDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Ventes produits : unités, total DT et total POINTS par produit (snapshots figés), et répartition par contexte de commande.",
+        "tags": [
+          "reports-admin"
+        ]
+      }
+    },
+    "/admin/reports/activations-by-pack": {
+      "get": {
+        "operationId": "ReportsAdminController_activationsByPack",
+        "parameters": [
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Début INCLUS, au format ISO.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Fin INCLUSE, au format ISO.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ActivationsByPackRowDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Activations par pack : nombre, DINARS encaissés (prix − acompte, D-037) et POINTS injectés dans l’arbre (palier entier).",
+        "tags": [
+          "reports-admin"
+        ]
+      }
+    },
+    "/admin/reports/commissions": {
+      "get": {
+        "operationId": "ReportsAdminController_commissions",
+        "parameters": [
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Début INCLUS, au format ISO.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Fin INCLUSE, au format ISO.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CommissionsPeriodRowDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Commissions par période (une ligne par run hebdomadaire) : brut éligible, versé, PERDU au plafond, Points Fidélité accordés / perdus.",
+        "tags": [
+          "reports-admin"
+        ]
+      }
+    },
+    "/admin/reports/circulation": {
+      "get": {
+        "operationId": "ReportsAdminController_circulation",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CirculationReportDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Dinars en circulation, décomposés : soldes des membres, e-cards actives, valeur consommée, valeur créée ex nihilo, commissions versées.",
+        "tags": [
+          "reports-admin"
+        ]
+      }
+    },
+    "/admin/reports/top-affiliates": {
+      "get": {
+        "operationId": "ReportsAdminController_topAffiliates",
+        "parameters": [
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Début INCLUS, au format ISO.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Fin INCLUSE, au format ISO.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TopAffiliateRowDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Top affiliés par commissions réellement PERÇUES sur la période (plafond appliqué), avec équilibres à vie et Points Fidélité.",
+        "tags": [
+          "reports-admin"
+        ]
+      }
+    },
+    "/admin/admin-users": {
+      "get": {
+        "operationId": "AdminUsersController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminUserDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Lister les comptes administrateurs (rôle, activation, dernière connexion, sessions vivantes).",
+        "tags": [
+          "admin-users"
+        ]
+      },
+      "post": {
+        "operationId": "AdminUsersController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAdminUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Créer un compte administrateur. Le mot de passe initial est transmis hors plateforme (aucun envoi d’e-mail — D-011).",
+        "tags": [
+          "admin-users"
+        ]
+      }
+    },
+    "/admin/admin-users/{adminUserId}": {
+      "patch": {
+        "description": "Refuse de vous désactiver ou de vous retirer votre propre rôle SUPER_ADMIN, et de retirer le DERNIER SUPER_ADMIN actif (la plateforme deviendrait inadministrable). Un changement de rôle ou une désactivation RÉVOQUE les sessions du compte : sans cela, le jeton déjà émis garderait les anciens droits jusqu’à son expiration.",
+        "operationId": "AdminUsersController_update",
+        "parameters": [
+          {
+            "name": "adminUserId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAdminUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Modifier un compte : nom, rôle, activation. Tracé dans l’AuditLog.",
+        "tags": [
+          "admin-users"
+        ]
+      }
+    },
+    "/admin/admin-users/{adminUserId}/password": {
+      "post": {
+        "operationId": "AdminUsersController_resetPassword",
+        "parameters": [
+          {
+            "name": "adminUserId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetAdminPasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Réinitialiser le mot de passe d’un administrateur (le SUPER_ADMIN le pose et le transmet hors plateforme). Révoque ses sessions.",
+        "tags": [
+          "admin-users"
+        ]
+      }
+    },
+    "/admin/admin-users/{adminUserId}/sessions": {
+      "get": {
+        "description": "Ce n’est pas un journal de connexion complet : les tentatives ÉCHOUÉES ne sont enregistrées nulle part en base (`failedAttemptsRecorded: false`). Les journaliser demanderait une table dédiée et une écriture dans le chemin d’authentification — point ouvert, pas une donnée inventée.",
+        "operationId": "AdminUsersController_sessions",
+        "parameters": [
+          {
+            "name": "adminUserId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSessionsDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Journal des SESSIONS d’un administrateur (ouverture, IP, navigateur, révocation), reconstitué depuis les jetons de rafraîchissement.",
+        "tags": [
+          "admin-users"
+        ]
+      }
     }
   },
   "info": {
@@ -2122,6 +3262,201 @@
           "role"
         ]
       },
+      "BalanceRowDto": {
+        "type": "object",
+        "properties": {
+          "memberId": {
+            "type": "number"
+          },
+          "memberCode": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "REGISTERED",
+              "ACTIVE",
+              "INACTIVE"
+            ],
+            "type": "string"
+          },
+          "balanceDt": {
+            "type": "string",
+            "example": "1250.500",
+            "description": "DINARS — solde courant."
+          },
+          "movementCount": {
+            "type": "number",
+            "description": "Mouvements enregistrés pour ce membre."
+          },
+          "lastMovementAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "Date du dernier mouvement. `null` = aucun mouvement : un solde à 0 sans histoire, ce qui est le cas normal d’un INSCRIT (payer par e-card n’écrit RIEN au grand livre — D-025)."
+          }
+        },
+        "required": [
+          "memberId",
+          "memberCode",
+          "firstName",
+          "lastName",
+          "status",
+          "balanceDt",
+          "movementCount"
+        ]
+      },
+      "BalancePageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BalanceRowDto"
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "page": {
+            "type": "number"
+          },
+          "pageSize": {
+            "type": "number"
+          },
+          "totalBalanceDt": {
+            "type": "string",
+            "example": "31200.500",
+            "description": "DINARS — somme des soldes de TOUS les membres correspondant au filtre (pas seulement de la page)."
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize",
+          "totalBalanceDt"
+        ]
+      },
+      "MovementMemberRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "memberCode": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "memberCode",
+          "firstName",
+          "lastName"
+        ]
+      },
+      "MovementRowDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "member": {
+            "$ref": "#/components/schemas/MovementMemberRefDto"
+          },
+          "type": {
+            "enum": [
+              "ECARD_CREATION",
+              "ECARD_REFUND",
+              "COMMISSION",
+              "ACTIVATION",
+              "ADMIN_ADJUSTMENT",
+              "ADMIN_GENESIS"
+            ],
+            "type": "string",
+            "description": "Il n’existe PAS de `ECARD_USE` (D-025) : consommer une e-card ne bouge aucun solde, donc n’écrit rien ici."
+          },
+          "amountDt": {
+            "type": "string",
+            "example": "-100.000",
+            "description": "DINARS, SIGNÉ : + crédit, − débit."
+          },
+          "balanceAfterDt": {
+            "type": "string",
+            "example": "1150.500",
+            "description": "DINARS — solde APRÈS le mouvement."
+          },
+          "ecardId": {
+            "type": "number",
+            "nullable": true,
+            "description": "E-card à l’origine du mouvement (id, jamais le code)."
+          },
+          "commissionId": {
+            "type": "number",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "description": "Motif — OBLIGATOIRE pour un ajustement comme pour une genèse."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "member",
+          "type",
+          "amountDt",
+          "balanceAfterDt",
+          "createdAt"
+        ]
+      },
+      "MovementPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MovementRowDto"
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "page": {
+            "type": "number"
+          },
+          "pageSize": {
+            "type": "number"
+          },
+          "netAmountDt": {
+            "type": "string",
+            "example": "4300.000",
+            "description": "DINARS — somme SIGNÉE des mouvements filtrés (pas seulement de la page)."
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize",
+          "netAmountDt"
+        ]
+      },
       "AdjustBalanceDto": {
         "type": "object",
         "properties": {
@@ -2140,43 +3475,6 @@
         "required": [
           "amountDt",
           "reason"
-        ]
-      },
-      "GenesisBalanceDto": {
-        "type": "object",
-        "properties": {
-          "amountDt": {
-            "type": "number",
-            "minimum": 0.001,
-            "description": "Montant en DINARS à générer (amorçage réseau / promo), strictement positif. 3 décimales au maximum.",
-            "example": 2200
-          },
-          "reason": {
-            "type": "string",
-            "maxLength": 500,
-            "description": "Motif optionnel (tracé dans l’audit).",
-            "example": "Amorçage réseau — dotation initiale"
-          }
-        },
-        "required": [
-          "amountDt"
-        ]
-      },
-      "MemberBalanceResponseDto": {
-        "type": "object",
-        "properties": {
-          "memberId": {
-            "type": "number"
-          },
-          "balanceDt": {
-            "type": "string",
-            "example": "1250.500",
-            "description": "DINARS — solde courant."
-          }
-        },
-        "required": [
-          "memberId",
-          "balanceDt"
         ]
       },
       "LedgerEntryResponseDto": {
@@ -2239,6 +3537,44 @@
           "createdAt"
         ]
       },
+      "GenesisBalanceDto": {
+        "type": "object",
+        "properties": {
+          "amountDt": {
+            "type": "number",
+            "minimum": 0.001,
+            "description": "Montant en DINARS à générer (amorçage réseau / promo), strictement positif. 3 décimales au maximum.",
+            "example": 2200
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Motif OBLIGATOIRE (tracé dans le grand livre et l’audit).",
+            "example": "Amorçage réseau — dotation initiale"
+          }
+        },
+        "required": [
+          "amountDt",
+          "reason"
+        ]
+      },
+      "MemberBalanceResponseDto": {
+        "type": "object",
+        "properties": {
+          "memberId": {
+            "type": "number"
+          },
+          "balanceDt": {
+            "type": "string",
+            "example": "1250.500",
+            "description": "DINARS — solde courant."
+          }
+        },
+        "required": [
+          "memberId",
+          "balanceDt"
+        ]
+      },
       "LedgerHistoryPageDto": {
         "type": "object",
         "properties": {
@@ -2264,6 +3600,425 @@
           "page",
           "pageSize"
         ]
+      },
+      "RunSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "executedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "periodStart": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Début INCLUS de la semaine réglée."
+          },
+          "periodEnd": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Fin EXCLUE (clôture vendredi 23:59 Tunis)."
+          },
+          "memberCount": {
+            "type": "number",
+            "description": "Membres ayant reçu un versement."
+          },
+          "distributedDt": {
+            "type": "string",
+            "example": "18750.000",
+            "description": "DINARS versés par ce run."
+          },
+          "rewardPointsGranted": {
+            "type": "number",
+            "description": "Points Fidélité accordés (D-032)."
+          },
+          "status": {
+            "enum": [
+              "IN_PROGRESS",
+              "SUCCESS",
+              "ERROR"
+            ],
+            "type": "string"
+          },
+          "hasLog": {
+            "type": "boolean",
+            "description": "Le run porte-t-il un journal d’exécution ?"
+          }
+        },
+        "required": [
+          "id",
+          "executedAt",
+          "periodStart",
+          "periodEnd",
+          "memberCount",
+          "distributedDt",
+          "rewardPointsGranted",
+          "status",
+          "hasLog"
+        ]
+      },
+      "RunPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunSummaryDto"
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "page": {
+            "type": "number"
+          },
+          "pageSize": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ]
+      },
+      "PendingEventsDto": {
+        "type": "object",
+        "properties": {
+          "eventCount": {
+            "type": "number"
+          },
+          "memberCount": {
+            "type": "number",
+            "description": "Bénéficiaires distincts concernés."
+          },
+          "eligibleGrossDt": {
+            "type": "string",
+            "example": "4300.000",
+            "description": "DINARS dus par les événements ÉLIGIBLES — avant application des plafonds."
+          },
+          "ineligibleGrossDt": {
+            "type": "string",
+            "example": "500.000",
+            "description": "DINARS tracés mais jamais payables (bénéficiaire gelé ou INSCRIT — D-034)."
+          },
+          "periodStart": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Début de la période en cours (dernière clôture atteinte)."
+          },
+          "periodEnd": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Prochaine clôture — l’instant où ces événements seront réglés."
+          }
+        },
+        "required": [
+          "eventCount",
+          "memberCount",
+          "eligibleGrossDt",
+          "ineligibleGrossDt",
+          "periodStart",
+          "periodEnd"
+        ]
+      },
+      "RunDetailDto": {
+        "type": "object",
+        "properties": {
+          "run": {
+            "$ref": "#/components/schemas/RunSummaryDto"
+          },
+          "log": {
+            "type": "string",
+            "nullable": true,
+            "description": "Journal d’exécution (texte libre écrit par le run, `null` s’il n’y en a pas)."
+          },
+          "grossTotalDt": {
+            "type": "string",
+            "example": "19750.000",
+            "description": "DINARS — somme des bruts de tous les membres."
+          },
+          "lostTotalDt": {
+            "type": "string",
+            "example": "1000.000",
+            "description": "DINARS perdus au plafond sur l’ensemble du run."
+          },
+          "rewardPointsLost": {
+            "type": "number",
+            "description": "Points Fidélité perdus au plafond sur l’ensemble du run."
+          },
+          "eventCount": {
+            "type": "number",
+            "description": "Événements réclamés par ce run (éligibles et inéligibles)."
+          },
+          "ineligibleEventCount": {
+            "type": "number",
+            "description": "Événements réclamés mais INÉLIGIBLES (bénéficiaire gelé ou INSCRIT — D-034) : soldés, jamais payés."
+          },
+          "ineligibleGrossDt": {
+            "type": "string",
+            "example": "500.000",
+            "description": "DINARS que ces événements inéligibles auraient valus."
+          },
+          "unsettledMemberCount": {
+            "type": "number",
+            "description": "Bénéficiaires n’ayant reçu AUCUN règlement (tous leurs événements étaient inéligibles) — ils n’apparaissent pas dans la décomposition par membre."
+          }
+        },
+        "required": [
+          "run",
+          "grossTotalDt",
+          "lostTotalDt",
+          "rewardPointsLost",
+          "eventCount",
+          "ineligibleEventCount",
+          "ineligibleGrossDt",
+          "unsettledMemberCount"
+        ]
+      },
+      "RunMemberRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "memberCode": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "REGISTERED",
+              "ACTIVE",
+              "INACTIVE"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "memberCode",
+          "firstName",
+          "lastName",
+          "status"
+        ]
+      },
+      "RunMemberRowDto": {
+        "type": "object",
+        "properties": {
+          "member": {
+            "$ref": "#/components/schemas/RunMemberRefDto"
+          },
+          "grossDt": {
+            "type": "string",
+            "example": "11000.000",
+            "description": "DINARS — total éligible AVANT plafond."
+          },
+          "paidDt": {
+            "type": "string",
+            "example": "10000.000",
+            "description": "DINARS réellement versés."
+          },
+          "lostDt": {
+            "type": "string",
+            "example": "1000.000",
+            "description": "DINARS PERDUS au plafond — jamais reportés (D-033). = brut − versé."
+          },
+          "appliedCapDt": {
+            "type": "string",
+            "example": "10000.000",
+            "description": "Plafond appliqué, issu du SNAPSHOT d’activation du membre — jamais du pack vivant."
+          },
+          "eventCount": {
+            "type": "number"
+          },
+          "rewardPointsGranted": {
+            "type": "number",
+            "description": "Points Fidélité accordés sous le plafond."
+          },
+          "rewardPointsLost": {
+            "type": "number",
+            "description": "Points Fidélité perdus (survenus après le plafond)."
+          }
+        },
+        "required": [
+          "member",
+          "grossDt",
+          "paidDt",
+          "lostDt",
+          "appliedCapDt",
+          "eventCount",
+          "rewardPointsGranted",
+          "rewardPointsLost"
+        ]
+      },
+      "RunMemberPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunMemberRowDto"
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "page": {
+            "type": "number"
+          },
+          "pageSize": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ]
+      },
+      "RunEventDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "type": {
+            "enum": [
+              "DIRECT",
+              "BALANCE",
+              "STARTUP_BONUS",
+              "REWARD_POINT"
+            ],
+            "type": "string"
+          },
+          "amountDt": {
+            "type": "string",
+            "example": "250.000",
+            "description": "DINARS dus par l’événement — toujours 0 pour un REWARD_POINT (D-032)."
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Horodatage RÉEL de la transaction d’activation (porte la chronologie)."
+          },
+          "sourceMember": {
+            "description": "Le filleul dont l’activation a produit l’événement.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RunMemberRefDto"
+              }
+            ]
+          },
+          "eligible": {
+            "type": "boolean",
+            "description": "Éligibilité évaluée AU MOMENT de l’événement (D-034) : un bénéficiaire gelé ou INSCRIT donne `false` — tracé, jamais payé."
+          },
+          "balanceIndex": {
+            "type": "number",
+            "nullable": true,
+            "description": "N° d’équilibre À VIE (D-032) — `null` pour une commission directe."
+          },
+          "cumulativeBeforeDt": {
+            "type": "string",
+            "example": "9800.000",
+            "description": "DINARS — cumul de la semaine AVANT cet événement."
+          },
+          "paidDt": {
+            "type": "string",
+            "example": "200.000",
+            "description": "DINARS effectivement versés par cet événement."
+          },
+          "lostDt": {
+            "type": "string",
+            "example": "50.000",
+            "description": "DINARS perdus AU PLAFOND sur cet événement (D-033). Vaut 0 pour un événement INÉLIGIBLE : cette somme n’a jamais été due — c’est `eligible` qui le dit, pas ce montant."
+          },
+          "crossesCap": {
+            "type": "boolean",
+            "description": "Cet événement FRANCHIT le plafond : il est payé partiellement."
+          },
+          "rewardPointGranted": {
+            "type": "boolean",
+            "description": "Point Fidélité accordé par cet événement."
+          },
+          "rewardPointLost": {
+            "type": "boolean",
+            "description": "Point Fidélité perdu (événement survenu après le plafond)."
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "amountDt",
+          "occurredAt",
+          "sourceMember",
+          "eligible",
+          "cumulativeBeforeDt",
+          "paidDt",
+          "lostDt",
+          "crossesCap",
+          "rewardPointGranted",
+          "rewardPointLost"
+        ]
+      },
+      "RunMemberEventsDto": {
+        "type": "object",
+        "properties": {
+          "member": {
+            "$ref": "#/components/schemas/RunMemberRefDto"
+          },
+          "appliedCapDt": {
+            "type": "string",
+            "nullable": true,
+            "example": "10000.000",
+            "description": "Plafond appliqué à cette semaine (snapshot d’activation). `null` si aucun règlement n’a eu lieu — tous les événements étaient inéligibles, le plafond n’a jamais eu à s’appliquer."
+          },
+          "grossDt": {
+            "type": "string",
+            "example": "11000.000"
+          },
+          "paidDt": {
+            "type": "string",
+            "example": "10000.000"
+          },
+          "lostDt": {
+            "type": "string",
+            "example": "1000.000"
+          },
+          "events": {
+            "description": "Ordre chronologique STRICT `(occurredAt, id)` — l’ordre même d’application du plafond.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunEventDto"
+            }
+          }
+        },
+        "required": [
+          "member",
+          "grossDt",
+          "paidDt",
+          "lostDt",
+          "events"
+        ]
+      },
+      "RelaunchRunDto": {
+        "type": "object",
+        "properties": {
+          "periodEnd": {
+            "type": "string",
+            "description": "Clôture (fin EXCLUE) de la semaine à régler, au format ISO. Omise : la dernière semaine close."
+          }
+        }
       },
       "RegisterMemberDto": {
         "type": "object",
@@ -2647,6 +4402,27 @@
             ],
             "type": "string"
           },
+          "verificationReason": {
+            "type": "string",
+            "nullable": true,
+            "description": "Motif du REJET (Tranche 8c) — renseigné uniquement si le statut est REJECTED. Rappel : un rejet ne bloque rien (D-018)."
+          },
+          "verificationAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "Date du verdict — `null` tant que personne n’a statué."
+          },
+          "verificationByAdminId": {
+            "type": "number",
+            "nullable": true,
+            "description": "Admin auteur du verdict."
+          },
+          "verificationByAdminName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Nom de l’admin auteur du verdict."
+          },
           "packId": {
             "type": "number",
             "nullable": true
@@ -2791,6 +4567,76 @@
           "activatedDescendants"
         ]
       },
+      "VerifyIdentityDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "enum": [
+              "VERIFIED",
+              "REJECTED"
+            ],
+            "type": "string",
+            "description": "Verdict de l’admin après comparaison du numéro saisi et de l’image."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 500,
+            "description": "Motif — OBLIGATOIRE pour un rejet (le membre doit savoir quoi corriger), REFUSÉ pour une validation (il n’y a rien à motiver).",
+            "example": "Le numéro saisi ne correspond pas à celui de la pièce."
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "VerificationResultDto": {
+        "type": "object",
+        "properties": {
+          "memberId": {
+            "type": "number"
+          },
+          "memberCode": {
+            "type": "string"
+          },
+          "verificationStatus": {
+            "enum": [
+              "PENDING",
+              "VERIFIED",
+              "REJECTED"
+            ],
+            "type": "string"
+          },
+          "verificationReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "verificationAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "verificationByAdminId": {
+            "type": "number",
+            "description": "Admin auteur du verdict."
+          },
+          "idDocumentType": {
+            "nullable": true,
+            "enum": [
+              "ID_CARD",
+              "DRIVING_LICENSE",
+              "PASSPORT"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "memberId",
+          "memberCode",
+          "verificationStatus",
+          "verificationAt",
+          "verificationByAdminId"
+        ]
+      },
       "TreeNodeDto": {
         "type": "object",
         "properties": {
@@ -2893,6 +4739,151 @@
           "hasRightChild"
         ]
       },
+      "PendingRenewalDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "description": "Identifiant du paiement d’adhésion (c’est lui qu’on valide)."
+          },
+          "memberId": {
+            "type": "number"
+          },
+          "memberCode": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "memberStatus": {
+            "enum": [
+              "REGISTERED",
+              "ACTIVE",
+              "INACTIVE"
+            ],
+            "type": "string",
+            "description": "État du membre À CET INSTANT. INACTIF : la validation le RÉACTIVERA (nouvelle baseline, carry-over d’avant le gel conservé — D-034). ACTIF : renouvellement anticipé, la validation ne fait que repousser l’échéance — surtout pas de nouvelle baseline."
+          },
+          "renewalAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "Échéance actuelle du renouvellement annuel."
+          },
+          "type": {
+            "enum": [
+              "REGISTRATION",
+              "RENEWAL"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "SETTLED",
+              "PENDING_VALIDATION",
+              "VALIDATED"
+            ],
+            "type": "string"
+          },
+          "amountDt": {
+            "type": "string",
+            "example": "100.000",
+            "description": "DINARS — montant FIGÉ au paiement (changer le tarif ne réécrit aucun versement passé)."
+          },
+          "paidAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validatedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "ecardIds": {
+            "description": "IDENTIFIANTS des e-cards brûlées pour ce paiement — JAMAIS leurs codes (un code est de la valeur au porteur).",
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "memberId",
+          "memberCode",
+          "firstName",
+          "lastName",
+          "memberStatus",
+          "type",
+          "status",
+          "amountDt",
+          "paidAt",
+          "ecardIds"
+        ]
+      },
+      "MembershipPaymentResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "memberId": {
+            "type": "number"
+          },
+          "memberCode": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "REGISTRATION",
+              "RENEWAL"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "SETTLED",
+              "PENDING_VALIDATION",
+              "VALIDATED"
+            ],
+            "type": "string"
+          },
+          "amountDt": {
+            "type": "string",
+            "example": "100.000",
+            "description": "DINARS — montant figé au paiement."
+          },
+          "paidAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validatedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "ecardIds": {
+            "description": "Ids des e-cards brûlées — jamais leurs codes.",
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "memberId",
+          "memberCode",
+          "type",
+          "status",
+          "amountDt",
+          "paidAt",
+          "ecardIds"
+        ]
+      },
       "CreateEcardDto": {
         "type": "object",
         "properties": {
@@ -2935,6 +4926,298 @@
           "days"
         ]
       },
+      "EcardAdminRowDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "description": "Identifiant technique — le seul désignateur affichable."
+          },
+          "valueDt": {
+            "type": "string",
+            "example": "2100.000",
+            "description": "DINARS — une e-card est de l’argent (D-028)."
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "USED",
+              "REVOKED",
+              "EXPIRED"
+            ],
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "MEMBER",
+              "GENESIS"
+            ],
+            "type": "string",
+            "description": "MEMBER : la valeur a été débitée du solde du créateur. GENESIS : créée ex nihilo par un SUPER_ADMIN — personne n’est remboursé à son expiration."
+          },
+          "creatorMemberId": {
+            "type": "number",
+            "nullable": true,
+            "description": "Créateur — `null` si et seulement si l’origine est GENESIS."
+          },
+          "creatorMemberCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "creatorName": {
+            "type": "string",
+            "nullable": true
+          },
+          "userMemberId": {
+            "type": "number",
+            "nullable": true,
+            "description": "Bénéficiaire qui l’a consommée — `null` tant qu’elle n’est pas USED."
+          },
+          "userMemberCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "userName": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "usedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "`null` = illimité (paramètre à -1)."
+          },
+          "closedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "Passage à EXPIRED / REVOKED."
+          },
+          "orderId": {
+            "type": "number",
+            "nullable": true,
+            "description": "Commande réglée par cette carte (D-041) — exclusif avec l’adhésion."
+          },
+          "orderContext": {
+            "nullable": true,
+            "enum": [
+              "ACTIVATION",
+              "FREE"
+            ],
+            "type": "string"
+          },
+          "membershipPaymentId": {
+            "type": "number",
+            "nullable": true,
+            "description": "Paiement d’adhésion réglé par cette carte — exclusif avec la commande."
+          },
+          "membershipPaymentType": {
+            "nullable": true,
+            "enum": [
+              "REGISTRATION",
+              "RENEWAL"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "valueDt",
+          "status",
+          "origin",
+          "createdAt"
+        ]
+      },
+      "EcardAdminPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EcardAdminRowDto"
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "page": {
+            "type": "number"
+          },
+          "pageSize": {
+            "type": "number"
+          },
+          "totalValueDt": {
+            "type": "string",
+            "example": "12500.000",
+            "description": "DINARS — somme des valeurs des cartes filtrées (pas seulement de la page)."
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize",
+          "totalValueDt"
+        ]
+      },
+      "EcardLedgerRowDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "memberId": {
+            "type": "number"
+          },
+          "type": {
+            "type": "string"
+          },
+          "amountDt": {
+            "type": "string",
+            "example": "-2100.000",
+            "description": "DINARS, signé."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "memberId",
+          "type",
+          "amountDt",
+          "createdAt"
+        ]
+      },
+      "EcardAdminDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "description": "Identifiant technique — le seul désignateur affichable."
+          },
+          "valueDt": {
+            "type": "string",
+            "example": "2100.000",
+            "description": "DINARS — une e-card est de l’argent (D-028)."
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "USED",
+              "REVOKED",
+              "EXPIRED"
+            ],
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "MEMBER",
+              "GENESIS"
+            ],
+            "type": "string",
+            "description": "MEMBER : la valeur a été débitée du solde du créateur. GENESIS : créée ex nihilo par un SUPER_ADMIN — personne n’est remboursé à son expiration."
+          },
+          "creatorMemberId": {
+            "type": "number",
+            "nullable": true,
+            "description": "Créateur — `null` si et seulement si l’origine est GENESIS."
+          },
+          "creatorMemberCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "creatorName": {
+            "type": "string",
+            "nullable": true
+          },
+          "userMemberId": {
+            "type": "number",
+            "nullable": true,
+            "description": "Bénéficiaire qui l’a consommée — `null` tant qu’elle n’est pas USED."
+          },
+          "userMemberCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "userName": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "usedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "`null` = illimité (paramètre à -1)."
+          },
+          "closedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "Passage à EXPIRED / REVOKED."
+          },
+          "orderId": {
+            "type": "number",
+            "nullable": true,
+            "description": "Commande réglée par cette carte (D-041) — exclusif avec l’adhésion."
+          },
+          "orderContext": {
+            "nullable": true,
+            "enum": [
+              "ACTIVATION",
+              "FREE"
+            ],
+            "type": "string"
+          },
+          "membershipPaymentId": {
+            "type": "number",
+            "nullable": true,
+            "description": "Paiement d’adhésion réglé par cette carte — exclusif avec la commande."
+          },
+          "membershipPaymentType": {
+            "nullable": true,
+            "enum": [
+              "REGISTRATION",
+              "RENEWAL"
+            ],
+            "type": "string"
+          },
+          "ledgerEntries": {
+            "description": "Mouvements de solde liés. RAPPEL D-025 : la CONSOMMATION n’écrit rien ici — aucun solde ne bouge quand une carte paie. Seules la création et le remboursement apparaissent.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EcardLedgerRowDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "valueDt",
+          "status",
+          "origin",
+          "createdAt",
+          "ledgerEntries"
+        ]
+      },
       "GenesisEcardDto": {
         "type": "object",
         "properties": {
@@ -2952,12 +5235,132 @@
           },
           "reason": {
             "type": "string",
-            "description": "Motif (promo, amorçage…) — tracé dans l’AuditLog.",
-            "example": "Promotion lancement — 10 e-cards Silver"
+            "maxLength": 500,
+            "description": "Motif OBLIGATOIRE (promo, amorçage…) — tracé dans l’AuditLog.",
+            "example": "Promotion lancement — e-card Silver"
           }
         },
         "required": [
-          "valueDt"
+          "valueDt",
+          "reason"
+        ]
+      },
+      "GenesisEcardResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "code": {
+            "type": "string",
+            "example": "HHD-7Z7-JJD-77D",
+            "description": "Le code EN CLAIR, rendu une seule fois. Ne jamais le journaliser, ni le stocker côté client."
+          },
+          "valueDt": {
+            "type": "string",
+            "example": "2100.000"
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "USED",
+              "REVOKED",
+              "EXPIRED"
+            ],
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "MEMBER",
+              "GENESIS"
+            ],
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "valueDt",
+          "status",
+          "origin",
+          "createdAt"
+        ]
+      },
+      "RevokeEcardDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Motif OBLIGATOIRE (tracé dans l’AuditLog).",
+            "example": "Carte transmise par erreur au mauvais bénéficiaire"
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "EcardAdminActionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "valueDt": {
+            "type": "string",
+            "example": "2100.000"
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "USED",
+              "REVOKED",
+              "EXPIRED"
+            ],
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "MEMBER",
+              "GENESIS"
+            ],
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "usedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "closedAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "valueDt",
+          "status",
+          "origin",
+          "createdAt"
         ]
       },
       "CategoryResponseDto": {
@@ -3723,6 +6126,778 @@
         },
         "required": [
           "value"
+        ]
+      },
+      "DashboardMembersDto": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "number",
+            "description": "Tous états confondus."
+          },
+          "active": {
+            "type": "number",
+            "description": "ACTIF — perçoit des commissions."
+          },
+          "registered": {
+            "type": "number",
+            "description": "INSCRIT — payé son inscription, jamais activé : aucun point dans l’arbre."
+          },
+          "inactive": {
+            "type": "number",
+            "description": "INACTIF — gel de non-renouvellement (D-034), ne perçoit plus rien."
+          }
+        },
+        "required": [
+          "total",
+          "active",
+          "registered",
+          "inactive"
+        ]
+      },
+      "DashboardActivationsDto": {
+        "type": "object",
+        "properties": {
+          "today": {
+            "type": "number",
+            "description": "Depuis minuit, heure de Tunis."
+          },
+          "thisWeek": {
+            "type": "number",
+            "description": "Depuis la dernière clôture hebdomadaire (vendredi 23:59 Tunis, D-009) — la semaine du MOTEUR, pas la semaine civile."
+          },
+          "total": {
+            "type": "number",
+            "description": "À vie."
+          }
+        },
+        "required": [
+          "today",
+          "thisWeek",
+          "total"
+        ]
+      },
+      "DashboardPackRowDto": {
+        "type": "object",
+        "properties": {
+          "packId": {
+            "type": "number"
+          },
+          "packName": {
+            "type": "string"
+          },
+          "tierBv": {
+            "type": "number",
+            "description": "POINTS — palier du pack."
+          },
+          "memberCount": {
+            "type": "number",
+            "description": "Membres activés sur ce pack."
+          }
+        },
+        "required": [
+          "packId",
+          "packName",
+          "tierBv",
+          "memberCount"
+        ]
+      },
+      "DashboardEcardsDto": {
+        "type": "object",
+        "properties": {
+          "activeCount": {
+            "type": "number"
+          },
+          "activeValueDt": {
+            "type": "string",
+            "example": "12500.000",
+            "description": "DINARS immobilisés dans des cartes ACTIVE."
+          },
+          "usedCount": {
+            "type": "number"
+          },
+          "usedValueDt": {
+            "type": "string",
+            "example": "48300.000",
+            "description": "DINARS déjà consommés : cette valeur a QUITTÉ le système (D-025)."
+          }
+        },
+        "required": [
+          "activeCount",
+          "activeValueDt",
+          "usedCount",
+          "usedValueDt"
+        ]
+      },
+      "DashboardCirculationDto": {
+        "type": "object",
+        "properties": {
+          "memberBalancesDt": {
+            "type": "string",
+            "example": "31200.500",
+            "description": "DINARS — somme des soldes des membres."
+          },
+          "activeEcardsDt": {
+            "type": "string",
+            "example": "12500.000",
+            "description": "DINARS — valeur des e-cards ACTIVE."
+          },
+          "totalDt": {
+            "type": "string",
+            "example": "43700.500",
+            "description": "DINARS — somme des deux lignes ci-dessus."
+          }
+        },
+        "required": [
+          "memberBalancesDt",
+          "activeEcardsDt",
+          "totalDt"
+        ]
+      },
+      "DashboardTasksDto": {
+        "type": "object",
+        "properties": {
+          "identityPending": {
+            "type": "number",
+            "description": "Membres en attente de vérification d’identité (non bloquant)."
+          },
+          "renewalsPending": {
+            "type": "number",
+            "description": "Renouvellements payés en attente de validation (bloquant)."
+          }
+        },
+        "required": [
+          "identityPending",
+          "renewalsPending"
+        ]
+      },
+      "DashboardRunDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "executedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "periodStart": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "periodEnd": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "memberCount": {
+            "type": "number",
+            "description": "Membres réglés par ce run."
+          },
+          "distributedDt": {
+            "type": "string",
+            "example": "18750.000",
+            "description": "DINARS versés."
+          },
+          "rewardPointsGranted": {
+            "type": "number",
+            "description": "Points Fidélité accordés (3ᵉ unité — D-032)."
+          },
+          "status": {
+            "enum": [
+              "IN_PROGRESS",
+              "SUCCESS",
+              "ERROR"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "executedAt",
+          "periodStart",
+          "periodEnd",
+          "memberCount",
+          "distributedDt",
+          "rewardPointsGranted",
+          "status"
+        ]
+      },
+      "DashboardSeriesPointDto": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "example": "2026-07-25",
+            "description": "Jour, en date civile de Tunis."
+          },
+          "registrations": {
+            "type": "number"
+          },
+          "activations": {
+            "type": "number"
+          },
+          "cumulativeMembers": {
+            "type": "number",
+            "description": "Effectif TOTAL du réseau à la fin de ce jour (courbe de croissance)."
+          }
+        },
+        "required": [
+          "day",
+          "registrations",
+          "activations",
+          "cumulativeMembers"
+        ]
+      },
+      "DashboardDto": {
+        "type": "object",
+        "properties": {
+          "members": {
+            "$ref": "#/components/schemas/DashboardMembersDto"
+          },
+          "activations": {
+            "$ref": "#/components/schemas/DashboardActivationsDto"
+          },
+          "packs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashboardPackRowDto"
+            }
+          },
+          "ecards": {
+            "$ref": "#/components/schemas/DashboardEcardsDto"
+          },
+          "circulation": {
+            "$ref": "#/components/schemas/DashboardCirculationDto"
+          },
+          "tasks": {
+            "$ref": "#/components/schemas/DashboardTasksDto"
+          },
+          "lastRun": {
+            "nullable": true,
+            "description": "Dernier run exécuté, quel que soit son statut. `null` si aucun run n’a jamais tourné.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DashboardRunDto"
+              }
+            ]
+          },
+          "nextRunAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Prochaine clôture hebdomadaire (D-009), calculée depuis la MÊME expression cron que le déclencheur."
+          },
+          "totalDistributedDt": {
+            "type": "string",
+            "example": "184300.000",
+            "description": "DINARS distribués depuis l’origine (runs en SUCCESS)."
+          },
+          "series": {
+            "description": "Une entrée par jour, sans trou.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DashboardSeriesPointDto"
+            }
+          }
+        },
+        "required": [
+          "members",
+          "activations",
+          "packs",
+          "ecards",
+          "circulation",
+          "tasks",
+          "nextRunAt",
+          "totalDistributedDt",
+          "series"
+        ]
+      },
+      "ProductSalesRowDto": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "number"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "categoryName": {
+            "type": "string",
+            "nullable": true
+          },
+          "quantity": {
+            "type": "number",
+            "description": "Unités vendues (toutes commandes PAID de la période)."
+          },
+          "totalDt": {
+            "type": "string",
+            "example": "1520.000",
+            "description": "DINARS — Σ (prix effectif SNAPSHOTÉ × quantité). C’est ce que les lignes valaient, pas ce que la commande a fait payer : en ACTIVATION, le montant encaissé est le prix du pack (D-029)."
+          },
+          "totalPoints": {
+            "type": "number",
+            "example": 4000,
+            "description": "POINTS — Σ (valeur BV snapshotée × quantité). Ne se déduit PAS du montant ci-dessus."
+          },
+          "orderCount": {
+            "type": "number",
+            "description": "Commandes distinctes contenant ce produit."
+          }
+        },
+        "required": [
+          "productId",
+          "productName",
+          "quantity",
+          "totalDt",
+          "totalPoints",
+          "orderCount"
+        ]
+      },
+      "OrdersByContextRowDto": {
+        "type": "object",
+        "properties": {
+          "context": {
+            "enum": [
+              "ACTIVATION",
+              "FREE"
+            ],
+            "type": "string"
+          },
+          "orderCount": {
+            "type": "number"
+          },
+          "totalDt": {
+            "type": "string",
+            "example": "21000.000",
+            "description": "DINARS encaissés."
+          },
+          "totalPoints": {
+            "type": "number",
+            "example": 10000,
+            "description": "POINTS des paniers."
+          }
+        },
+        "required": [
+          "context",
+          "orderCount",
+          "totalDt",
+          "totalPoints"
+        ]
+      },
+      "SalesReportDto": {
+        "type": "object",
+        "properties": {
+          "products": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductSalesRowDto"
+            }
+          },
+          "byContext": {
+            "description": "Rappel de lecture : en ACTIVATION, le montant encaissé est le prix du pack − acompte, pas la somme des prix du panier.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrdersByContextRowDto"
+            }
+          }
+        },
+        "required": [
+          "products",
+          "byContext"
+        ]
+      },
+      "ActivationsByPackRowDto": {
+        "type": "object",
+        "properties": {
+          "packId": {
+            "type": "number"
+          },
+          "packName": {
+            "type": "string"
+          },
+          "tierBv": {
+            "type": "number",
+            "description": "POINTS — palier du pack."
+          },
+          "activationCount": {
+            "type": "number",
+            "description": "Activations de la période."
+          },
+          "collectedDt": {
+            "type": "string",
+            "example": "10500.000",
+            "description": "DINARS réellement encaissés à l’activation (prix du pack MOINS l’acompte d’inscription — D-037)."
+          },
+          "injectedPoints": {
+            "type": "number",
+            "example": 5000,
+            "description": "POINTS injectés dans l’arbre par ces activations (palier ENTIER — l’acompte ne touche que l’argent)."
+          }
+        },
+        "required": [
+          "packId",
+          "packName",
+          "tierBv",
+          "activationCount",
+          "collectedDt",
+          "injectedPoints"
+        ]
+      },
+      "CommissionsPeriodRowDto": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "number"
+          },
+          "periodStart": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "periodEnd": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "executedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "IN_PROGRESS",
+              "SUCCESS",
+              "ERROR"
+            ],
+            "type": "string"
+          },
+          "memberCount": {
+            "type": "number"
+          },
+          "paidDt": {
+            "type": "string",
+            "example": "18750.000",
+            "description": "DINARS versés."
+          },
+          "grossDt": {
+            "type": "string",
+            "example": "19750.000",
+            "description": "DINARS éligibles avant plafond (Σ des bruts des membres)."
+          },
+          "lostDt": {
+            "type": "string",
+            "example": "1000.000",
+            "description": "DINARS PERDUS au plafond — jamais reportés (D-033)."
+          },
+          "rewardPointsGranted": {
+            "type": "number",
+            "description": "Points Fidélité accordés (D-032)."
+          },
+          "rewardPointsLost": {
+            "type": "number",
+            "description": "Points Fidélité perdus au plafond."
+          }
+        },
+        "required": [
+          "runId",
+          "periodStart",
+          "periodEnd",
+          "executedAt",
+          "status",
+          "memberCount",
+          "paidDt",
+          "grossDt",
+          "lostDt",
+          "rewardPointsGranted",
+          "rewardPointsLost"
+        ]
+      },
+      "CirculationReportDto": {
+        "type": "object",
+        "properties": {
+          "memberBalancesDt": {
+            "type": "string",
+            "example": "31200.500",
+            "description": "DINARS — somme des soldes des membres."
+          },
+          "activeEcardsDt": {
+            "type": "string",
+            "example": "12500.000",
+            "description": "DINARS immobilisés dans des e-cards ACTIVE."
+          },
+          "inSystemDt": {
+            "type": "string",
+            "example": "43700.500",
+            "description": "DINARS présents dans le système = soldes + e-cards actives."
+          },
+          "consumedEcardsDt": {
+            "type": "string",
+            "example": "148300.000",
+            "description": "DINARS SORTIS du système par consommation d’e-cards (USED) — depuis l’origine."
+          },
+          "genesisEcardsDt": {
+            "type": "string",
+            "example": "2200.000",
+            "description": "DINARS créés EX NIHILO par la genèse d’e-cards (aucun solde débité) — depuis l’origine."
+          },
+          "genesisBalanceDt": {
+            "type": "string",
+            "example": "5000.000",
+            "description": "DINARS créés ex nihilo par genèse de SOLDE (ADMIN_GENESIS) — depuis l’origine."
+          },
+          "commissionsPaidDt": {
+            "type": "string",
+            "example": "184300.000",
+            "description": "DINARS versés en commissions depuis l’origine (runs en SUCCESS)."
+          }
+        },
+        "required": [
+          "memberBalancesDt",
+          "activeEcardsDt",
+          "inSystemDt",
+          "consumedEcardsDt",
+          "genesisEcardsDt",
+          "genesisBalanceDt",
+          "commissionsPaidDt"
+        ]
+      },
+      "TopAffiliateRowDto": {
+        "type": "object",
+        "properties": {
+          "memberId": {
+            "type": "number"
+          },
+          "memberCode": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "packName": {
+            "type": "string",
+            "nullable": true
+          },
+          "paidDt": {
+            "type": "string",
+            "example": "8400.000",
+            "description": "DINARS perçus en commissions sur la période."
+          },
+          "runCount": {
+            "type": "number",
+            "description": "Règlements (un par run)."
+          },
+          "lifetimeBalanceCount": {
+            "type": "number",
+            "description": "Équilibres à vie (D-032) — état courant, pas de la période."
+          },
+          "rewardPoints": {
+            "type": "number",
+            "description": "Points Fidélité détenus (3ᵉ unité)."
+          }
+        },
+        "required": [
+          "memberId",
+          "memberCode",
+          "firstName",
+          "lastName",
+          "paidDt",
+          "runCount",
+          "lifetimeBalanceCount",
+          "rewardPoints"
+        ]
+      },
+      "AdminUserDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "SUPER_ADMIN",
+              "MANAGER",
+              "SUPPORT"
+            ],
+            "type": "string",
+            "description": "Rôle FIXE (enum). Les droits associés sont codés dans les guards du backend."
+          },
+          "active": {
+            "type": "boolean",
+            "description": "Un compte désactivé ne peut plus se connecter, et ses sessions en cours sont révoquées."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastLoginAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "Dernière ouverture de session connue, déduite des jetons de rafraîchissement (voir le journal des sessions). `null` = ce compte ne s’est jamais connecté."
+          },
+          "activeSessionCount": {
+            "type": "number",
+            "description": "Sessions actuellement valides (jetons non révoqués, non expirés)."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "role",
+          "active",
+          "createdAt",
+          "activeSessionCount"
+        ]
+      },
+      "CreateAdminUserDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120,
+            "example": "Sarra Ben Amor"
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 180,
+            "format": "email",
+            "example": "sarra@najah-partners.tn"
+          },
+          "role": {
+            "enum": [
+              "SUPER_ADMIN",
+              "MANAGER",
+              "SUPPORT"
+            ],
+            "type": "string",
+            "description": "Rôle FIXE. Les droits qui s’y attachent sont codés dans les guards du backend."
+          },
+          "password": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 200,
+            "description": "Mot de passe initial, transmis hors plateforme (aucun envoi d’e-mail n’existe — D-011)."
+          }
+        },
+        "required": [
+          "name",
+          "email",
+          "role",
+          "password"
+        ]
+      },
+      "UpdateAdminUserDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120,
+            "example": "Sarra Ben Amor"
+          },
+          "role": {
+            "enum": [
+              "SUPER_ADMIN",
+              "MANAGER",
+              "SUPPORT"
+            ],
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean",
+            "description": "Désactiver révoque aussi les sessions en cours : sans cela, le compte resterait utilisable jusqu’à l’expiration de son jeton."
+          }
+        }
+      },
+      "ResetAdminPasswordDto": {
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 200,
+            "description": "Nouveau mot de passe. Les sessions en cours du compte sont révoquées."
+          }
+        },
+        "required": [
+          "password"
+        ]
+      },
+      "AdminSessionDto": {
+        "type": "object",
+        "properties": {
+          "familyId": {
+            "type": "string",
+            "description": "Identifiant de la famille de jetons = une session."
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Ouverture de la session (première émission de la famille)."
+          },
+          "lastSeenAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Dernière rotation du jeton — l’activité la plus récente."
+          },
+          "ip": {
+            "type": "string",
+            "nullable": true,
+            "description": "Adresse IP vue par le serveur."
+          },
+          "userAgent": {
+            "type": "string",
+            "nullable": true,
+            "description": "Navigateur déclaré (User-Agent)."
+          },
+          "current": {
+            "type": "boolean",
+            "description": "Session encore utilisable : au moins un jeton non révoqué et non expiré. Faux = déconnexion, rotation terminée, ou expiration."
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "familyId",
+          "startedAt",
+          "lastSeenAt",
+          "current",
+          "expiresAt"
+        ]
+      },
+      "AdminSessionsDto": {
+        "type": "object",
+        "properties": {
+          "adminUserId": {
+            "type": "number"
+          },
+          "sessions": {
+            "description": "Plus récentes d’abord.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminSessionDto"
+            }
+          },
+          "failedAttemptsRecorded": {
+            "type": "boolean",
+            "description": "Les tentatives de connexion ÉCHOUÉES ne sont enregistrées nulle part : ce journal ne les contient pas (point ouvert)."
+          }
+        },
+        "required": [
+          "adminUserId",
+          "sessions",
+          "failedAttemptsRecorded"
         ]
       }
     }

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { CommissionRunService } from './commission-run.service';
+import { WEEKLY_RUN_CRON } from './period';
 
 /**
  * Déclencheur HEBDOMADAIRE du run de commissions (D-009) : vendredi 23:59, heure de Tunis
@@ -18,7 +19,9 @@ export class CommissionRunCron {
 
   constructor(private readonly runs: CommissionRunService) {}
 
-  @Cron('59 23 * * 5', {
+  // L'expression vit dans `period.ts` : le tableau de bord annonce la date du prochain run,
+  // et deux planifications écrites séparément finiraient par se contredire.
+  @Cron(WEEKLY_RUN_CRON, {
     name: 'commission-weekly-run',
     timeZone: 'Africa/Tunis',
   })

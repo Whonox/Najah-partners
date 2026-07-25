@@ -44,6 +44,21 @@ export type ProductType = Schemas["ProductResponseDto"]["type"]
 
 export type LedgerMovementType = Schemas["LedgerEntryResponseDto"]["type"]
 
+/** ACTIVE → USED (définitif) · ACTIVE → EXPIRED / REVOKED (rembourse le créateur). */
+export type EcardStatus = Schemas["EcardAdminRowDto"]["status"]
+
+/** MEMBER : la valeur a débité un solde. GENESIS : créée ex nihilo, personne à rembourser. */
+export type EcardOrigin = Schemas["EcardAdminRowDto"]["origin"]
+
+/** IN_PROGRESS / SUCCESS / ERROR — état d'un run hebdomadaire. */
+export type RunStatus = Schemas["RunSummaryDto"]["status"]
+
+/** DIRECT / BALANCE / STARTUP_BONUS / REWARD_POINT (D-031, D-032, D-035). */
+export type CommissionEventType = Schemas["RunEventDto"]["type"]
+
+/** SUPER_ADMIN / MANAGER / SUPPORT — rôles FIXES, permissions codées dans les guards. */
+export type AdminRoleValue = Schemas["AdminUserDto"]["role"]
+
 /**
  * Valeurs énumérées à parcourir (listes déroulantes de filtres, onglets). Elles doivent
  * bien, elles, être écrites : un type TypeScript n'existe pas à l'exécution, on ne peut pas
@@ -78,6 +93,40 @@ export const PRODUCT_TYPES = [
   "PHYSICAL",
   "VIRTUAL",
 ] as const satisfies readonly ProductType[]
+
+export const ECARD_STATUSES = [
+  "ACTIVE",
+  "USED",
+  "REVOKED",
+  "EXPIRED",
+] as const satisfies readonly EcardStatus[]
+
+export const ECARD_ORIGINS = [
+  "MEMBER",
+  "GENESIS",
+] as const satisfies readonly EcardOrigin[]
+
+export const RUN_STATUSES = [
+  "IN_PROGRESS",
+  "SUCCESS",
+  "ERROR",
+] as const satisfies readonly RunStatus[]
+
+export const LEDGER_MOVEMENT_TYPES = [
+  "ECARD_CREATION",
+  "ECARD_REFUND",
+  "COMMISSION",
+  "ACTIVATION",
+  "ADMIN_ADJUSTMENT",
+  "ADMIN_GENESIS",
+  // Il n'existe PAS de `ECARD_USE` (D-025) : consommer une e-card ne bouge aucun solde.
+] as const satisfies readonly LedgerMovementType[]
+
+export const ADMIN_ROLES = [
+  "SUPER_ADMIN",
+  "MANAGER",
+  "SUPPORT",
+] as const satisfies readonly AdminRoleValue[]
 
 /**
  * Le colis n'avance que dans un sens (jamais de « dé-livraison ») : cette table dit quelle

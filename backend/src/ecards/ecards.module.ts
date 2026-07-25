@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { LedgerModule } from '../ledger/ledger.module';
 import { EcardExpirationCron } from './ecard-expiration.cron';
 import { EcardsAdminController } from './ecards-admin.controller';
+import { EcardsAdminService } from './ecards-admin.service';
 import { EcardsController } from './ecards.controller';
 import { EcardsService } from './ecards.service';
 
@@ -17,7 +18,7 @@ import { EcardsService } from './ecards.service';
 @Module({
   imports: [LedgerModule],
   controllers: [EcardsController, EcardsAdminController],
-  providers: [EcardsService, EcardExpirationCron],
+  providers: [EcardsService, EcardsAdminService, EcardExpirationCron],
   exports: [EcardsService],
 })
 export class EcardsModule {}

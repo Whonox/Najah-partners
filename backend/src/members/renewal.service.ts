@@ -8,6 +8,7 @@ import {
 import { moneyToApi } from '../common/money';
 import { EcardsService } from '../ecards/ecards.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { PendingRenewalDto } from './dto/renewal-response.dto';
 import {
   ANNUAL_RENEWAL_SETTING,
   MembershipFeeService,
@@ -267,6 +268,54 @@ export class RenewalService {
       orderBy: { id: 'asc' },
     });
     return payments.map((payment) => this.toView(payment));
+  }
+
+  /**
+   * Même file, enrichie pour l'ÉCRAN de validation (Tranche 8c) : nom du membre, état courant et
+   * échéance. L'état courant n'est pas un détail d'affichage — c'est lui qui dit ce que la
+   * validation va faire (réactiver un gelé, ou seulement repousser l'échéance d'un ACTIF, D-038)
+   * et l'admin doit le savoir AVANT de cliquer.
+   *
+   * Les plus anciens d'abord : une file d'attente se traite dans l'ordre où l'on a payé.
+   */
+  async listPendingDetailed(): Promise<PendingRenewalDto[]> {
+    const payments = await this.prisma.membershipPayment.findMany({
+      where: {
+        type: MembershipPaymentType.RENEWAL,
+        status: MembershipPaymentStatus.PENDING_VALIDATION,
+      },
+      include: {
+        member: {
+          select: {
+            id: true,
+            memberCode: true,
+            firstName: true,
+            lastName: true,
+            status: true,
+            renewalAt: true,
+          },
+        },
+        ecards: { select: { id: true }, orderBy: { id: 'asc' } },
+      },
+      orderBy: { id: 'asc' },
+    });
+
+    return payments.map((payment) => ({
+      id: payment.id,
+      memberId: payment.member.id,
+      memberCode: payment.member.memberCode,
+      firstName: payment.member.firstName,
+      lastName: payment.member.lastName,
+      memberStatus: payment.member.status,
+      renewalAt: payment.member.renewalAt,
+      type: payment.type,
+      status: payment.status,
+      amountDt: moneyToApi(payment.amountDt),
+      paidAt: payment.paidAt,
+      validatedAt: payment.validatedAt,
+      // Des IDENTIFIANTS, jamais des codes : un code est de la valeur au porteur.
+      ecardIds: payment.ecards.map((ecard) => ecard.id),
+    }));
   }
 
   /** Les renouvellements d'un membre (portail affilié), plus récents d'abord. */

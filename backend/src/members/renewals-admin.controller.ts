@@ -1,10 +1,14 @@
 import { Controller, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ActorType, AdminRole } from '@prisma/client';
 import type { AuthenticatedActor } from '../auth/auth.types';
 import { RequireActor } from '../auth/decorators/actor-type.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
+import {
+  MembershipPaymentResponseDto,
+  PendingRenewalDto,
+} from './dto/renewal-response.dto';
 import { RenewalService } from './renewal.service';
 
 /**
@@ -26,10 +30,15 @@ export class RenewalsAdminController {
   @Roles(AdminRole.SUPER_ADMIN, AdminRole.MANAGER, AdminRole.SUPPORT)
   @ApiOperation({
     summary:
-      'Renouvellements payés en attente de validation (plus anciens d’abord).',
+      'File des renouvellements payés en attente de validation (plus anciens d’abord) : membre, état courant, échéance, montant figé, ids des e-cards brûlées.',
+    description:
+      'L’état courant du membre dit ce que la validation va faire : réactiver un INACTIF ' +
+      '(nouvelle baseline, carry-over d’avant le gel conservé — D-034) ou seulement repousser ' +
+      'l’échéance d’un ACTIF qui renouvelle par anticipation.',
   })
-  pending() {
-    return this.renewals.listPending();
+  @ApiOkResponse({ type: PendingRenewalDto, isArray: true })
+  pending(): Promise<PendingRenewalDto[]> {
+    return this.renewals.listPendingDetailed();
   }
 
   @Post(':paymentId/validate')
@@ -39,8 +48,11 @@ export class RenewalsAdminController {
     description:
       'Un membre INACTIF est RÉACTIVÉ (nouvelle baseline figée, carry-over d’avant le gel ' +
       'conservé — D-034) ; un membre encore ACTIF voit seulement son échéance repoussée. ' +
-      'L’opération n’est pas rejouable : un renouvellement déjà validé est refusé.',
+      'L’opération n’est pas rejouable : un renouvellement déjà validé est refusé. ' +
+      'Il n’existe AUCUN chemin de refus (D-038, point ouvert) : les e-cards sont déjà brûlées ' +
+      'et `USED` est irréversible — que devient la valeur ? À trancher avec la cliente.',
   })
+  @ApiOkResponse({ type: MembershipPaymentResponseDto })
   validate(
     @Param('paymentId', ParseIntPipe) paymentId: number,
     @CurrentUser() actor: AuthenticatedActor,

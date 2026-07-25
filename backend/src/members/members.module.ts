@@ -4,6 +4,7 @@ import { EcardsModule } from '../ecards/ecards.module';
 import { LedgerModule } from '../ledger/ledger.module';
 import { ActivationService } from './activation.service';
 import { IdentityDocumentService } from './identity-document.service';
+import { IdentityVerificationService } from './identity-verification.service';
 import { MemberCodeService } from './member-code.service';
 import { MembersAdminController } from './members-admin.controller';
 import { MembersAdminService } from './members-admin.service';
@@ -48,6 +49,9 @@ import { RenewalsAdminController } from './renewals-admin.controller';
     RenewalService,
     // Lecture seule pour le back-office (T8b) : ne participe à aucune transaction métier.
     MembersAdminService,
+    // Verdict de vérification d'identité (T8c) : n'écrit que des colonnes documentaires — la
+    // vérification reste NON BLOQUANTE (D-018).
+    IdentityVerificationService,
   ],
   exports: [
     MembersService,

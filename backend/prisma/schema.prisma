@@ -231,6 +231,20 @@ model Member {
   idDocumentPath     String?
   verificationStatus VerificationStatus @default(PENDING)
 
+  // QUI a statué, QUAND, et POURQUOI en cas de rejet (Tranche 8c — le module de vérification
+  // était en attente depuis T4). Sans ces trois colonnes, le badge ne serait qu'un état sans
+  // auteur : un membre REJECTED n'aurait aucun moyen de savoir ce qu'on lui reproche, et le
+  // support devrait fouiller l'AuditLog pour le lui dire. Le motif est EXIGÉ pour un rejet,
+  // interdit de sens pour une validation (rien à motiver).
+  //
+  // Rien ici ne bloque quoi que ce soit (D-018) : ces colonnes informent, elles n'autorisent ni
+  // n'interdisent aucune opération — un membre PENDING ou REJECTED s'inscrit, s'active,
+  // perçoit et renouvelle normalement.
+  verificationReason    String?
+  verificationAt        DateTime?
+  verificationByAdminId Int?
+  verificationByAdmin   AdminUser? @relation("MemberVerifier", fields: [verificationByAdminId], references: [id], onDelete: Restrict)
+
   // DINARS — frais d'inscription RÉELLEMENT réglés par e-card(s) (D-036), figés à
   // l'inscription. C'est l'ACOMPTE déduit du prix du pack à l'activation (D-037 :
   // Silver = 2200 − 100 = 2100 DT dus). Le calcul lit CETTE colonne, jamais le paramètre
@@ -580,6 +594,9 @@ model AdminUser {
 
   // Renouvellements annuels validés par cet admin (Tranche 7.5, D-038)
   validatedMembershipPayments MembershipPayment[] @relation("MembershipPaymentValidator")
+
+  // Vérifications d'identité statuées par cet admin (Tranche 8c, D-018/D-039)
+  verifiedMembers Member[] @relation("MemberVerifier")
 }
 
 // ─────────────────────────── Auth : refresh tokens (D-016) ───────────────────────────

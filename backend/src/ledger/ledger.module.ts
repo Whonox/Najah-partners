@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { LedgerAdminController } from './ledger-admin.controller';
 import { LedgerAdminService } from './ledger-admin.service';
+import { LedgerRegistryService } from './ledger-registry.service';
 import { LedgerService } from './ledger.service';
 
 /**
@@ -10,7 +11,7 @@ import { LedgerService } from './ledger.service';
  */
 @Module({
   controllers: [LedgerAdminController],
-  providers: [LedgerService, LedgerAdminService],
+  providers: [LedgerService, LedgerAdminService, LedgerRegistryService],
   exports: [LedgerService, LedgerAdminService], // LedgerAdminService : genèse tracée du réseau (seed, D-019)
 })
 export class LedgerModule {}

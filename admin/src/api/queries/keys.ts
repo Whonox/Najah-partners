@@ -35,3 +35,11 @@ export const PRODUCTS_KEYS = moduleKeys("products")
 export const CATEGORIES_KEYS = moduleKeys("categories")
 export const ORDERS_KEYS = moduleKeys("orders")
 export const LEDGER_KEYS = moduleKeys("ledger")
+
+// ── Tranche 8c ──
+export const DASHBOARD_KEYS = moduleKeys("dashboard")
+export const COMMISSIONS_KEYS = moduleKeys("commissions")
+export const ECARDS_KEYS = moduleKeys("ecards")
+export const RENEWALS_KEYS = moduleKeys("renewals")
+export const REPORTS_KEYS = moduleKeys("reports")
+export const ADMIN_USERS_KEYS = moduleKeys("adminUsers")

@@ -1,6 +1,8 @@
 import {
+  BadgeCheck,
   BadgeEuro,
   Boxes,
+  CalendarClock,
   CreditCard,
   FileBarChart,
   GitFork,
@@ -17,8 +19,15 @@ import type { AdminRole } from "@/auth/auth-context"
 import type { TranslationKey } from "@/i18n/fr"
 
 /**
- * Les DOUZE modules du back-office (spec §7.2), déclarés UNE seule fois : le menu latéral et
- * les gardes de route lisent la même table. Ajouter un module, c'est ajouter une ligne ici.
+ * Les DOUZE modules du back-office (spec §7.2) — plus, depuis la Tranche 8c, les DEUX FILES DE
+ * TÂCHES de l'administration (vérification d'identité, D-018 ; validation des renouvellements,
+ * D-038). Ces deux-là ne sont pas des modules numérotés de la spec : ce sont des files de travail
+ * quotidien, exigées par leurs décisions respectives et mises en avant sur le tableau de bord.
+ * Les laisser accessibles seulement depuis le tableau de bord obligerait à repasser par lui à
+ * chaque dossier traité.
+ *
+ * Tout est déclaré UNE seule fois : le menu latéral et les gardes de route lisent la même table.
+ * Ajouter un module, c'est ajouter une ligne ici.
  *
  * `roles` = qui peut OUVRIR le module (droit de lecture). Les actions sensibles à l'intérieur
  * d'un module (créer de la valeur, ajuster un solde, modifier un paramètre) sont filtrées
@@ -47,7 +56,25 @@ export const NAV_MODULES: readonly NavModule[] = [
     labelKey: "nav.dashboard",
     icon: LayoutDashboard,
     roles: ALL_ROLES,
-    ready: false,
+    ready: true,
+  },
+  // ── Les deux FILES DE TÂCHES, juste après le tableau de bord qui les met en avant ──
+  {
+    // D-018 : NON bloquante. Les trois rôles consultent ; seuls SUPER_ADMIN et MANAGER statuent
+    // (filtré dans l'écran, autorisé par le backend).
+    path: "verifications",
+    labelKey: "nav.verifications",
+    icon: BadgeCheck,
+    roles: ALL_ROLES,
+    ready: true,
+  },
+  {
+    // D-038 : BLOQUANTE — tant que ce n'est pas validé, un gelé ne perçoit rien.
+    path: "renewals",
+    labelKey: "nav.renewals",
+    icon: CalendarClock,
+    roles: ALL_ROLES,
+    ready: true,
   },
   { path: "members", labelKey: "nav.members", icon: Users, roles: ALL_ROLES, ready: true },
   {
@@ -65,16 +92,16 @@ export const NAV_MODULES: readonly NavModule[] = [
     labelKey: "nav.commissions",
     icon: BadgeEuro,
     roles: ALL_ROLES,
-    ready: false,
+    ready: true,
   },
-  { path: "ledger", labelKey: "nav.ledger", icon: Wallet, roles: ALL_ROLES, ready: false },
-  { path: "ecards", labelKey: "nav.ecards", icon: CreditCard, roles: ALL_ROLES, ready: false },
+  { path: "ledger", labelKey: "nav.ledger", icon: Wallet, roles: ALL_ROLES, ready: true },
+  { path: "ecards", labelKey: "nav.ecards", icon: CreditCard, roles: ALL_ROLES, ready: true },
   {
     path: "reports",
     labelKey: "nav.reports",
     icon: FileBarChart,
     roles: ALL_ROLES,
-    ready: false,
+    ready: true,
   },
   { path: "settings", labelKey: "nav.settings", icon: Settings, roles: ALL_ROLES, ready: true },
   {
@@ -83,7 +110,7 @@ export const NAV_MODULES: readonly NavModule[] = [
     labelKey: "nav.adminUsers",
     icon: ShieldCheck,
     roles: ["SUPER_ADMIN"],
-    ready: false,
+    ready: true,
   },
 ]
 

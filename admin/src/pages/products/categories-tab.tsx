@@ -40,6 +40,7 @@ import {
   useUpdateCategory,
   type Category,
 } from "@/api/queries/catalog"
+import { ConfirmDialog } from "@/components/common/confirm-dialog"
 import { DataState } from "@/components/common/data-state"
 import { TableShell } from "@/components/common/data-table"
 import { useT } from "@/i18n/use-t"
@@ -55,16 +56,25 @@ export function CategoriesTab({ canEdit }: { canEdit: boolean }) {
   const query = useQuery(categoriesQueryOptions)
   const [editing, setEditing] = useState<Category | null>(null)
   const [creating, setCreating] = useState(false)
+  const [deleting, setDeleting] = useState<Category | null>(null)
   const remove = useDeleteCategory()
 
-  function confirmDelete(category: Category) {
-    if (!window.confirm(`${t("categories.deleteTitle")}\n\n${t("categories.deleteBody")}`)) {
-      return
-    }
-    remove.mutate(category.id, {
-      onSuccess: () => toast.success(t("categories.deleted")),
-      onError: (error) =>
-        toast.error(t("common.saveFailed"), { description: errorMessage(error) }),
+  /**
+   * Confirmation THÉMÉE (Tranche 8c) et non plus `window.confirm` : ce dernier ne suit pas le
+   * thème, ne se traduit pas, et ne peut pas RÉCAPITULER ce qu'on s'apprête à supprimer — alors
+   * que le nom de la catégorie est justement ce qu'on veut relire avant de valider.
+   */
+  function confirmDelete() {
+    if (!deleting) return
+    remove.mutate(deleting.id, {
+      onSuccess: () => {
+        toast.success(t("categories.deleted"))
+        setDeleting(null)
+      },
+      onError: (error) => {
+        toast.error(t("common.saveFailed"), { description: errorMessage(error) })
+        setDeleting(null)
+      },
     })
   }
 
@@ -126,7 +136,7 @@ export function CategoriesTab({ canEdit }: { canEdit: boolean }) {
                           size="icon-sm"
                           aria-label={t("common.delete")}
                           disabled={remove.isPending}
-                          onClick={() => confirmDelete(category)}
+                          onClick={() => setDeleting(category)}
                         >
                           <Trash2 />
                         </Button>
@@ -144,6 +154,17 @@ export function CategoriesTab({ canEdit }: { canEdit: boolean }) {
       {editing ? (
         <CategoryDialog category={editing} onClose={() => setEditing(null)} />
       ) : null}
+
+      <ConfirmDialog
+        open={deleting !== null}
+        title={t("categories.deleteTitle")}
+        summary={deleting?.name}
+        consequence={t("categories.deleteBody")}
+        confirmLabel={t("common.delete")}
+        pending={remove.isPending}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleting(null)}
+      />
     </div>
   )
 }

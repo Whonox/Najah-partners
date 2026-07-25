@@ -170,6 +170,21 @@ export class MemberDetailDto {
   })
   hasIdDocument!: boolean;
   @ApiProperty({ enum: VerificationStatus }) verificationStatus!: VerificationStatus;
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Motif du REJET (Tranche 8c) — renseigné uniquement si le statut est REJECTED. Rappel : un rejet ne bloque rien (D-018).',
+  })
+  verificationReason!: string | null;
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Date du verdict — `null` tant que personne n’a statué.',
+  })
+  verificationAt!: Date | null;
+  @ApiPropertyOptional({ nullable: true, description: 'Admin auteur du verdict.' })
+  verificationByAdminId!: number | null;
+  @ApiPropertyOptional({ nullable: true, description: 'Nom de l’admin auteur du verdict.' })
+  verificationByAdminName!: string | null;
 
   // ── Pack et snapshot ──
   @ApiPropertyOptional({ nullable: true }) packId!: number | null;

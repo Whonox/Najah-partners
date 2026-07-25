@@ -25,6 +25,31 @@ export interface SettleableEvent {
   occurredAt: Date;
 }
 
+/**
+ * Le sort d'UN événement dans le règlement de la semaine — ce que le back-office doit pouvoir
+ * montrer pour qu'un admin explique un montant à un affilié (§7.2.7).
+ *
+ * Cette ventilation n'est PAS stockée en base : `Commission` n'en garde que l'agrégat
+ * (`grossDt`, `paidDt`) et `CommissionEvent.paid` qu'un booléen. Elle est donc RECALCULÉE pour
+ * l'affichage — mais par CETTE fonction, celle-là même qui a réglé le run. Une seconde
+ * implémentation « juste pour l'écran » finirait par expliquer autrement que ce qui a été payé.
+ */
+export interface SettlementLine {
+  eventId: number;
+  /** Cumul éligible AVANT cet événement (DINARS) — c'est lui qui décide du plafond. */
+  cumulativeBeforeDt: Money;
+  /** Cumul éligible APRÈS cet événement. */
+  cumulativeAfterDt: Money;
+  /** Part réellement versée par cet événement (0 s'il est arrivé après le plafond). */
+  paidDt: Money;
+  /** Part PERDUE au plafond (jamais reportée — D-033). */
+  lostDt: Money;
+  /** L'événement franchit le plafond : il est payé PARTIELLEMENT. */
+  crossesCap: boolean;
+  rewardPointGranted: boolean;
+  rewardPointLost: boolean;
+}
+
 export interface WeekSettlement {
   /** Total éligible avant plafond (DINARS). */
   grossDt: Money;
@@ -36,6 +61,11 @@ export interface WeekSettlement {
   rewardPointsLost: number;
   /** Nombre d'événements éligibles examinés. */
   eligibleCount: number;
+  /**
+   * Une ligne par événement examiné, dans l'ORDRE CHRONOLOGIQUE d'application du plafond. Un
+   * événement inéligible y figure avec des montants nuls : il a existé, il n'a rien payé.
+   */
+  lines: SettlementLine[];
 }
 
 export function settleWeek(
@@ -52,25 +82,36 @@ export function settleWeek(
   let rewardPointsGranted = 0;
   let rewardPointsLost = 0;
   let eligibleCount = 0;
+  const lines: SettlementLine[] = [];
 
   for (const event of ordered) {
     if (!event.eligible) {
+      // Tracé, jamais payé (D-034). La ligne existe pour que l'écran puisse le DIRE — une
+      // absence se lirait comme un oubli.
+      lines.push(emptyLine(event.id, gross));
       continue;
     }
     eligibleCount += 1;
 
     if (event.type === CommissionEventType.REWARD_POINT) {
       // 0 DT : le cumul ne bouge pas. Accordé seulement sous le plafond (D-032).
-      if (gross.lessThan(capDt)) {
+      const granted = gross.lessThan(capDt);
+      if (granted) {
         rewardPointsGranted += 1;
         paidEventIds.push(event.id);
       } else {
         rewardPointsLost += 1;
       }
+      lines.push({
+        ...emptyLine(event.id, gross),
+        rewardPointGranted: granted,
+        rewardPointLost: !granted,
+      });
       continue;
     }
 
     const paidBefore = minDt(gross, capDt);
+    const cumulativeBefore = gross;
     gross = gross.plus(event.amountDt);
     const paidAfter = minDt(gross, capDt);
     const share = paidAfter.minus(paidBefore);
@@ -78,6 +119,18 @@ export function settleWeek(
       paid = paid.plus(share);
       paidEventIds.push(event.id);
     }
+    const lost = event.amountDt.minus(share);
+    lines.push({
+      eventId: event.id,
+      cumulativeBeforeDt: cumulativeBefore,
+      cumulativeAfterDt: gross,
+      paidDt: share,
+      lostDt: lost,
+      // Franchissement : une part payée ET une part perdue sur le MÊME événement.
+      crossesCap: share.greaterThan(0) && lost.greaterThan(0),
+      rewardPointGranted: false,
+      rewardPointLost: false,
+    });
   }
 
   return {
@@ -87,6 +140,21 @@ export function settleWeek(
     rewardPointsGranted,
     rewardPointsLost,
     eligibleCount,
+    lines,
+  };
+}
+
+/** Ligne sans effet monétaire (inéligible, ou Point Fidélité qui ne vaut aucun dinar). */
+function emptyLine(eventId: number, cumulative: Money): SettlementLine {
+  return {
+    eventId,
+    cumulativeBeforeDt: cumulative,
+    cumulativeAfterDt: cumulative,
+    paidDt: ZERO_DT,
+    lostDt: ZERO_DT,
+    crossesCap: false,
+    rewardPointGranted: false,
+    rewardPointLost: false,
   };
 }
 

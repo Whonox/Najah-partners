@@ -145,3 +145,110 @@ describe('settleWeek — plafond hebdomadaire', () => {
     expect(result.paidDt.toString()).toBe('0.25'); // 0.100 + 0.150 : partiel exact au millime
   });
 });
+
+/**
+ * Ventilation PAR ÉVÉNEMENT (Tranche 8c) : c'est ce que l'écran de supervision affiche pour
+ * expliquer un versement à un affilié (§7.2.7). Elle n'est pas stockée en base — elle est rejouée
+ * par cette fonction, donc ces tests garantissent que l'explication dit bien ce qui a été payé.
+ */
+describe('settleWeek — ventilation par événement (supervision §7.2.7)', () => {
+  it('une ligne par événement, dans l’ordre CHRONOLOGIQUE d’application, pas d’entrée reçue', () => {
+    const result = settleWeek(
+      [
+        event(CommissionEventType.BALANCE, '250', '2026-07-15T10:00:00Z'),
+        event(CommissionEventType.DIRECT, '500', '2026-07-13T10:00:00Z'),
+      ],
+      money(10000),
+    );
+    // Reçus dans l'ordre [BALANCE, DIRECT], rendus dans l'ordre d'application [DIRECT, BALANCE].
+    expect(result.lines.map((line) => line.eventId)).toEqual([2, 1]);
+    expect(result.lines.map((line) => line.paidDt.toString())).toEqual([
+      '500',
+      '250',
+    ]);
+    expect(result.lines.every((line) => line.lostDt.isZero())).toBe(true);
+    expect(result.lines.some((line) => line.crossesCap)).toBe(false);
+  });
+
+  it('le cumul courant progresse et l’événement à cheval porte À LA FOIS du payé et du perdu', () => {
+    const result = settleWeek(
+      [
+        event(CommissionEventType.DIRECT, '700', '2026-07-13T10:00:00Z'),
+        event(CommissionEventType.BALANCE, '400', '2026-07-14T10:00:00Z'),
+        event(CommissionEventType.BALANCE, '400', '2026-07-15T10:00:00Z'),
+      ],
+      money(1000),
+    );
+
+    const [first, crossing, beyond] = result.lines;
+    expect(first.cumulativeBeforeDt.toString()).toBe('0');
+    expect(first.cumulativeAfterDt.toString()).toBe('700');
+    expect(first.paidDt.toString()).toBe('700');
+
+    // C'est CETTE ligne qui rend le plafond compréhensible : 300 payés, 100 perdus.
+    expect(crossing.paidDt.toString()).toBe('300');
+    expect(crossing.lostDt.toString()).toBe('100');
+    expect(crossing.crossesCap).toBe(true);
+
+    // Au-delà du plafond : tout est perdu, et ce n'est PAS reporté (D-033).
+    expect(beyond.paidDt.toString()).toBe('0');
+    expect(beyond.lostDt.toString()).toBe('400');
+    expect(beyond.crossesCap).toBe(false);
+  });
+
+  it('un événement INÉLIGIBLE a une ligne à zéro qui ne fait pas avancer le cumul (D-034)', () => {
+    const result = settleWeek(
+      [
+        event(CommissionEventType.DIRECT, '500', '2026-07-13T10:00:00Z', {
+          eligible: false,
+        }),
+        event(CommissionEventType.DIRECT, '500', '2026-07-14T10:00:00Z'),
+      ],
+      money(10000),
+    );
+
+    const [ignored, paid] = result.lines;
+    expect(ignored.paidDt.isZero()).toBe(true);
+    expect(ignored.cumulativeAfterDt.toString()).toBe('0');
+    // L'événement suivant démarre bien à 0 : l'inéligible n'a consommé aucun plafond.
+    expect(paid.cumulativeBeforeDt.toString()).toBe('0');
+    expect(paid.paidDt.toString()).toBe('500');
+  });
+
+  it('un REWARD_POINT ne porte aucun dinar et signale s’il est accordé ou PERDU (D-032)', () => {
+    const result = settleWeek(
+      [
+        event(CommissionEventType.REWARD_POINT, '0', '2026-07-13T10:00:00Z'),
+        event(CommissionEventType.DIRECT, '1000', '2026-07-14T10:00:00Z'),
+        event(CommissionEventType.REWARD_POINT, '0', '2026-07-15T10:00:00Z'),
+      ],
+      money(1000),
+    );
+
+    const [granted, , lost] = result.lines;
+    expect(granted.rewardPointGranted).toBe(true);
+    expect(granted.paidDt.isZero()).toBe(true);
+    expect(lost.rewardPointLost).toBe(true);
+    expect(lost.rewardPointGranted).toBe(false);
+  });
+
+  it('la somme des lignes payées égale le versement, et celle des perdues l’écart au brut', () => {
+    const result = settleWeek(
+      [
+        event(CommissionEventType.DIRECT, '700', '2026-07-13T10:00:00Z'),
+        event(CommissionEventType.BALANCE, '400', '2026-07-14T10:00:00Z'),
+        event(CommissionEventType.BALANCE, '400', '2026-07-15T10:00:00Z'),
+      ],
+      money(1000),
+    );
+
+    const sum = (pick: 'paidDt' | 'lostDt') =>
+      result.lines
+        .reduce((total, line) => total.plus(line[pick]), money(0))
+        .toString();
+
+    // Sans cette égalité, l'écran expliquerait un autre versement que celui qui a eu lieu.
+    expect(sum('paidDt')).toBe(result.paidDt.toString());
+    expect(sum('lostDt')).toBe(result.grossDt.minus(result.paidDt).toString());
+  });
+});

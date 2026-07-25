@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link, useParams } from "react-router"
 import { ArrowLeft, Info, Truck } from "lucide-react"
@@ -23,6 +23,7 @@ import {
 } from "@/api/queries/orders"
 import { DataState } from "@/components/common/data-state"
 import { TableShell } from "@/components/common/data-table"
+import { ConfirmDialog } from "@/components/common/confirm-dialog"
 import { PageHeader } from "@/components/common/page-header"
 import {
   OrderContextBadge,
@@ -51,7 +52,8 @@ export function OrderDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" size="sm" className="-ms-2" render={<Link to="/orders" />}>
+      <Button variant="ghost" size="sm" className="-ms-2" nativeButton={false}
+              render={<Link to="/orders" />}>
         <ArrowLeft />
         {t("orders.title")}
       </Button>
@@ -76,15 +78,28 @@ function OrderDetailView({ order }: { order: Order }) {
 
   const shipmentStatus = order.shipmentStatus ?? null
   const next = shipmentStatus ? NEXT_SHIPMENT_STATUS[shipmentStatus] : null
+  const [confirmingShipment, setConfirmingShipment] = useState(false)
 
+  /**
+   * L'avancement d'expédition est IRRÉVERSIBLE — il n'existe aucune « dé-livraison », ni ici ni
+   * côté backend. Il gagne donc une confirmation thémée en Tranche 8c : l'audit de T8b avait
+   * relevé l'incohérence inverse (une confirmation sur une suppression de catégorie vide,
+   * aucune sur un changement d'état définitif). Les deux sont désormais calées sur la gravité
+   * RÉELLE, et non sur l'habitude.
+   */
   function advance() {
     if (!next) return
     updateShipment.mutate(
       { id: order.id, status: next },
       {
-        onSuccess: () => toast.success(t("orders.shipmentUpdated")),
-        onError: (error) =>
-          toast.error(t("common.saveFailed"), { description: errorMessage(error) }),
+        onSuccess: () => {
+          toast.success(t("orders.shipmentUpdated"))
+          setConfirmingShipment(false)
+        },
+        onError: (error) => {
+          toast.error(t("common.saveFailed"), { description: errorMessage(error) })
+          setConfirmingShipment(false)
+        },
       },
     )
   }
@@ -197,7 +212,7 @@ function OrderDetailView({ order }: { order: Order }) {
                   <Button
                     size="sm"
                     disabled={updateShipment.isPending}
-                    onClick={advance}
+                    onClick={() => setConfirmingShipment(true)}
                   >
                     <Truck />
                     {t("orders.advanceShipment")} — {t(`shipment.${next}`)}
@@ -247,6 +262,25 @@ function OrderDetailView({ order }: { order: Order }) {
           </Table>
         </TableShell>
       </div>
+
+      <ConfirmDialog
+        open={confirmingShipment}
+        title={t("orders.advanceConfirmTitle")}
+        summary={
+          next ? (
+            <span>
+              #{order.id} · {t(`shipment.${shipmentStatus ?? "PREPARATION"}`)} →{" "}
+              <span className="font-medium">{t(`shipment.${next}`)}</span>
+            </span>
+          ) : null
+        }
+        consequence={t("orders.advanceConsequence")}
+        confirmLabel={t("orders.advanceShipment")}
+        destructive={false}
+        pending={updateShipment.isPending}
+        onConfirm={advance}
+        onCancel={() => setConfirmingShipment(false)}
+      />
     </div>
   )
 }
