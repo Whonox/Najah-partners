@@ -37,6 +37,49 @@ jest.setTimeout(180_000);
 
 const PASSWORD = 'MotDePasse123!';
 
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   QUARANTAINE DES ÉVÉNEMENTS ÉTRANGERS — NE PAS SUPPRIMER
+
+   ── Le problème qu'elle règle ──
+   `nextPeriod()` construit une période SYNTHÉTIQUE large (maintenant − 2 h → maintenant + 1 h) :
+   elle doit englober « maintenant », puisque le moteur horodate ses événements à l'instant de
+   l'activation (D-035) et qu'aucun test ne peut donc les dater lui-même.
+
+   Or un run ne réclame pas les événements DU TEST : il réclame TOUS les événements non
+   réclamés de la période (`SET runId WHERE runId IS NULL`, D-035). Depuis que le réseau
+   d'amorçage produit de vraies commissions (D-056 — 1781 événements pour 500 comptes), la
+   suite `seed.int-spec` en laisse donc un stock frais derrière elle. À l'exécution suivante,
+   le premier run de CE fichier les avalait, réglait ~212 membres du SEED, et le nettoyage —
+   qui ne supprime que les commissions de SES membres — ne pouvait plus supprimer le run :
+   `Commission_runId_fkey` violée, run orphelin, résidus qui s'accumulent d'un lancement à
+   l'autre.
+
+   Symptôme trompeur : le test échoue dans son NETTOYAGE, pas dans son scénario, et il passe
+   quand on le lance seul. On croit à un test instable ; c'est un défaut d'isolation.
+
+   ── Ce que la quarantaine fait ──
+   Avant tout run, les événements non réclamés PRÉEXISTANTS sont décalés cent ans dans le
+   passé : hors de portée de toute période synthétique. Ils sont remis en place à la fin.
+   Les événements créés PAR les tests, eux, naissent après la quarantaine et restent visibles.
+
+   ── Pourquoi ce décalage et pas autre chose ──
+   Les réclamer dans un run bidon marcherait aussi, mais créerait des `Commission`, créditerait
+   des soldes et demanderait une ligne `CommissionRun` à nettoyer à son tour. Les supprimer
+   détruirait des données d'amorçage. Le décalage ne touche qu'une colonne, n'écrit aucune
+   ligne, et se défait exactement (`− 100 ans` puis `+ 100 ans`).
+
+   ── Pourquoi elle se rattrape elle-même ──
+   Une exécution interrompue laisserait des événements au XXe siècle. Le `beforeAll` remet donc
+   d'abord en place tout ce qu'il trouve avant le seuil, avant de reposer sa propre quarantaine.
+
+   ── Si vous la supprimez ──
+   `npm run test:int` passera une fois — celle où la base ne porte pas d'événements récents —
+   puis échouera à chaque exécution suivante dans les deux heures. Ce n'est pas du bruit.
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+const QUARANTINE_YEARS = 100;
+/** Tout ce qui est avant ce seuil est en quarantaine : aucune donnée réelle n'y vit. */
+const QUARANTINE_THRESHOLD = '1980-01-01';
+
 describe('Moteur de commissions — scénarios déterministes (vrai Postgres)', () => {
   let prisma: PrismaService;
   let ledger: LedgerService;
@@ -240,7 +283,32 @@ describe('Moteur de commissions — scénarios déterministes (vrai Postgres)', 
 
     const admin = await prisma.adminUser.findFirstOrThrow();
     adminId = admin.id;
+
+    // Voir « QUARANTAINE DES ÉVÉNEMENTS ÉTRANGERS » en tête de fichier.
+    await releaseQuarantine();
+    await quarantineForeignEvents();
   });
+
+  /**
+   * Écarte des périodes de test tout événement non réclamé qui n'appartient pas à ce fichier
+   * — typiquement ceux du réseau d'amorçage, laissés par `seed.int-spec` (D-056).
+   */
+  async function quarantineForeignEvents(): Promise<void> {
+    await prisma.$executeRawUnsafe(
+      `UPDATE "CommissionEvent"
+          SET "occurredAt" = "occurredAt" - interval '${QUARANTINE_YEARS} years'
+        WHERE "runId" IS NULL`,
+    );
+  }
+
+  /** Remet en place ce que la quarantaine a décalé — y compris après une exécution interrompue. */
+  async function releaseQuarantine(): Promise<void> {
+    await prisma.$executeRawUnsafe(
+      `UPDATE "CommissionEvent"
+          SET "occurredAt" = "occurredAt" + interval '${QUARANTINE_YEARS} years'
+        WHERE "occurredAt" < TIMESTAMP '${QUARANTINE_THRESHOLD}'`,
+    );
+  }
 
   afterEach(async () => {
     const memberIds = [...createdMembers].reverse();
@@ -295,6 +363,9 @@ describe('Moteur de commissions — scénarios déterministes (vrai Postgres)', 
   });
 
   afterAll(async () => {
+    // La base rendue aux suites suivantes doit être celle qu'on a trouvée : les événements
+    // d'amorçage retrouvent leur date réelle, et redeviennent réclamables par un vrai run.
+    await releaseQuarantine();
     await prisma.$disconnect();
   });
 
