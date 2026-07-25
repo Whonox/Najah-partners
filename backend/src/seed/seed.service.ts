@@ -296,45 +296,49 @@ export class SeedService {
         key: 'ecard_expiration_days',
         value: '180',
         description:
-          'Durée de validité des e-cards en jours (-1 = illimité) — 180 j À CONFIRMER avec la cliente (D-008)',
+          'Durée de validité d’une e-card, en jours, à compter de son émission. -1 = sans expiration. À l’échéance, la valeur est recréditée au solde de son créateur.',
       },
       {
         key: 'registration_fee_dt',
         value: '100',
         description:
-          'Frais d’inscription en DT, réglés par e-card(s) à l’inscription (D-036). Vaut ACOMPTE : déduit du prix du pack à l’activation (D-037)',
+          'Frais d’inscription en dinars, réglés par e-card(s) au moment de l’inscription. Ils valent acompte : leur montant est déduit du prix du pack lors de l’activation.',
       },
       {
         key: 'annual_renewal_dt',
         value: '100',
         description:
-          'Montant en DT du renouvellement annuel, réglé par e-card(s) puis validé par l’admin (D-038)',
+          'Montant en dinars du renouvellement annuel d’adhésion. Le membre le règle par e-card(s) ; un administrateur valide ensuite le paiement pour que l’adhésion reprenne effet.',
       },
       {
         key: 'commission_cron_day',
         value: 'FRIDAY',
-        description: 'Jour de clôture du run hebdomadaire',
+        description:
+          'Jour de la semaine où les commissions sont arrêtées et versées.',
       },
       {
         key: 'commission_cron_time',
         value: '23:59',
-        description: 'Heure de clôture (heure de Tunis)',
+        description:
+          'Heure de clôture des commissions, dans le fuseau horaire ci-dessous.',
       },
       {
         key: 'commission_timezone',
         value: 'Africa/Tunis',
-        description: 'Fuseau horaire des runs de commissions',
+        description:
+          'Fuseau horaire de référence pour la clôture des commissions.',
       },
       {
         key: 'member_code_prefix',
         value: 'NP',
-        description: 'Préfixe du code membre auto-incrémenté',
+        description:
+          'Lettres placées devant le numéro de chaque nouveau membre pour former son code (ex. NP000042).',
       },
       {
         key: 'currency',
         value: 'DT',
         description:
-          'Devise de TOUS les montants (dinar tunisien, 3 décimales — le millime). Les points (BV) ne sont pas une devise.',
+          'Devise de tous les montants : le dinar tunisien, affiché à 3 décimales (le millime). Les points ne sont pas une devise et ne s’y convertissent pas.',
       },
     ];
     for (const setting of settings) {

@@ -260,6 +260,94 @@ describe('MembersAdminService', () => {
     });
   });
 
+  /**
+   * Le snapshot d'activation est du JSON FIGÉ : sa forme est celle qui avait cours le jour de
+   * l'activation. Les activations d'avant D-028 ont figé un plan de rémunération en `…Bv` et
+   * n'ont jamais porté de prix, d'acompte ni de montant dû — ces clés n'existaient pas encore.
+   * La route doit rendre ces fiches, pas s'effondrer dessus, et surtout ne rien inventer.
+   */
+  describe('getOne — snapshot d’activation antérieur à D-028', () => {
+    const LEGACY = {
+      ...BASE,
+      activationSnapshot: {
+        tierBv: 1000,
+        packName: 'Silver',
+        weeklyCapBv: 10000,
+        directCommissionBv: 500,
+        indirectCommissionBv: 250,
+      },
+    };
+
+    it('rend la fiche sans lever, en ne retenant que ce qui a été réellement figé', async () => {
+      prisma.member.findUnique.mockResolvedValue(LEGACY);
+
+      const detail = await service.getOne(42);
+
+      expect(detail.activationSnapshot).toEqual({
+        packName: 'Silver',
+        tierBv: 1000,
+        priceDt: null,
+        registrationCreditDt: null,
+        amountDueDt: null,
+        directCommissionDt: null,
+        indirectCommissionDt: null,
+        weeklyCapDt: null,
+      });
+    });
+
+    it('ne CONVERTIT jamais un montant `…Bv` en dinars — aucun taux points↔dinars n’existe', async () => {
+      prisma.member.findUnique.mockResolvedValue(LEGACY);
+
+      const detail = await service.getOne(42);
+
+      // 10000 « BV » ne devient pas 10000 DT : ce serait exactement la conversion que D-028
+      // interdit. L'absence est la seule réponse juste.
+      expect(detail.activationSnapshot?.weeklyCapDt).toBeNull();
+      expect(detail.activationSnapshot?.directCommissionDt).toBeNull();
+      expect(detail.activationSnapshot?.indirectCommissionDt).toBeNull();
+    });
+
+    it('un snapshot de forme inattendue ne casse pas la route', async () => {
+      prisma.member.findUnique.mockResolvedValue({
+        ...BASE,
+        activationSnapshot: 'ceci n’est pas un objet',
+      });
+
+      await expect(service.getOne(42)).resolves.toMatchObject({
+        activationSnapshot: null,
+      });
+    });
+
+    it('un snapshot complet sort intact (aucune régression sur le cas nominal)', async () => {
+      prisma.member.findUnique.mockResolvedValue({
+        ...BASE,
+        activationSnapshot: {
+          packName: 'Silver',
+          tierBv: 1000,
+          priceDt: '2200.000',
+          registrationCreditDt: '100.000',
+          amountDueDt: '2100.000',
+          directCommissionDt: '500.000',
+          indirectCommissionDt: '250.000',
+          weeklyCapDt: '10000.000',
+        },
+      });
+
+      const detail = await service.getOne(42);
+
+      expect(detail.activationSnapshot).toEqual({
+        packName: 'Silver',
+        tierBv: 1000,
+        priceDt: '2200.000',
+        registrationCreditDt: '100.000',
+        amountDueDt: '2100.000',
+        directCommissionDt: '500.000',
+        indirectCommissionDt: '250.000',
+        weeklyCapDt: '10000.000',
+      });
+    });
+  });
+
   describe('getIdDocumentPath', () => {
     it('ne lit QUE la colonne du chemin', async () => {
       prisma.member.findUnique.mockResolvedValue({ idDocumentPath: 'a/b.jpg' });

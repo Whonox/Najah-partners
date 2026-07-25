@@ -91,25 +91,52 @@ export class MemberPageDto {
  * expliquer un historique — il ne le recalcule jamais depuis le `Pack` vivant, qui a pu
  * changer depuis.
  */
+/**
+ * Le snapshot d'activation est du JSON figé : sa forme est celle qui avait cours LE JOUR de
+ * l'activation, pas celle du code d'aujourd'hui. Les activations antérieures à D-028 ont figé
+ * un plan de rémunération en `…Bv` et n'ont JAMAIS porté de prix, d'acompte ni de montant dû —
+ * ces clés n'existaient pas encore.
+ *
+ * D'où des champs TOUS NULLABLES. Deux choses qu'on se refuse à faire :
+ *  — convertir un `weeklyCapBv: 10000` d'avant D-028 en `weeklyCapDt: "10000.000"` : ce serait
+ *    exactement la conversion points↔dinars que le modèle interdit ;
+ *  — reconstruire un prix à partir du pack courant : le snapshot vaut précisément parce qu'il
+ *    ne bouge pas quand le pack change.
+ * Un montant que l'histoire n'a pas enregistré sort `null` et s'affiche « — ». C'est une
+ * information juste ; un nombre inventé n'en serait pas une.
+ */
 export class ActivationSnapshotDto {
-  @ApiProperty() packName!: string;
-  @ApiProperty({ example: 1000, description: 'POINTS — palier injecté dans l’arbre.' })
-  tierBv!: number;
-  @ApiProperty({ example: '2200.000', description: 'DINARS — tarif du pack (D-029).' })
-  priceDt!: string;
-  @ApiProperty({
-    example: '100.000',
-    description: 'DINARS — acompte d’inscription déduit (D-037).',
+  @ApiPropertyOptional({ nullable: true }) packName!: string | null;
+  @ApiPropertyOptional({
+    nullable: true,
+    example: 1000,
+    description: 'POINTS — palier injecté dans l’arbre.',
   })
-  registrationCreditDt!: string;
-  @ApiProperty({
+  tierBv!: number | null;
+  @ApiPropertyOptional({
+    nullable: true,
+    example: '2200.000',
+    description: 'DINARS — tarif du pack (D-029). null avant D-028 : jamais figé.',
+  })
+  priceDt!: string | null;
+  @ApiPropertyOptional({
+    nullable: true,
+    example: '100.000',
+    description: 'DINARS — acompte d’inscription déduit (D-037). null avant D-037.',
+  })
+  registrationCreditDt!: string | null;
+  @ApiPropertyOptional({
+    nullable: true,
     example: '2100.000',
     description: 'DINARS — ce que l’activation a réellement fait payer.',
   })
-  amountDueDt!: string;
-  @ApiProperty({ example: '500.000' }) directCommissionDt!: string;
-  @ApiProperty({ example: '250.000' }) indirectCommissionDt!: string;
-  @ApiProperty({ example: '10000.000' }) weeklyCapDt!: string;
+  amountDueDt!: string | null;
+  @ApiPropertyOptional({ nullable: true, example: '500.000' })
+  directCommissionDt!: string | null;
+  @ApiPropertyOptional({ nullable: true, example: '250.000' })
+  indirectCommissionDt!: string | null;
+  @ApiPropertyOptional({ nullable: true, example: '10000.000' })
+  weeklyCapDt!: string | null;
 }
 
 export class MemberDetailDto {

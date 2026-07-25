@@ -1,0 +1,97 @@
+- generic [ref=f1e2]:
+  - generic [ref=f1e4]:
+    - complementary [ref=f1e5]:
+      - generic [ref=f1e7]:
+        - generic [ref=f1e8]: NP
+        - generic [ref=f1e9]:
+          - generic [ref=f1e10]: Najah Partners
+          - generic [ref=f1e11]: Back-office
+      - navigation "Navigation principale" [ref=f1e13]:
+        - link "Tableau de bord À venir" [ref=f1e14] [cursor=pointer]:
+          - /url: /dashboard
+          - generic [ref=f1e20]: Tableau de bord
+          - generic [ref=f1e21]: À venir
+        - link "Membres" [ref=f1e22] [cursor=pointer]:
+          - /url: /members
+        - link "Généalogie" [ref=f1e29] [cursor=pointer]:
+          - /url: /genealogy
+        - link "Packs" [ref=f1e36] [cursor=pointer]:
+          - /url: /packs
+        - link "Produits" [ref=f1e42] [cursor=pointer]:
+          - /url: /products
+        - link "Commandes" [ref=f1e48] [cursor=pointer]:
+          - /url: /orders
+        - link "Commissions À venir" [ref=f1e60] [cursor=pointer]:
+          - /url: /commissions
+          - generic [ref=f1e64]: Commissions
+          - generic [ref=f1e65]: À venir
+        - link "Soldes & mouvements À venir" [ref=f1e66] [cursor=pointer]:
+          - /url: /ledger
+          - generic [ref=f1e70]: Soldes & mouvements
+          - generic [ref=f1e71]: À venir
+        - link "E-cards À venir" [ref=f1e72] [cursor=pointer]:
+          - /url: /ecards
+          - generic [ref=f1e75]: E-cards
+          - generic [ref=f1e76]: À venir
+        - link "Rapports À venir" [ref=f1e77] [cursor=pointer]:
+          - /url: /reports
+          - generic [ref=f1e81]: Rapports
+          - generic [ref=f1e82]: À venir
+        - link "Paramètres" [ref=f1e83] [cursor=pointer]:
+          - /url: /settings
+        - link "Comptes admin À venir" [ref=f1e88] [cursor=pointer]:
+          - /url: /admin-users
+          - generic [ref=f1e92]: Comptes admin
+          - generic [ref=f1e93]: À venir
+    - generic [ref=f1e94]:
+      - banner [ref=f1e95]:
+        - generic [ref=f1e96]:
+          - button "Thème" [ref=f1e97]
+          - generic [ref=f1e98]: Super-admin
+          - button "Compte" [ref=f1e99]:
+            - generic [ref=f1e100]: SA
+            - generic [ref=f1e101]: Super Admin
+      - main [ref=f1e102]:
+        - generic [ref=f1e103]:
+          - generic [ref=f1e105]:
+            - heading "Membres" [level=1] [ref=f1e106]
+            - paragraph [ref=f1e107]: "Consultation du réseau. Le placement est immuable et l’activation passe par la boutique : aucun écran ne les modifie."
+          - generic [ref=f1e108]:
+            - generic [ref=f1e109]:
+              - generic [ref=f1e110]: Rechercher
+              - textbox "Rechercher" [ref=f1e112]:
+                - /placeholder: Code, nom, e-mail…
+                - text: NP002283
+            - generic [ref=f1e113]:
+              - generic [ref=f1e114]: Statut
+              - combobox "Statut" [active] [ref=f1e115]:
+                - generic [ref=f1e116]: ACTIVE
+                - img: ▼
+              - textbox [ref=f1e117]: ACTIVE
+            - generic [ref=f1e118]:
+              - generic [ref=f1e119]: Pack
+              - combobox "Pack" [ref=f1e120]:
+                - generic [ref=f1e121]: __any__
+                - img: ▼
+              - textbox [ref=f1e122]: __any__
+            - generic [ref=f1e123]:
+              - generic [ref=f1e124]: Identité
+              - combobox "Identité" [ref=f1e125]:
+                - generic [ref=f1e126]: __any__
+                - img: ▼
+              - textbox [ref=f1e127]: __any__
+            - generic [ref=f1e128]:
+              - generic [ref=f1e129]: Inscrit à partir du
+              - textbox "Inscrit à partir du" [ref=f1e130]
+            - generic [ref=f1e131]:
+              - generic [ref=f1e132]: Inscrit jusqu’au
+              - textbox "Inscrit jusqu’au" [ref=f1e133]
+            - button "Réinitialiser" [ref=f1e829]
+          - generic [ref=f1e865]: Aucune donnée à afficher.
+          - generic [ref=f1e546]:
+            - generic [ref=f1e547]: Résultats 0–0 sur 0
+            - generic [ref=f1e548]:
+              - button "Précédent" [disabled]
+              - generic [ref=f1e549]: 1 / 1
+              - button "Suivant" [disabled]
+  - region "Notifications alt+T"

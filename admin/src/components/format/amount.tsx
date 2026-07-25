@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils"
-import { formatDt, formatPoints } from "@/lib/format"
+import { ABSENT, formatDt, formatPoints } from "@/lib/format"
 import { useT } from "@/i18n/use-t"
 
 /**
@@ -14,21 +14,33 @@ export function MoneyDt({
   value,
   className,
 }: {
-  /** Montant tel qu'il vient de l'API : une CHAÎNE décimale (jamais un flottant). */
-  value: string | number
+  /**
+   * Montant tel qu'il vient de l'API : une CHAÎNE décimale (jamais un flottant). `null` /
+   * `undefined` sont acceptés — un montant que l'historique n'a jamais enregistré existe
+   * (snapshots d'avant D-028) et vaut mieux affiché « — » qu'en écran blanc.
+   */
+  value: string | number | null | undefined
   className?: string
 }) {
   const t = useT()
+  const text = formatDt(value)
+  const absent = text === ABSENT
+
   return (
     <span
       data-unit="dt"
       className={cn(
         "inline-flex items-baseline justify-end gap-1 font-medium tabular-nums",
+        absent && "text-muted-foreground",
         className,
       )}
     >
-      {formatDt(value)}
-      <span className="text-xs font-normal text-muted-foreground">{t("unit.dt")}</span>
+      {text}
+      {/* Pas d'unité derrière un tiret : « — DT » se lirait comme un montant nul en dinars,
+          alors qu'il n'y a AUCUN montant. */}
+      {absent ? null : (
+        <span className="text-xs font-normal text-muted-foreground">{t("unit.dt")}</span>
+      )}
     </span>
   )
 }
@@ -37,20 +49,29 @@ export function PointsBv({
   value,
   className,
 }: {
-  /** Points (BV) — entier. */
-  value: string | number
+  /** Points (BV) — entier. `null` / `undefined` rendent « — », jamais une exception. */
+  value: string | number | null | undefined
   className?: string
 }) {
   const t = useT()
+  const text = formatPoints(value)
+  const absent = text === ABSENT
+
   return (
     <span
       data-unit="points"
-      className={cn("inline-flex items-baseline gap-1 tabular-nums", className)}
+      className={cn(
+        "inline-flex items-baseline gap-1 tabular-nums",
+        absent && "text-muted-foreground",
+        className,
+      )}
     >
-      {formatPoints(value)}
-      <span className="text-[0.65rem] font-medium tracking-wide text-muted-foreground uppercase">
-        {t("unit.points")}
-      </span>
+      {text}
+      {absent ? null : (
+        <span className="text-[0.65rem] font-medium tracking-wide text-muted-foreground uppercase">
+          {t("unit.points")}
+        </span>
+      )}
     </span>
   )
 }

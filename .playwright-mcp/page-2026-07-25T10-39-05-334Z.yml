@@ -1,0 +1,476 @@
+- generic [ref=f6e2]:
+  - generic [ref=f6e4]:
+    - complementary [ref=f6e5]:
+      - generic [ref=f6e7]:
+        - generic [ref=f6e8]: NP
+        - generic [ref=f6e9]:
+          - generic [ref=f6e10]: Najah Partners
+          - generic [ref=f6e11]: Back-office
+      - navigation "Navigation principale" [ref=f6e2173]:
+        - link "Tableau de bord À venir" [ref=f6e2174] [cursor=pointer]:
+          - /url: /dashboard
+          - generic [ref=f6e20]: Tableau de bord
+          - generic [ref=f6e21]: À venir
+        - link "Membres" [ref=f6e2175] [cursor=pointer]:
+          - /url: /members
+        - link "Généalogie" [ref=f6e2176] [cursor=pointer]:
+          - /url: /genealogy
+        - link "Packs" [ref=f6e2177] [cursor=pointer]:
+          - /url: /packs
+        - link "Produits" [ref=f6e2178] [cursor=pointer]:
+          - /url: /products
+        - link "Commandes" [ref=f6e2179] [cursor=pointer]:
+          - /url: /orders
+        - link "Commissions À venir" [ref=f6e2180] [cursor=pointer]:
+          - /url: /commissions
+          - generic [ref=f6e64]: Commissions
+          - generic [ref=f6e65]: À venir
+        - link "Soldes & mouvements À venir" [ref=f6e2181] [cursor=pointer]:
+          - /url: /ledger
+          - generic [ref=f6e70]: Soldes & mouvements
+          - generic [ref=f6e71]: À venir
+        - link "E-cards À venir" [ref=f6e2182] [cursor=pointer]:
+          - /url: /ecards
+          - generic [ref=f6e75]: E-cards
+          - generic [ref=f6e76]: À venir
+        - link "Rapports À venir" [ref=f6e2183] [cursor=pointer]:
+          - /url: /reports
+          - generic [ref=f6e81]: Rapports
+          - generic [ref=f6e82]: À venir
+        - link "Paramètres" [ref=f6e2184] [cursor=pointer]:
+          - /url: /settings
+        - link "Comptes admin À venir" [ref=f6e2185] [cursor=pointer]:
+          - /url: /admin-users
+          - generic [ref=f6e92]: Comptes admin
+          - generic [ref=f6e93]: À venir
+    - generic [ref=f6e94]:
+      - banner [ref=f6e95]:
+        - generic [ref=f6e96]:
+          - button "Thème" [ref=f6e2186]
+          - generic [ref=f6e98]: Super-admin
+          - button "Compte" [ref=f6e2187]:
+            - generic [ref=f6e100]: SA
+            - generic [ref=f6e101]: Super Admin
+      - main [ref=f6e102]:
+        - generic [ref=f6e103]:
+          - generic [ref=f6e105]:
+            - heading "Produits" [level=1] [ref=f6e2188]
+            - paragraph [ref=f6e107]: "Catalogue complet, produits inactifs et masqués compris. Un produit ne se supprime pas : il se désactive."
+          - alert [ref=f6e108]:
+            - generic [ref=f6e111]: La valeur en POINTS sert à composer le palier d’un pack à l’activation. Une promotion baisse le prix en DINARS sans jamais toucher aux points.
+          - generic [ref=f6e112]:
+            - tablist [ref=f6e113]:
+              - tab "Produits" [selected] [ref=f6e2189]
+              - tab "Catégories" [ref=f6e2190]
+            - tabpanel "Produits" [ref=f6e2191]:
+              - generic [ref=f6e638]:
+                - generic [ref=f6e640]:
+                  - generic [ref=f6e641]: Catégorie
+                  - combobox "Catégorie" [active] [ref=f6e2192]:
+                    - generic [ref=f6e643]: __any__
+                    - img: ▼
+                  - textbox [ref=f6e644]: __any__
+                - button "Nouveau produit" [ref=f6e2193]
+              - table [ref=f6e987]:
+                - rowgroup [ref=f6e988]:
+                  - row [ref=f6e2194]:
+                    - columnheader "Nom" [ref=f6e2195]
+                    - columnheader "Catégorie" [ref=f6e2196]
+                    - columnheader "Prix" [ref=f6e2197]
+                    - columnheader "Promo" [ref=f6e2198]
+                    - columnheader "Points" [ref=f6e2199]
+                    - columnheader "Type" [ref=f6e2200]
+                    - columnheader "Stock" [ref=f6e2201]
+                    - columnheader "Livraison" [ref=f6e2202]
+                    - columnheader "État" [ref=f6e2203]
+                    - columnheader "Vitrine" [ref=f6e2204]
+                    - columnheader [ref=f6e1000]
+                - rowgroup [ref=f6e1001]:
+                  - row [ref=f6e2205]:
+                    - cell "Huile d’olive extra-vierge 1 L" [ref=f6e2206]
+                    - cell "Huiles d’olive" [ref=f6e2207]
+                    - cell "45,000 DT" [ref=f6e2208]:
+                      - generic [ref=f6e1006]:
+                        - text: 45,000
+                        - generic [ref=f6e1007]: DT
+                    - cell "—" [ref=f6e2209]
+                    - cell "250 pts" [ref=f6e2210]:
+                      - generic [ref=f6e1010]:
+                        - text: "250"
+                        - generic [ref=f6e1011]: pts
+                    - cell "Physique" [ref=f6e2211]
+                    - cell "500" [ref=f6e2212]
+                    - cell "7,000 DT" [ref=f6e2213]:
+                      - generic [ref=f6e1015]:
+                        - text: 7,000
+                        - generic [ref=f6e1016]: DT
+                    - cell "Actif" [ref=f6e2214]
+                    - cell "Oui" [ref=f6e2215]
+                    - cell [ref=f6e2216]:
+                      - button "Modifier" [ref=f6e2217]
+                  - row [ref=f6e2218]:
+                    - cell "Huile d’olive extra-vierge 5 L" [ref=f6e2219]
+                    - cell "Huiles d’olive" [ref=f6e2220]
+                    - cell "190,000 DT" [ref=f6e2221]:
+                      - generic [ref=f6e1027]:
+                        - text: 190,000
+                        - generic [ref=f6e1028]: DT
+                    - cell "169,000 DT" [ref=f6e2222]:
+                      - generic [ref=f6e1030]:
+                        - text: 169,000
+                        - generic [ref=f6e1031]: DT
+                    - cell "500 pts" [ref=f6e2223]:
+                      - generic [ref=f6e1033]:
+                        - text: "500"
+                        - generic [ref=f6e1034]: pts
+                    - cell "Physique" [ref=f6e2224]
+                    - cell "200" [ref=f6e2225]
+                    - cell "10,000 DT" [ref=f6e2226]:
+                      - generic [ref=f6e1038]:
+                        - text: 10,000
+                        - generic [ref=f6e1039]: DT
+                    - cell "Actif" [ref=f6e2227]
+                    - cell "Oui" [ref=f6e2228]
+                    - cell [ref=f6e2229]:
+                      - button "Modifier" [ref=f6e2230]
+                  - row [ref=f6e2231]:
+                    - cell "Coffret olive — sélection" [ref=f6e2232]
+                    - cell "Huiles d’olive" [ref=f6e2233]
+                    - cell "380,000 DT" [ref=f6e2234]:
+                      - generic [ref=f6e1050]:
+                        - text: 380,000
+                        - generic [ref=f6e1051]: DT
+                    - cell "—" [ref=f6e2235]
+                    - cell "1 000 pts" [ref=f6e2236]:
+                      - generic [ref=f6e1054]:
+                        - text: 1 000
+                        - generic [ref=f6e1055]: pts
+                    - cell "Physique" [ref=f6e2237]
+                    - cell "100" [ref=f6e2238]
+                    - cell "12,000 DT" [ref=f6e2239]:
+                      - generic [ref=f6e1059]:
+                        - text: 12,000
+                        - generic [ref=f6e1060]: DT
+                    - cell "Actif" [ref=f6e2240]
+                    - cell "Oui" [ref=f6e2241]
+                    - cell [ref=f6e2242]:
+                      - button "Modifier" [ref=f6e2243]
+                  - row [ref=f6e2244]:
+                    - cell "Coffret prestige Najah" [ref=f6e2245]
+                    - cell "Huiles d’olive" [ref=f6e2246]
+                    - cell "740,000 DT" [ref=f6e2247]:
+                      - generic [ref=f6e1071]:
+                        - text: 740,000
+                        - generic [ref=f6e1072]: DT
+                    - cell "—" [ref=f6e2248]
+                    - cell "2 000 pts" [ref=f6e2249]:
+                      - generic [ref=f6e1075]:
+                        - text: 2 000
+                        - generic [ref=f6e1076]: pts
+                    - cell "Physique" [ref=f6e2250]
+                    - cell "50" [ref=f6e2251]
+                    - cell "15,000 DT" [ref=f6e2252]:
+                      - generic [ref=f6e1080]:
+                        - text: 15,000
+                        - generic [ref=f6e1081]: DT
+                    - cell "Actif" [ref=f6e2253]
+                    - cell "Oui" [ref=f6e2254]
+                    - cell [ref=f6e2255]:
+                      - button "Modifier" [ref=f6e2256]
+                  - row [ref=f6e2257]:
+                    - cell "Savon d’Alep à l’huile d’olive" [ref=f6e2258]
+                    - cell "Produits naturels" [ref=f6e2259]
+                    - cell "42,000 DT" [ref=f6e2260]:
+                      - generic [ref=f6e1589]:
+                        - text: 42,000
+                        - generic [ref=f6e1590]: DT
+                    - cell "—" [ref=f6e2261]
+                    - cell "250 pts" [ref=f6e2262]:
+                      - generic [ref=f6e1593]:
+                        - text: "250"
+                        - generic [ref=f6e1594]: pts
+                    - cell "Physique" [ref=f6e2263]
+                    - cell "300" [ref=f6e2264]
+                    - cell "5,000 DT" [ref=f6e2265]:
+                      - generic [ref=f6e1598]:
+                        - text: 5,000
+                        - generic [ref=f6e1599]: DT
+                    - cell "Actif" [ref=f6e2266]
+                    - cell "Oui" [ref=f6e2267]
+                    - cell [ref=f6e2268]:
+                      - button "Modifier" [ref=f6e2269]
+                  - row [ref=f6e2270]:
+                    - cell "Miel de romarin 500 g" [ref=f6e2271]
+                    - cell "Produits naturels" [ref=f6e2272]
+                    - cell "88,000 DT" [ref=f6e2273]:
+                      - generic [ref=f6e1610]:
+                        - text: 88,000
+                        - generic [ref=f6e1611]: DT
+                    - cell "—" [ref=f6e2274]
+                    - cell "500 pts" [ref=f6e2275]:
+                      - generic [ref=f6e1614]:
+                        - text: "500"
+                        - generic [ref=f6e1615]: pts
+                    - cell "Physique" [ref=f6e2276]
+                    - cell "150" [ref=f6e2277]
+                    - cell "6,000 DT" [ref=f6e2278]:
+                      - generic [ref=f6e1619]:
+                        - text: 6,000
+                        - generic [ref=f6e1620]: DT
+                    - cell "Actif" [ref=f6e2279]
+                    - cell "Oui" [ref=f6e2280]
+                    - cell [ref=f6e2281]:
+                      - button "Modifier" [ref=f6e2282]
+                  - row [ref=f6e2283]:
+                    - cell "Guide numérique — nutrition à l’olive" [ref=f6e2284]
+                    - cell "Contenus numériques" [ref=f6e2285]
+                    - cell "40,000 DT" [ref=f6e2286]:
+                      - generic [ref=f6e1631]:
+                        - text: 40,000
+                        - generic [ref=f6e1632]: DT
+                    - cell "—" [ref=f6e2287]
+                    - cell "250 pts" [ref=f6e2288]:
+                      - generic [ref=f6e1635]:
+                        - text: "250"
+                        - generic [ref=f6e1636]: pts
+                    - cell "Virtuel" [ref=f6e2289]
+                    - cell "Illimité" [ref=f6e2290]
+                    - cell "0,000 DT" [ref=f6e2291]:
+                      - generic [ref=f6e1640]:
+                        - text: 0,000
+                        - generic [ref=f6e1641]: DT
+                    - cell "Actif" [ref=f6e2292]
+                    - cell "Oui" [ref=f6e2293]
+                    - cell [ref=f6e2294]:
+                      - button "Modifier" [ref=f6e2295]
+                  - row [ref=f6e2296]:
+                    - cell "Produit test 3" [ref=f6e2297]
+                    - cell "Catégorie test 1784891426518" [ref=f6e2298]
+                    - cell "100,000 DT" [ref=f6e2299]:
+                      - generic [ref=f6e1652]:
+                        - text: 100,000
+                        - generic [ref=f6e1653]: DT
+                    - cell "—" [ref=f6e2300]
+                    - cell "250 pts" [ref=f6e2301]:
+                      - generic [ref=f6e1656]:
+                        - text: "250"
+                        - generic [ref=f6e1657]: pts
+                    - cell "Physique" [ref=f6e2302]
+                    - cell "6" [ref=f6e2303]
+                    - cell "0,000 DT" [ref=f6e2304]:
+                      - generic [ref=f6e1661]:
+                        - text: 0,000
+                        - generic [ref=f6e1662]: DT
+                    - cell "Actif" [ref=f6e2305]
+                    - cell "Oui" [ref=f6e2306]
+                    - cell [ref=f6e2307]:
+                      - button "Modifier" [ref=f6e2308]
+                  - row [ref=f6e2309]:
+                    - cell "Produit test 15" [ref=f6e2310]
+                    - cell "Catégorie test 1784891426518" [ref=f6e2311]
+                    - cell "100,000 DT" [ref=f6e2312]:
+                      - generic [ref=f6e1673]:
+                        - text: 100,000
+                        - generic [ref=f6e1674]: DT
+                    - cell "—" [ref=f6e2313]
+                    - cell "250 pts" [ref=f6e2314]:
+                      - generic [ref=f6e1677]:
+                        - text: "250"
+                        - generic [ref=f6e1678]: pts
+                    - cell "Physique" [ref=f6e2315]
+                    - cell "7" [ref=f6e2316]
+                    - cell "0,000 DT" [ref=f6e2317]:
+                      - generic [ref=f6e1682]:
+                        - text: 0,000
+                        - generic [ref=f6e1683]: DT
+                    - cell "Actif" [ref=f6e2318]
+                    - cell "Oui" [ref=f6e2319]
+                    - cell [ref=f6e2320]:
+                      - button "Modifier" [ref=f6e2321]
+                  - row [ref=f6e2322]:
+                    - cell "Produit test 24" [ref=f6e2323]
+                    - cell "Catégorie test 1784891426518" [ref=f6e2324]
+                    - cell "190,000 DT" [ref=f6e2325]:
+                      - generic [ref=f6e1694]:
+                        - text: 190,000
+                        - generic [ref=f6e1695]: DT
+                    - cell "—" [ref=f6e2326]
+                    - cell "500 pts" [ref=f6e2327]:
+                      - generic [ref=f6e1698]:
+                        - text: "500"
+                        - generic [ref=f6e1699]: pts
+                    - cell "Physique" [ref=f6e2328]
+                    - cell "8" [ref=f6e2329]
+                    - cell "40,000 DT" [ref=f6e2330]:
+                      - generic [ref=f6e1703]:
+                        - text: 40,000
+                        - generic [ref=f6e1704]: DT
+                    - cell "Actif" [ref=f6e2331]
+                    - cell "Oui" [ref=f6e2332]
+                    - cell [ref=f6e2333]:
+                      - button "Modifier" [ref=f6e2334]
+                  - row [ref=f6e2335]:
+                    - cell "Produit test 27" [ref=f6e2336]
+                    - cell "Catégorie test 1784891426518" [ref=f6e2337]
+                    - cell "190,000 DT" [ref=f6e2338]:
+                      - generic [ref=f6e1715]:
+                        - text: 190,000
+                        - generic [ref=f6e1716]: DT
+                    - cell "169,000 DT" [ref=f6e2339]:
+                      - generic [ref=f6e1718]:
+                        - text: 169,000
+                        - generic [ref=f6e1719]: DT
+                    - cell "500 pts" [ref=f6e2340]:
+                      - generic [ref=f6e1721]:
+                        - text: "500"
+                        - generic [ref=f6e1722]: pts
+                    - cell "Physique" [ref=f6e2341]
+                    - cell "9" [ref=f6e2342]
+                    - cell "0,000 DT" [ref=f6e2343]:
+                      - generic [ref=f6e1726]:
+                        - text: 0,000
+                        - generic [ref=f6e1727]: DT
+                    - cell "Actif" [ref=f6e2344]
+                    - cell "Oui" [ref=f6e2345]
+                    - cell [ref=f6e2346]:
+                      - button "Modifier" [ref=f6e2347]
+                  - row [ref=f6e2348]:
+                    - cell "Produit test 31" [ref=f6e2349]
+                    - cell "Catégorie test 1784891426518" [ref=f6e2350]
+                    - cell "100,000 DT" [ref=f6e2351]:
+                      - generic [ref=f6e1738]:
+                        - text: 100,000
+                        - generic [ref=f6e1739]: DT
+                    - cell "—" [ref=f6e2352]
+                    - cell "250 pts" [ref=f6e2353]:
+                      - generic [ref=f6e1742]:
+                        - text: "250"
+                        - generic [ref=f6e1743]: pts
+                    - cell "Physique" [ref=f6e2354]
+                    - cell "0" [ref=f6e2355]
+                    - cell "0,000 DT" [ref=f6e2356]:
+                      - generic [ref=f6e1747]:
+                        - text: 0,000
+                        - generic [ref=f6e1748]: DT
+                    - cell "Actif" [ref=f6e2357]
+                    - cell "Oui" [ref=f6e2358]
+                    - cell [ref=f6e2359]:
+                      - button "Modifier" [ref=f6e2360]
+                  - row [ref=f6e2361]:
+                    - cell "Produit test 34" [ref=f6e2362]
+                    - cell "Catégorie test 1784891426518" [ref=f6e2363]
+                    - cell "100,000 DT" [ref=f6e2364]:
+                      - generic [ref=f6e1759]:
+                        - text: 100,000
+                        - generic [ref=f6e1760]: DT
+                    - cell "—" [ref=f6e2365]
+                    - cell "250 pts" [ref=f6e2366]:
+                      - generic [ref=f6e1763]:
+                        - text: "250"
+                        - generic [ref=f6e1764]: pts
+                    - cell "Virtuel" [ref=f6e2367]
+                    - cell "Illimité" [ref=f6e2368]
+                    - cell "0,000 DT" [ref=f6e2369]:
+                      - generic [ref=f6e1768]:
+                        - text: 0,000
+                        - generic [ref=f6e1769]: DT
+                    - cell "Actif" [ref=f6e2370]
+                    - cell "Oui" [ref=f6e2371]
+                    - cell [ref=f6e2372]:
+                      - button "Modifier" [ref=f6e2373]
+                  - row [ref=f6e2374]:
+                    - cell "Produit test 37" [ref=f6e2375]
+                    - cell "Catégorie test 1784891426518" [ref=f6e2376]
+                    - cell "100,000 DT" [ref=f6e2377]:
+                      - generic [ref=f6e1780]:
+                        - text: 100,000
+                        - generic [ref=f6e1781]: DT
+                    - cell "—" [ref=f6e2378]
+                    - cell "250 pts" [ref=f6e2379]:
+                      - generic [ref=f6e1784]:
+                        - text: "250"
+                        - generic [ref=f6e1785]: pts
+                    - cell "Physique" [ref=f6e2380]
+                    - cell "4" [ref=f6e2381]
+                    - cell "0,000 DT" [ref=f6e2382]:
+                      - generic [ref=f6e1789]:
+                        - text: 0,000
+                        - generic [ref=f6e1790]: DT
+                    - cell "Actif" [ref=f6e2383]
+                    - cell "Oui" [ref=f6e2384]
+                    - cell [ref=f6e2385]:
+                      - button "Modifier" [ref=f6e2386]
+                  - row [ref=f6e2387]:
+                    - cell "Produit test 40" [ref=f6e2388]
+                    - cell "Catégorie test 1784891426518" [ref=f6e2389]
+                    - cell "100,000 DT" [ref=f6e2390]:
+                      - generic [ref=f6e1801]:
+                        - text: 100,000
+                        - generic [ref=f6e1802]: DT
+                    - cell "—" [ref=f6e2391]
+                    - cell "250 pts" [ref=f6e2392]:
+                      - generic [ref=f6e1805]:
+                        - text: "250"
+                        - generic [ref=f6e1806]: pts
+                    - cell "Virtuel" [ref=f6e2393]
+                    - cell "Illimité" [ref=f6e2394]
+                    - cell "0,000 DT" [ref=f6e2395]:
+                      - generic [ref=f6e1810]:
+                        - text: 0,000
+                        - generic [ref=f6e1811]: DT
+                    - cell "Actif" [ref=f6e2396]
+                    - cell "Oui" [ref=f6e2397]
+                    - cell [ref=f6e2398]:
+                      - button "Modifier" [ref=f6e2399]
+                  - row [ref=f6e2400]:
+                    - cell "ZZ Audit UX — produit virtuel" [ref=f6e2401]
+                    - cell "Catégorie test 1784891426518" [ref=f6e2402]
+                    - cell "49,900 DT" [ref=f6e2403]:
+                      - generic [ref=f6e1822]:
+                        - text: 49,900
+                        - generic [ref=f6e1823]: DT
+                    - cell "—" [ref=f6e2404]
+                    - cell "250 pts" [ref=f6e2405]:
+                      - generic [ref=f6e1826]:
+                        - text: "250"
+                        - generic [ref=f6e1827]: pts
+                    - cell "Virtuel" [ref=f6e2406]
+                    - cell "Illimité" [ref=f6e2407]
+                    - cell "0,000 DT" [ref=f6e2408]:
+                      - generic [ref=f6e1831]:
+                        - text: 0,000
+                        - generic [ref=f6e1832]: DT
+                    - cell "Actif" [ref=f6e2409]
+                    - cell "Oui" [ref=f6e2410]
+                    - cell [ref=f6e2411]:
+                      - button "Modifier" [ref=f6e2412]
+                  - row [ref=f6e2413]:
+                    - cell "ZZ Audit UX — produit physique" [ref=f6e2414]
+                    - cell "Catégorie test 1784891426518" [ref=f6e2415]
+                    - cell "120,500 DT" [ref=f6e2416]:
+                      - generic [ref=f6e1843]:
+                        - text: 120,500
+                        - generic [ref=f6e1844]: DT
+                    - cell "89,900 DT" [ref=f6e2417]:
+                      - generic [ref=f6e2418]:
+                        - text: 89,900
+                        - generic [ref=f6e2419]: DT
+                    - cell "500 pts" [ref=f6e2420]:
+                      - generic [ref=f6e1847]:
+                        - text: "500"
+                        - generic [ref=f6e1848]: pts
+                    - cell "Physique" [ref=f6e2421]
+                    - cell "25" [ref=f6e2422]
+                    - cell "0,000 DT" [ref=f6e2423]:
+                      - generic [ref=f6e1852]:
+                        - text: 0,000
+                        - generic [ref=f6e1853]: DT
+                    - cell "Actif" [ref=f6e2424]
+                    - cell "Oui" [ref=f6e2425]
+                    - cell [ref=f6e2426]:
+                      - button "Modifier" [ref=f6e2427]
+              - paragraph [ref=f6e983]: "Affichés puis réglés hors système : ils n’entrent dans aucun montant dû à la plateforme."
+  - region "Notifications alt+T":
+    - list:
+      - listitem [ref=f6e2428]:
+        - generic [ref=f6e2433]: Enregistré.

@@ -1,0 +1,139 @@
+- generic [ref=e2]:
+  - generic [ref=e25]:
+    - complementary [ref=e26]:
+      - generic [ref=e28]:
+        - generic [ref=e29]: NP
+        - generic [ref=e30]:
+          - generic [ref=e31]: Najah Partners
+          - generic [ref=e32]: Back-office
+      - navigation "Navigation principale" [ref=e34]:
+        - link "Tableau de bord À venir" [ref=e35] [cursor=pointer]:
+          - /url: /dashboard
+          - generic [ref=e41]: Tableau de bord
+          - generic [ref=e42]: À venir
+        - link "Membres" [ref=e43] [cursor=pointer]:
+          - /url: /members
+        - link "Généalogie" [ref=e50] [cursor=pointer]:
+          - /url: /genealogy
+        - link "Packs" [ref=e57] [cursor=pointer]:
+          - /url: /packs
+        - link "Produits" [ref=e63] [cursor=pointer]:
+          - /url: /products
+        - link "Commandes" [ref=e69] [cursor=pointer]:
+          - /url: /orders
+        - link "Commissions À venir" [ref=e81] [cursor=pointer]:
+          - /url: /commissions
+          - generic [ref=e85]: Commissions
+          - generic [ref=e86]: À venir
+        - link "Soldes & mouvements À venir" [ref=e87] [cursor=pointer]:
+          - /url: /ledger
+          - generic [ref=e91]: Soldes & mouvements
+          - generic [ref=e92]: À venir
+        - link "E-cards À venir" [ref=e93] [cursor=pointer]:
+          - /url: /ecards
+          - generic [ref=e96]: E-cards
+          - generic [ref=e97]: À venir
+        - link "Rapports À venir" [ref=e98] [cursor=pointer]:
+          - /url: /reports
+          - generic [ref=e102]: Rapports
+          - generic [ref=e103]: À venir
+        - link "Paramètres" [ref=e104] [cursor=pointer]:
+          - /url: /settings
+        - link "Comptes admin À venir" [ref=e109] [cursor=pointer]:
+          - /url: /admin-users
+          - generic [ref=e113]: Comptes admin
+          - generic [ref=e114]: À venir
+    - generic [ref=e115]:
+      - banner [ref=e116]:
+        - generic [ref=e117]:
+          - button "Thème" [ref=e118]
+          - generic [ref=e119]: Super-admin
+          - button "Compte" [ref=e120]:
+            - generic [ref=e121]: SA
+            - generic [ref=e122]: Super Admin
+      - main [ref=e132]:
+        - generic [ref=e133]:
+          - generic [ref=e135]:
+            - heading "Membres" [level=1] [ref=e136]
+            - paragraph [ref=e137]: "Consultation du réseau. Le placement est immuable et l’activation passe par la boutique : aucun écran ne les modifie."
+          - generic [ref=e138]:
+            - generic [ref=e139]:
+              - generic [ref=e140]: Rechercher
+              - textbox "Rechercher" [ref=e142]:
+                - /placeholder: Code, nom, e-mail…
+                - text: NP000965
+            - generic [ref=e143]:
+              - generic [ref=e144]: Statut
+              - combobox "Statut" [active] [ref=e145]:
+                - generic [ref=e146]: ACTIVE
+                - img: ▼
+              - textbox [ref=e147]: ACTIVE
+            - generic [ref=e148]:
+              - generic [ref=e149]: Pack
+              - combobox "Pack" [ref=e150]:
+                - generic [ref=e151]: __any__
+                - img: ▼
+              - textbox [ref=e152]: __any__
+            - generic [ref=e153]:
+              - generic [ref=e154]: Identité
+              - combobox "Identité" [ref=e155]:
+                - generic [ref=e156]: __any__
+                - img: ▼
+              - textbox [ref=e157]: __any__
+            - generic [ref=e158]:
+              - generic [ref=e159]: Inscrit à partir du
+              - textbox "Inscrit à partir du" [ref=e160]
+            - generic [ref=e161]:
+              - generic [ref=e162]: Inscrit jusqu’au
+              - textbox "Inscrit jusqu’au" [ref=e163]
+            - button "Réinitialiser" [ref=e581]
+          - table [ref=e167]:
+            - rowgroup [ref=e168]:
+              - row [ref=e169]:
+                - columnheader [ref=e170]:
+                  - button "Trier sur cette colonne" [ref=e171]: Code
+                - columnheader [ref=e172]:
+                  - button "Trier sur cette colonne" [ref=e173]: Nom
+                - columnheader [ref=e174]:
+                  - button "Trier sur cette colonne" [ref=e175]: Statut
+                - columnheader "Pack" [ref=e176]
+                - columnheader [ref=e177]:
+                  - button "Trier sur cette colonne" [ref=e178]: Solde
+                - columnheader "Downlines G / D" [ref=e179]
+                - columnheader [ref=e180]:
+                  - button "Trier sur cette colonne" [ref=e181]: Inscrit le
+                - columnheader [ref=e182]:
+                  - button "Trier sur cette colonne" [ref=e183]: Activé le
+                - columnheader "Identité" [ref=e184]
+            - rowgroup [ref=e185]:
+              - row [ref=e582]:
+                - cell [ref=e583]:
+                  - link "NP000965" [ref=e584] [cursor=pointer]:
+                    - /url: /members/3
+                - cell "Najah Niveau2D" [ref=e585]
+                - cell "Actif" [ref=e586]
+                - cell "Silver" [ref=e588]
+                - cell "0,000 DT" [ref=e589]:
+                  - generic [ref=e590]:
+                    - text: 0,000
+                    - generic [ref=e591]: DT
+                - cell "G NP000968 · D NP000969" [ref=e592]:
+                  - generic [ref=e593]:
+                    - generic [ref=e594]: G
+                    - link "NP000968" [ref=e595] [cursor=pointer]:
+                      - /url: /members/6
+                  - text: ·
+                  - generic [ref=e596]:
+                    - generic [ref=e597]: D
+                    - link "NP000969" [ref=e598] [cursor=pointer]:
+                      - /url: /members/7
+                - cell "14/07/2026 17:22" [ref=e599]
+                - cell "14/07/2026 17:22" [ref=e600]
+                - cell "À vérifier" [ref=e601]
+          - generic [ref=e576]:
+            - generic [ref=e577]: Résultats 1–1 sur 1
+            - generic [ref=e578]:
+              - button "Précédent" [disabled]
+              - generic [ref=e579]: 1 / 1
+              - button "Suivant" [disabled]
+  - region "Notifications alt+T"

@@ -28,9 +28,23 @@ export class OrderLineResponseDto {
   unitPriceDt!: string;
 }
 
+/**
+ * Le membre d'une commande tel qu'il s'IDENTIFIE : par son code. L'`id` ne sert qu'à faire un
+ * lien — aucun écran n'a à afficher « #1419 » là où l'admin cherche « NP002284 ».
+ */
+export class OrderMemberResponseDto {
+  @ApiProperty() id!: number;
+  @ApiProperty({ example: 'NP000042' }) memberCode!: string;
+  @ApiProperty() firstName!: string;
+  @ApiProperty() lastName!: string;
+}
+
 export class OrderResponseDto {
   @ApiProperty() id!: number;
-  @ApiProperty() memberId!: number;
+  @ApiProperty({ description: 'Identifiant technique du membre (liens internes).' })
+  memberId!: number;
+  @ApiProperty({ type: () => OrderMemberResponseDto })
+  member!: OrderMemberResponseDto;
 
   @ApiProperty({
     enum: OrderContext,

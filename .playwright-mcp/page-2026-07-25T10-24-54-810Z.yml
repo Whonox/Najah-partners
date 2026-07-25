@@ -1,0 +1,126 @@
+- generic [ref=f4e2]:
+  - generic [ref=f4e4]:
+    - complementary [ref=f4e5]:
+      - generic [ref=f4e7]:
+        - generic [ref=f4e8]: NP
+        - generic [ref=f4e9]:
+          - generic [ref=f4e10]: Najah Partners
+          - generic [ref=f4e11]: Back-office
+      - navigation "Navigation principale" [ref=f4e13]:
+        - link "Tableau de bord À venir" [ref=f4e14] [cursor=pointer]:
+          - /url: /dashboard
+          - generic [ref=f4e20]: Tableau de bord
+          - generic [ref=f4e21]: À venir
+        - link "Membres" [ref=f4e22] [cursor=pointer]:
+          - /url: /members
+        - link "Généalogie" [ref=f4e29] [cursor=pointer]:
+          - /url: /genealogy
+        - link "Packs" [ref=f4e36] [cursor=pointer]:
+          - /url: /packs
+        - link "Produits" [ref=f4e42] [cursor=pointer]:
+          - /url: /products
+        - link "Commandes" [ref=f4e48] [cursor=pointer]:
+          - /url: /orders
+        - link "Commissions À venir" [ref=f4e60] [cursor=pointer]:
+          - /url: /commissions
+          - generic [ref=f4e64]: Commissions
+          - generic [ref=f4e65]: À venir
+        - link "Soldes & mouvements À venir" [ref=f4e66] [cursor=pointer]:
+          - /url: /ledger
+          - generic [ref=f4e70]: Soldes & mouvements
+          - generic [ref=f4e71]: À venir
+        - link "E-cards À venir" [ref=f4e72] [cursor=pointer]:
+          - /url: /ecards
+          - generic [ref=f4e75]: E-cards
+          - generic [ref=f4e76]: À venir
+        - link "Rapports À venir" [ref=f4e77] [cursor=pointer]:
+          - /url: /reports
+          - generic [ref=f4e81]: Rapports
+          - generic [ref=f4e82]: À venir
+        - link "Paramètres" [ref=f4e83] [cursor=pointer]:
+          - /url: /settings
+        - link "Comptes admin À venir" [ref=f4e88] [cursor=pointer]:
+          - /url: /admin-users
+          - generic [ref=f4e92]: Comptes admin
+          - generic [ref=f4e93]: À venir
+    - generic [ref=f4e94]:
+      - banner [ref=f4e95]:
+        - generic [ref=f4e96]:
+          - button "Thème" [ref=f4e97]
+          - generic [ref=f4e98]: Super-admin
+          - button "Compte" [ref=f4e99]:
+            - generic [ref=f4e100]: SA
+            - generic [ref=f4e101]: Super Admin
+      - main [ref=f4e102]:
+        - generic [ref=f4e103]:
+          - generic [ref=f4e105]:
+            - heading "Généalogie du réseau" [level=1] [ref=f4e106]
+            - paragraph [ref=f4e107]: "Arbre binaire consulté par niveaux : seuls les nœuds affichés sont chargés. Cliquez un membre pour recentrer l’arbre sur lui."
+          - generic [ref=f4e108]:
+            - generic [ref=f4e109]:
+              - generic [ref=f4e110]: Recentrer sur un code membre
+              - textbox "Recentrer sur un code membre" [active] [ref=f4e112]:
+                - /placeholder: NP000042
+                - text: NP000965
+            - button "Recentrer" [ref=f4e113]
+          - generic [ref=f4e116]:
+            - generic [ref=f4e117]:
+              - generic [ref=f4e118]:
+                - link "NP000965" [ref=f4e119] [cursor=pointer]:
+                  - /url: /members/3
+                - generic [ref=f4e124]: Actif
+              - paragraph [ref=f4e125]: Najah Niveau2D
+              - paragraph [ref=f4e126]: Silver
+              - generic [ref=f4e127]:
+                - generic [ref=f4e128]:
+                  - generic [ref=f4e129]: G
+                  - generic [ref=f4e130]:
+                    - text: 1 000
+                    - generic [ref=f4e131]: pts
+                - generic [ref=f4e132]:
+                  - generic [ref=f4e133]: D
+                  - generic [ref=f4e134]:
+                    - text: 1 000
+                    - generic [ref=f4e135]: pts
+            - generic [ref=f4e138]:
+              - generic [ref=f4e139]:
+                - generic [ref=f4e140]: Jambe gauche
+                - generic [ref=f4e141]:
+                  - generic [ref=f4e142]:
+                    - link "NP000968" [ref=f4e143] [cursor=pointer]:
+                      - /url: /members/6
+                    - generic [ref=f4e148]: Actif
+                  - paragraph [ref=f4e149]: Najah Niveau3DG
+                  - paragraph [ref=f4e150]: Silver
+                  - generic [ref=f4e151]:
+                    - generic [ref=f4e152]:
+                      - generic [ref=f4e153]: G
+                      - generic [ref=f4e154]:
+                        - text: "0"
+                        - generic [ref=f4e155]: pts
+                    - generic [ref=f4e156]:
+                      - generic [ref=f4e157]: D
+                      - generic [ref=f4e158]:
+                        - text: "0"
+                        - generic [ref=f4e159]: pts
+              - generic [ref=f4e160]:
+                - generic [ref=f4e161]: Jambe droite
+                - generic [ref=f4e162]:
+                  - generic [ref=f4e163]:
+                    - link "NP000969" [ref=f4e164] [cursor=pointer]:
+                      - /url: /members/7
+                    - generic [ref=f4e169]: Actif
+                  - paragraph [ref=f4e170]: Najah Niveau3DD
+                  - paragraph [ref=f4e171]: Silver
+                  - generic [ref=f4e172]:
+                    - generic [ref=f4e173]:
+                      - generic [ref=f4e174]: G
+                      - generic [ref=f4e175]:
+                        - text: "0"
+                        - generic [ref=f4e176]: pts
+                    - generic [ref=f4e177]:
+                      - generic [ref=f4e178]: D
+                      - generic [ref=f4e179]:
+                        - text: "0"
+                        - generic [ref=f4e180]: pts
+  - region "Notifications alt+T"

@@ -1,0 +1,90 @@
+- generic [ref=f11e2]:
+  - generic [ref=f11e4]:
+    - complementary [ref=f11e5]:
+      - generic [ref=f11e7]:
+        - generic [ref=f11e8]: NP
+        - generic [ref=f11e9]:
+          - generic [ref=f11e10]: Najah Partners
+          - generic [ref=f11e11]: Back-office
+      - navigation "Navigation principale" [ref=f11e13]:
+        - link "Tableau de bord À venir" [ref=f11e14] [cursor=pointer]:
+          - /url: /dashboard
+          - generic [ref=f11e20]: Tableau de bord
+          - generic [ref=f11e21]: À venir
+        - link "Membres" [ref=f11e22] [cursor=pointer]:
+          - /url: /members
+        - link "Généalogie" [ref=f11e29] [cursor=pointer]:
+          - /url: /genealogy
+        - link "Packs" [ref=f11e36] [cursor=pointer]:
+          - /url: /packs
+        - link "Produits" [ref=f11e42] [cursor=pointer]:
+          - /url: /products
+        - link "Commandes" [ref=f11e48] [cursor=pointer]:
+          - /url: /orders
+        - link "Commissions À venir" [ref=f11e60] [cursor=pointer]:
+          - /url: /commissions
+          - generic [ref=f11e64]: Commissions
+          - generic [ref=f11e65]: À venir
+        - link "Soldes & mouvements À venir" [ref=f11e66] [cursor=pointer]:
+          - /url: /ledger
+          - generic [ref=f11e70]: Soldes & mouvements
+          - generic [ref=f11e71]: À venir
+        - link "E-cards À venir" [ref=f11e72] [cursor=pointer]:
+          - /url: /ecards
+          - generic [ref=f11e75]: E-cards
+          - generic [ref=f11e76]: À venir
+        - link "Rapports À venir" [ref=f11e77] [cursor=pointer]:
+          - /url: /reports
+          - generic [ref=f11e81]: Rapports
+          - generic [ref=f11e82]: À venir
+        - link "Paramètres" [ref=f11e83] [cursor=pointer]:
+          - /url: /settings
+        - link "Comptes admin À venir" [ref=f11e88] [cursor=pointer]:
+          - /url: /admin-users
+          - generic [ref=f11e92]: Comptes admin
+          - generic [ref=f11e93]: À venir
+    - generic [ref=f11e94]:
+      - banner [ref=f11e95]:
+        - generic [ref=f11e96]:
+          - button "Thème" [ref=f11e97]
+          - generic [ref=f11e98]: Super-admin
+          - button "Compte" [ref=f11e99]:
+            - generic [ref=f11e100]: SA
+            - generic [ref=f11e101]: Super Admin
+      - main [ref=f11e102]:
+        - generic [ref=f11e103]:
+          - generic [ref=f11e105]:
+            - heading "Généalogie du réseau" [level=1] [ref=f11e106]
+            - paragraph [ref=f11e107]: "Arbre binaire consulté par niveaux : seuls les nœuds affichés sont chargés. Cliquez un membre pour recentrer l’arbre sur lui."
+          - generic [ref=f11e108]:
+            - generic [ref=f11e109]:
+              - generic [ref=f11e110]: Recentrer sur un code membre
+              - textbox "Recentrer sur un code membre" [ref=f11e112]:
+                - /placeholder: NP000042
+            - button "Recentrer" [ref=f11e113]
+            - button "Revenir au départ" [ref=f11e295]
+          - navigation "Chemin parcouru" [ref=f11e296]:
+            - button "Remonter à l’upline" [ref=f11e297]
+            - generic [ref=f11e298]: ·
+            - generic [ref=f11e299]:
+              - button "NP000963" [ref=f11e300]
+              - generic [ref=f11e301]: ›
+          - generic [ref=f11e117]:
+            - generic [ref=f11e118]:
+              - link "NP000969" [ref=f11e302] [cursor=pointer]:
+                - /url: /members/7
+              - generic [ref=f11e124]: Actif
+            - paragraph [ref=f11e125]: Najah Niveau3DD
+            - paragraph [ref=f11e126]: Silver
+            - generic [ref=f11e127]:
+              - generic [ref=f11e128]:
+                - generic [ref=f11e129]: G
+                - generic [ref=f11e130]:
+                  - text: "0"
+                  - generic [ref=f11e131]: pts
+              - generic [ref=f11e132]:
+                - generic [ref=f11e133]: D
+                - generic [ref=f11e134]:
+                  - text: "0"
+                  - generic [ref=f11e135]: pts
+  - region "Notifications alt+T"

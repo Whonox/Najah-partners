@@ -93,7 +93,7 @@ function MemberDetailView({ member }: { member: MemberDetail }) {
             <Button
               variant="outline"
               size="sm"
-              render={<Link to={`/orders?memberId=${member.id}`} />}
+              render={<Link to={`/orders?memberCode=${member.memberCode}`} />}
             >
               {t("member.action.orders")}
             </Button>
@@ -166,7 +166,7 @@ function IdentityTab({ member }: { member: MemberDetail }) {
             {member.idDocumentNumber ?? t("common.none")}
           </span>
         </Field>
-        <Field label={t("verification.PENDING")}>
+        <Field label={t("member.field.verification")}>
           <VerificationBadge status={member.verificationStatus} />
         </Field>
         <IdDocumentViewer
@@ -343,10 +343,17 @@ function LedgerTab({ member }: { member: MemberDetail }) {
         </Section>
       </div>
 
-      <Alert>
-        <Info />
-        <AlertDescription>{t("member.ledger.empty")}</AlertDescription>
-      </Alert>
+      {/* L'explication « aucun mouvement, c'est normal » n'a de sens QUE s'il n'y en a
+          effectivement aucun. Rendue en toutes circonstances, elle contredisait le tableau
+          juste en dessous — sur un écran d'argent, c'est la crédibilité de l'écran entier qui
+          tombe. On attend donc la réponse (`total` fait foi sur TOUTES les pages, là où
+          `items` ne parle que de la page courante). */}
+      {history.data && history.data.total === 0 ? (
+        <Alert>
+          <Info />
+          <AlertDescription>{t("member.ledger.empty")}</AlertDescription>
+        </Alert>
+      ) : null}
 
       <DataState
         isLoading={history.isPending}
@@ -442,8 +449,19 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-/** Un champ de DINARS — toujours par `MoneyDt` (3 décimales, unité DT). */
-function MoneyField({ label, value }: { label: string; value: string }) {
+/**
+ * Un champ de DINARS — toujours par `MoneyDt` (3 décimales, unité DT). La valeur peut être
+ * ABSENTE : un snapshot d'activation antérieur à D-028 n'a jamais figé de montant en dinars.
+ * On affiche alors « — », et surtout pas un montant reconstruit depuis le pack courant, qui
+ * serait faux par construction.
+ */
+function MoneyField({
+  label,
+  value,
+}: {
+  label: string
+  value: string | null | undefined
+}) {
   return (
     <Field label={label}>
       <MoneyDt value={value} />

@@ -1,0 +1,60 @@
+- generic [ref=e2]:
+  - generic [ref=e148]:
+    - complementary [ref=e149]:
+      - generic [ref=e151]:
+        - generic [ref=e152]: NP
+        - generic [ref=e153]:
+          - generic [ref=e154]: Najah Partners
+          - generic [ref=e155]: Back-office
+      - navigation "Navigation principale" [ref=e157]:
+        - link "Tableau de bord À venir" [ref=e158] [cursor=pointer]:
+          - /url: /dashboard
+          - generic [ref=e164]: Tableau de bord
+          - generic [ref=e165]: À venir
+        - link "Membres" [ref=e166] [cursor=pointer]:
+          - /url: /members
+        - link "Généalogie" [ref=e173] [cursor=pointer]:
+          - /url: /genealogy
+        - link "Packs" [ref=e180] [cursor=pointer]:
+          - /url: /packs
+        - link "Produits" [ref=e186] [cursor=pointer]:
+          - /url: /products
+        - link "Commandes" [ref=e192] [cursor=pointer]:
+          - /url: /orders
+        - link "Commissions À venir" [ref=e204] [cursor=pointer]:
+          - /url: /commissions
+          - generic [ref=e208]: Commissions
+          - generic [ref=e209]: À venir
+        - link "Soldes & mouvements À venir" [ref=e210] [cursor=pointer]:
+          - /url: /ledger
+          - generic [ref=e214]: Soldes & mouvements
+          - generic [ref=e215]: À venir
+        - link "E-cards À venir" [ref=e216] [cursor=pointer]:
+          - /url: /ecards
+          - generic [ref=e219]: E-cards
+          - generic [ref=e220]: À venir
+        - link "Rapports À venir" [ref=e221] [cursor=pointer]:
+          - /url: /reports
+          - generic [ref=e225]: Rapports
+          - generic [ref=e226]: À venir
+        - link "Paramètres" [ref=e227] [cursor=pointer]:
+          - /url: /settings
+        - link "Comptes admin À venir" [ref=e232] [cursor=pointer]:
+          - /url: /admin-users
+          - generic [ref=e236]: Comptes admin
+          - generic [ref=e237]: À venir
+    - generic [ref=e238]:
+      - banner [ref=e239]:
+        - generic [ref=e240]:
+          - button "Thème" [ref=e241]
+          - generic [ref=e242]: Super-admin
+          - button "Compte" [ref=e243]:
+            - generic [ref=e244]: SA
+            - generic [ref=e245]: Super Admin
+      - main [ref=e246]:
+        - generic [ref=e247]:
+          - generic [ref=e248]:
+            - heading "Tableau de bord" [level=1] [ref=e250]
+            - generic [ref=e251]: À venir
+          - generic [ref=e253]: Ce module sera construit dans une tranche ultérieure. La navigation est déjà en place.
+  - region "Notifications alt+T"

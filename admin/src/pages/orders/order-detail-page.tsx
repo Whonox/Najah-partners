@@ -130,12 +130,16 @@ function OrderDetailView({ order }: { order: Order }) {
             <Field label={t("orders.field.paidAt")}>
               {order.paidAt ? formatDateTime(order.paidAt) : t("common.none")}
             </Field>
+            {/* Code membre + nom : la clé métier, jamais l'identifiant technique. */}
             <Field label={t("orders.column.member")}>
               <Link
                 to={`/members/${order.memberId}`}
                 className="text-primary underline-offset-4 hover:underline"
               >
-                #{order.memberId}
+                <span className="font-mono text-xs">
+                  {order.member.memberCode}
+                </span>{" "}
+                {order.member.lastName} {order.member.firstName}
               </Link>
             </Field>
           </CardContent>

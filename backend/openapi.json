@@ -1633,10 +1633,21 @@
             "name": "memberId",
             "required": false,
             "in": "query",
-            "description": "Commandes d’un membre donné.",
+            "description": "Commandes d’un membre donné, par identifiant technique.",
             "schema": {
               "minimum": 1,
               "type": "number"
+            }
+          },
+          {
+            "name": "memberCode",
+            "required": false,
+            "in": "query",
+            "description": "Commandes d’un membre donné, par CODE membre (égalité exacte, insensible à la casse). C’est la clé que l’admin connaît.",
+            "schema": {
+              "maxLength": 32,
+              "example": "NP000042",
+              "type": "string"
             }
           }
         ],
@@ -2519,51 +2530,49 @@
         "type": "object",
         "properties": {
           "packName": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "tierBv": {
             "type": "number",
+            "nullable": true,
             "example": 1000,
             "description": "POINTS — palier injecté dans l’arbre."
           },
           "priceDt": {
             "type": "string",
+            "nullable": true,
             "example": "2200.000",
-            "description": "DINARS — tarif du pack (D-029)."
+            "description": "DINARS — tarif du pack (D-029). null avant D-028 : jamais figé."
           },
           "registrationCreditDt": {
             "type": "string",
+            "nullable": true,
             "example": "100.000",
-            "description": "DINARS — acompte d’inscription déduit (D-037)."
+            "description": "DINARS — acompte d’inscription déduit (D-037). null avant D-037."
           },
           "amountDueDt": {
             "type": "string",
+            "nullable": true,
             "example": "2100.000",
             "description": "DINARS — ce que l’activation a réellement fait payer."
           },
           "directCommissionDt": {
             "type": "string",
+            "nullable": true,
             "example": "500.000"
           },
           "indirectCommissionDt": {
             "type": "string",
+            "nullable": true,
             "example": "250.000"
           },
           "weeklyCapDt": {
             "type": "string",
+            "nullable": true,
             "example": "10000.000"
           }
-        },
-        "required": [
-          "packName",
-          "tierBv",
-          "priceDt",
-          "registrationCreditDt",
-          "amountDueDt",
-          "directCommissionDt",
-          "indirectCommissionDt",
-          "weeklyCapDt"
-        ]
+        }
       },
       "MemberDetailDto": {
         "type": "object",
@@ -3341,6 +3350,30 @@
           "ecardCodes"
         ]
       },
+      "OrderMemberResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "memberCode": {
+            "type": "string",
+            "example": "NP000042"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "memberCode",
+          "firstName",
+          "lastName"
+        ]
+      },
       "OrderLineResponseDto": {
         "type": "object",
         "properties": {
@@ -3380,7 +3413,11 @@
             "type": "number"
           },
           "memberId": {
-            "type": "number"
+            "type": "number",
+            "description": "Identifiant technique du membre (liens internes)."
+          },
+          "member": {
+            "$ref": "#/components/schemas/OrderMemberResponseDto"
           },
           "context": {
             "enum": [
@@ -3449,6 +3486,7 @@
         "required": [
           "id",
           "memberId",
+          "member",
           "context",
           "status",
           "totalDt",

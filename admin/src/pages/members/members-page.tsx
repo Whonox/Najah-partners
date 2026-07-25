@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
-  SelectItem,
+  SelectOptions,
   SelectTrigger,
   SelectValue,
+  type SelectOption,
 } from "@/components/ui/select"
 import {
   Table,
@@ -124,6 +125,30 @@ export function MembersPage() {
     setPage(1)
   }
 
+  // Chaque liste porte ses libellés, `ANY` compris : le déclencheur affiche « Tous les
+  // statuts », jamais la valeur technique du filtre vide.
+  const statusOptions: SelectOption[] = [
+    { value: ANY, label: t("members.filter.statusAll") },
+    ...MEMBER_STATUSES.map((value) => ({
+      value,
+      label: t(`memberStatus.${value}`),
+    })),
+  ]
+  const packOptions: SelectOption[] = [
+    { value: ANY, label: t("members.filter.packAll") },
+    ...(packs.data ?? []).map((pack) => ({
+      value: String(pack.id),
+      label: pack.name,
+    })),
+  ]
+  const verificationOptions: SelectOption[] = [
+    { value: ANY, label: t("members.filter.verificationAll") },
+    ...VERIFICATION_STATUSES.map((value) => ({
+      value,
+      label: t(`verification.${value}`),
+    })),
+  ]
+
   const hasFilters =
     search !== "" || !!status || !!verification || !!packId || from !== "" || to !== ""
 
@@ -161,6 +186,7 @@ export function MembersPage() {
 
         <FilterField label={t("members.filter.status")} className="w-40">
           <Select
+            options={statusOptions}
             value={status ?? ANY}
             onValueChange={(value) =>
               filter(setStatus)(value === ANY ? undefined : (value as MemberStatus))
@@ -170,18 +196,14 @@ export function MembersPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ANY}>{t("common.all")}</SelectItem>
-              {MEMBER_STATUSES.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {t(`memberStatus.${value}`)}
-                </SelectItem>
-              ))}
+              <SelectOptions options={statusOptions} />
             </SelectContent>
           </Select>
         </FilterField>
 
         <FilterField label={t("members.filter.pack")} className="w-40">
           <Select
+            options={packOptions}
             value={packId ? String(packId) : ANY}
             onValueChange={(value) =>
               filter(setPackId)(value === ANY ? undefined : Number(value))
@@ -191,18 +213,14 @@ export function MembersPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ANY}>{t("common.all")}</SelectItem>
-              {(packs.data ?? []).map((pack) => (
-                <SelectItem key={pack.id} value={String(pack.id)}>
-                  {pack.name}
-                </SelectItem>
-              ))}
+              <SelectOptions options={packOptions} />
             </SelectContent>
           </Select>
         </FilterField>
 
         <FilterField label={t("members.filter.verification")} className="w-40">
           <Select
+            options={verificationOptions}
             value={verification ?? ANY}
             onValueChange={(value) =>
               filter(setVerification)(
@@ -214,12 +232,7 @@ export function MembersPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ANY}>{t("common.all")}</SelectItem>
-              {VERIFICATION_STATUSES.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {t(`verification.${value}`)}
-                </SelectItem>
-              ))}
+              <SelectOptions options={verificationOptions} />
             </SelectContent>
           </Select>
         </FilterField>

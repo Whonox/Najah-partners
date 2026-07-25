@@ -1,0 +1,175 @@
+- generic [ref=f15e2]:
+  - generic [ref=f15e4]:
+    - complementary [ref=f15e5]:
+      - generic [ref=f15e7]:
+        - generic [ref=f15e8]: NP
+        - generic [ref=f15e9]:
+          - generic [ref=f15e10]: Najah Partners
+          - generic [ref=f15e11]: Back-office
+      - navigation "Navigation principale" [ref=f15e13]:
+        - link "Tableau de bord À venir" [ref=f15e14] [cursor=pointer]:
+          - /url: /dashboard
+          - generic [ref=f15e20]: Tableau de bord
+          - generic [ref=f15e21]: À venir
+        - link "Membres" [ref=f15e22] [cursor=pointer]:
+          - /url: /members
+        - link "Généalogie" [ref=f15e29] [cursor=pointer]:
+          - /url: /genealogy
+        - link "Packs" [ref=f15e36] [cursor=pointer]:
+          - /url: /packs
+        - link "Produits" [ref=f15e42] [cursor=pointer]:
+          - /url: /products
+        - link "Commandes" [ref=f15e48] [cursor=pointer]:
+          - /url: /orders
+        - link "Commissions À venir" [ref=f15e60] [cursor=pointer]:
+          - /url: /commissions
+          - generic [ref=f15e64]: Commissions
+          - generic [ref=f15e65]: À venir
+        - link "Soldes & mouvements À venir" [ref=f15e66] [cursor=pointer]:
+          - /url: /ledger
+          - generic [ref=f15e70]: Soldes & mouvements
+          - generic [ref=f15e71]: À venir
+        - link "E-cards À venir" [ref=f15e72] [cursor=pointer]:
+          - /url: /ecards
+          - generic [ref=f15e75]: E-cards
+          - generic [ref=f15e76]: À venir
+        - link "Rapports À venir" [ref=f15e77] [cursor=pointer]:
+          - /url: /reports
+          - generic [ref=f15e81]: Rapports
+          - generic [ref=f15e82]: À venir
+        - link "Paramètres" [ref=f15e83] [cursor=pointer]:
+          - /url: /settings
+        - link "Comptes admin À venir" [ref=f15e88] [cursor=pointer]:
+          - /url: /admin-users
+          - generic [ref=f15e92]: Comptes admin
+          - generic [ref=f15e93]: À venir
+    - generic [ref=f15e94]:
+      - banner [ref=f15e95]:
+        - generic [ref=f15e96]:
+          - button "Thème" [ref=f15e97]
+          - generic [ref=f15e98]: Super-admin
+          - button "Compte" [ref=f15e99]:
+            - generic [ref=f15e100]: SA
+            - generic [ref=f15e101]: Super Admin
+      - main [ref=f15e102]:
+        - generic [ref=f15e103]:
+          - generic [ref=f15e105]:
+            - heading "Commandes" [level=1] [ref=f15e106]
+            - paragraph [ref=f15e107]: "Chaque commande est née PAYÉE : sans passerelle, le règlement par e-card est instantané. Aucune annulation n’est possible."
+          - generic [ref=f15e108]:
+            - generic [ref=f15e109]:
+              - generic [ref=f15e110]: N° de membre
+              - textbox "N° de membre" [ref=f15e111]
+            - generic [ref=f15e112]:
+              - generic [ref=f15e113]: Contexte
+              - combobox "Contexte" [ref=f15e114]:
+                - generic [ref=f15e115]: __any__
+                - img: ▼
+              - textbox [ref=f15e116]: __any__
+            - generic [ref=f15e117]:
+              - generic [ref=f15e118]: Expédition
+              - combobox "Expédition" [active] [ref=f15e119]:
+                - generic [ref=f15e120]: PREPARATION
+                - img: ▼
+              - textbox [ref=f15e135]: PREPARATION
+            - button "Réinitialiser" [ref=f15e298]
+          - table [ref=f15e139]:
+            - rowgroup [ref=f15e140]:
+              - row [ref=f15e141]:
+                - columnheader "N°" [ref=f15e142]
+                - columnheader "Membre" [ref=f15e143]
+                - columnheader "Contexte" [ref=f15e144]
+                - columnheader "Total" [ref=f15e145]
+                - columnheader "Points" [ref=f15e146]
+                - columnheader "Statut" [ref=f15e147]
+                - columnheader "E-cards" [ref=f15e148]
+                - columnheader "Expédition" [ref=f15e149]
+                - columnheader "Date" [ref=f15e150]
+            - rowgroup [ref=f15e151]:
+              - row [ref=f15e222]:
+                - cell [ref=f15e223]:
+                  - link "#77" [ref=f15e224] [cursor=pointer]:
+                    - /url: /orders/77
+                - cell [ref=f15e225]:
+                  - link "#1417" [ref=f15e226] [cursor=pointer]:
+                    - /url: /members/1417
+                - cell "Achat libre" [ref=f15e227]
+                - cell "169,000 DT" [ref=f15e229]:
+                  - generic [ref=f15e230]:
+                    - text: 169,000
+                    - generic [ref=f15e231]: DT
+                - cell "500 pts" [ref=f15e232]:
+                  - generic [ref=f15e233]:
+                    - text: "500"
+                    - generic [ref=f15e234]: pts
+                - cell "Payée" [ref=f15e235]
+                - cell "1" [ref=f15e236]
+                - cell "En préparation" [ref=f15e237]
+                - cell "24/07/2026 12:10" [ref=f15e239]
+              - row [ref=f15e240]:
+                - cell [ref=f15e241]:
+                  - link "#76" [ref=f15e242] [cursor=pointer]:
+                    - /url: /orders/76
+                - cell [ref=f15e243]:
+                  - link "#1415" [ref=f15e244] [cursor=pointer]:
+                    - /url: /members/1415
+                - cell "Achat libre" [ref=f15e245]
+                - cell "380,000 DT" [ref=f15e247]:
+                  - generic [ref=f15e248]:
+                    - text: 380,000
+                    - generic [ref=f15e249]: DT
+                - cell "1 000 pts" [ref=f15e250]:
+                  - generic [ref=f15e251]:
+                    - text: 1 000
+                    - generic [ref=f15e252]: pts
+                - cell "Payée" [ref=f15e253]
+                - cell "1" [ref=f15e254]
+                - cell "En préparation" [ref=f15e255]
+                - cell "24/07/2026 12:10" [ref=f15e257]
+              - row [ref=f15e258]:
+                - cell [ref=f15e259]:
+                  - link "#75" [ref=f15e260] [cursor=pointer]:
+                    - /url: /orders/75
+                - cell [ref=f15e261]:
+                  - link "#1409" [ref=f15e262] [cursor=pointer]:
+                    - /url: /members/1409
+                - cell "Achat libre" [ref=f15e263]
+                - cell "300,000 DT" [ref=f15e265]:
+                  - generic [ref=f15e266]:
+                    - text: 300,000
+                    - generic [ref=f15e267]: DT
+                - cell "750 pts" [ref=f15e268]:
+                  - generic [ref=f15e269]:
+                    - text: "750"
+                    - generic [ref=f15e270]: pts
+                - cell "Payée" [ref=f15e271]
+                - cell "1" [ref=f15e272]
+                - cell "En préparation" [ref=f15e273]
+                - cell "24/07/2026 12:10" [ref=f15e275]
+              - row [ref=f15e276]:
+                - cell [ref=f15e277]:
+                  - link "#73" [ref=f15e278] [cursor=pointer]:
+                    - /url: /orders/73
+                - cell [ref=f15e279]:
+                  - link "#1401" [ref=f15e280] [cursor=pointer]:
+                    - /url: /members/1401
+                - cell "Activation" [ref=f15e281]
+                - cell "2 100,000 DT" [ref=f15e283]:
+                  - generic [ref=f15e284]:
+                    - text: 2 100,000
+                    - generic [ref=f15e285]: DT
+                - cell "1 000 pts" [ref=f15e286]:
+                  - generic [ref=f15e287]:
+                    - text: 1 000
+                    - generic [ref=f15e288]: pts
+                - cell "Payée" [ref=f15e289]
+                - cell "1" [ref=f15e290]
+                - cell "En préparation" [ref=f15e291]
+                - cell "24/07/2026 12:10" [ref=f15e293]
+          - generic [ref=f15e294]:
+            - generic [ref=f15e295]: Résultats 1–4 sur 4
+            - generic [ref=f15e296]:
+              - button "Précédent" [disabled]
+              - generic [ref=f15e297]: 1 / 1
+              - button "Suivant" [disabled]
+  - region "Notifications alt+T"

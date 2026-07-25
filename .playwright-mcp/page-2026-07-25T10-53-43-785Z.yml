@@ -1,0 +1,189 @@
+- generic [ref=f13e2]:
+  - generic [ref=f13e4]:
+    - complementary [ref=f13e5]:
+      - generic [ref=f13e7]:
+        - generic [ref=f13e8]: NP
+        - generic [ref=f13e9]:
+          - generic [ref=f13e10]: Najah Partners
+          - generic [ref=f13e11]: Back-office
+      - navigation "Navigation principale" [ref=f13e464]:
+        - link "Tableau de bord À venir" [ref=f13e465] [cursor=pointer]:
+          - /url: /dashboard
+          - generic [ref=f13e20]: Tableau de bord
+          - generic [ref=f13e21]: À venir
+        - link "Membres" [ref=f13e466] [cursor=pointer]:
+          - /url: /members
+        - link "Généalogie" [ref=f13e467] [cursor=pointer]:
+          - /url: /genealogy
+        - link "Packs" [ref=f13e468] [cursor=pointer]:
+          - /url: /packs
+        - link "Produits" [ref=f13e469] [cursor=pointer]:
+          - /url: /products
+        - link "Commandes" [ref=f13e470] [cursor=pointer]:
+          - /url: /orders
+        - link "Commissions À venir" [ref=f13e471] [cursor=pointer]:
+          - /url: /commissions
+          - generic [ref=f13e64]: Commissions
+          - generic [ref=f13e65]: À venir
+        - link "Soldes & mouvements À venir" [ref=f13e472] [cursor=pointer]:
+          - /url: /ledger
+          - generic [ref=f13e70]: Soldes & mouvements
+          - generic [ref=f13e71]: À venir
+        - link "E-cards À venir" [ref=f13e473] [cursor=pointer]:
+          - /url: /ecards
+          - generic [ref=f13e75]: E-cards
+          - generic [ref=f13e76]: À venir
+        - link "Rapports À venir" [ref=f13e474] [cursor=pointer]:
+          - /url: /reports
+          - generic [ref=f13e81]: Rapports
+          - generic [ref=f13e82]: À venir
+        - link "Paramètres" [ref=f13e475] [cursor=pointer]:
+          - /url: /settings
+        - link "Comptes admin À venir" [ref=f13e476] [cursor=pointer]:
+          - /url: /admin-users
+          - generic [ref=f13e92]: Comptes admin
+          - generic [ref=f13e93]: À venir
+    - generic [ref=f13e94]:
+      - banner [ref=f13e95]:
+        - generic [ref=f13e96]:
+          - button "Thème" [ref=f13e477]
+          - generic [ref=f13e98]: Super-admin
+          - button "Compte" [expanded] [ref=f13e478]:
+            - generic [ref=f13e100]: SA
+            - generic [ref=f13e101]: Super Admin
+          - menu "Compte" [active] [ref=f13e538]:
+            - group "Super Admin admin@najah.local Super-admin" [ref=f13e539]:
+              - generic [ref=f13e540]: Super Admin
+              - generic [ref=f13e541]: admin@najah.local
+              - generic [ref=f13e542]: Super-admin
+            - separator [ref=f13e543]
+            - menuitem "Se déconnecter" [ref=f13e544]
+      - main [ref=f13e102]:
+        - generic [ref=f13e103]:
+          - generic [ref=f13e104]:
+            - generic [ref=f13e105]:
+              - heading "Packs" [level=1] [ref=f13e479]
+              - paragraph [ref=f13e107]: "Paliers et plan de rémunération. Un pack ne se supprime jamais : on le désactive."
+            - button "Nouveau pack" [ref=f13e480]
+          - alert [ref=f13e110]:
+            - generic [ref=f13e113]: État
+            - generic [ref=f13e114]: Modifier un pack n’affecte que les activations À VENIR. Les membres déjà activés conservent le snapshot figé au jour de leur activation — l’historique et les commissions passées restent intacts.
+          - table [ref=f13e118]:
+            - rowgroup [ref=f13e119]:
+              - row [ref=f13e481]:
+                - columnheader "Nom" [ref=f13e482]
+                - columnheader "Palier" [ref=f13e483]
+                - columnheader "Prix" [ref=f13e484]
+                - columnheader "Comm. directe" [ref=f13e485]
+                - columnheader "Comm. indirecte" [ref=f13e486]
+                - columnheader "Plafond hebdo" [ref=f13e487]
+                - columnheader "Membres" [ref=f13e488]
+                - columnheader "État" [ref=f13e489]
+                - columnheader [ref=f13e129]
+            - rowgroup [ref=f13e130]:
+              - row [ref=f13e490]:
+                - cell "Silver" [ref=f13e491]
+                - cell "1 000 pts" [ref=f13e492]:
+                  - generic [ref=f13e134]:
+                    - text: 1 000
+                    - generic [ref=f13e135]: pts
+                - cell "2 200,000 DT" [ref=f13e493]:
+                  - generic [ref=f13e137]:
+                    - text: 2 200,000
+                    - generic [ref=f13e138]: DT
+                - cell "500,000 DT" [ref=f13e494]:
+                  - generic [ref=f13e140]:
+                    - text: 500,000
+                    - generic [ref=f13e141]: DT
+                - cell "250,000 DT" [ref=f13e495]:
+                  - generic [ref=f13e143]:
+                    - text: 250,000
+                    - generic [ref=f13e144]: DT
+                - cell "10 000,000 DT" [ref=f13e496]:
+                  - generic [ref=f13e146]:
+                    - text: 10 000,000
+                    - generic [ref=f13e147]: DT
+                - cell "17" [ref=f13e497]
+                - cell "Actif" [ref=f13e498]
+                - cell [ref=f13e499]:
+                  - button "Modifier" [ref=f13e500]
+              - row [ref=f13e501]:
+                - cell "Gold" [ref=f13e502]
+                - cell "2 000 pts" [ref=f13e503]:
+                  - generic [ref=f13e157]:
+                    - text: 2 000
+                    - generic [ref=f13e158]: pts
+                - cell "3 350,000 DT" [ref=f13e504]:
+                  - generic [ref=f13e160]:
+                    - text: 3 350,000
+                    - generic [ref=f13e161]: DT
+                - cell "700,000 DT" [ref=f13e505]:
+                  - generic [ref=f13e163]:
+                    - text: 700,000
+                    - generic [ref=f13e164]: DT
+                - cell "400,000 DT" [ref=f13e506]:
+                  - generic [ref=f13e166]:
+                    - text: 400,000
+                    - generic [ref=f13e167]: DT
+                - cell "16 000,000 DT" [ref=f13e507]:
+                  - generic [ref=f13e169]:
+                    - text: 16 000,000
+                    - generic [ref=f13e170]: DT
+                - cell "0" [ref=f13e508]
+                - cell "Actif" [ref=f13e509]
+                - cell [ref=f13e510]:
+                  - button "Modifier" [ref=f13e511]
+              - row [ref=f13e512]:
+                - cell "Safari" [ref=f13e513]
+                - cell "3 000 pts" [ref=f13e514]:
+                  - generic [ref=f13e180]:
+                    - text: 3 000
+                    - generic [ref=f13e181]: pts
+                - cell "5 400,000 DT" [ref=f13e515]:
+                  - generic [ref=f13e183]:
+                    - text: 5 400,000
+                    - generic [ref=f13e184]: DT
+                - cell "900,000 DT" [ref=f13e516]:
+                  - generic [ref=f13e186]:
+                    - text: 900,000
+                    - generic [ref=f13e187]: DT
+                - cell "600,000 DT" [ref=f13e517]:
+                  - generic [ref=f13e189]:
+                    - text: 600,000
+                    - generic [ref=f13e190]: DT
+                - cell "24 000,000 DT" [ref=f13e518]:
+                  - generic [ref=f13e192]:
+                    - text: 24 000,000
+                    - generic [ref=f13e193]: DT
+                - cell "0" [ref=f13e519]
+                - cell "Actif" [ref=f13e520]
+                - cell [ref=f13e521]:
+                  - button "Modifier" [ref=f13e522]
+              - row [ref=f13e523]:
+                - cell "Diamond" [ref=f13e524]
+                - cell "4 000 pts" [ref=f13e525]:
+                  - generic [ref=f13e203]:
+                    - text: 4 000
+                    - generic [ref=f13e204]: pts
+                - cell "8 350,000 DT" [ref=f13e526]:
+                  - generic [ref=f13e206]:
+                    - text: 8 350,000
+                    - generic [ref=f13e207]: DT
+                - cell "1 200,000 DT" [ref=f13e527]:
+                  - generic [ref=f13e209]:
+                    - text: 1 200,000
+                    - generic [ref=f13e210]: DT
+                - cell "900,000 DT" [ref=f13e528]:
+                  - generic [ref=f13e212]:
+                    - text: 900,000
+                    - generic [ref=f13e213]: DT
+                - cell "36 000,000 DT" [ref=f13e529]:
+                  - generic [ref=f13e215]:
+                    - text: 36 000,000
+                    - generic [ref=f13e216]: DT
+                - cell "0" [ref=f13e530]
+                - cell "Actif" [ref=f13e531]
+                - cell [ref=f13e532]:
+                  - button "Modifier" [ref=f13e533]
+          - paragraph [ref=f13e223]: Désactiver retire le pack du choix d’activation sans toucher aux membres qui l’ont déjà pris.
+  - region "Notifications alt+T"

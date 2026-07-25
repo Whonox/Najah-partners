@@ -1,0 +1,233 @@
+- generic [ref=f13e1]:
+  - generic [ref=f13e2]:
+    - generic [ref=f13e4]:
+      - complementary [ref=f13e5]:
+        - generic [ref=f13e7]:
+          - generic [ref=f13e8]: NP
+          - generic [ref=f13e9]:
+            - generic [ref=f13e10]: Najah Partners
+            - generic [ref=f13e11]: Back-office
+        - navigation [ref=f13e347]:
+          - link [ref=f13e348] [cursor=pointer]:
+            - /url: /dashboard
+            - generic [ref=f13e20]: Tableau de bord
+            - generic [ref=f13e21]: À venir
+          - link [ref=f13e349] [cursor=pointer]:
+            - /url: /members
+            - generic [ref=f13e28]: Membres
+          - link [ref=f13e350] [cursor=pointer]:
+            - /url: /genealogy
+            - generic [ref=f13e35]: Généalogie
+          - link [ref=f13e351] [cursor=pointer]:
+            - /url: /packs
+            - generic [ref=f13e41]: Packs
+          - link [ref=f13e352] [cursor=pointer]:
+            - /url: /products
+            - generic [ref=f13e47]: Produits
+          - link [ref=f13e353] [cursor=pointer]:
+            - /url: /orders
+            - generic [ref=f13e59]: Commandes
+          - link [ref=f13e354] [cursor=pointer]:
+            - /url: /commissions
+            - generic [ref=f13e64]: Commissions
+            - generic [ref=f13e65]: À venir
+          - link [ref=f13e355] [cursor=pointer]:
+            - /url: /ledger
+            - generic [ref=f13e70]: Soldes & mouvements
+            - generic [ref=f13e71]: À venir
+          - link [ref=f13e356] [cursor=pointer]:
+            - /url: /ecards
+            - generic [ref=f13e75]: E-cards
+            - generic [ref=f13e76]: À venir
+          - link [ref=f13e357] [cursor=pointer]:
+            - /url: /reports
+            - generic [ref=f13e81]: Rapports
+            - generic [ref=f13e82]: À venir
+          - link [ref=f13e358] [cursor=pointer]:
+            - /url: /settings
+            - generic [ref=f13e87]: Paramètres
+          - link [ref=f13e359] [cursor=pointer]:
+            - /url: /admin-users
+            - generic [ref=f13e92]: Comptes admin
+            - generic [ref=f13e93]: À venir
+      - generic [ref=f13e94]:
+        - banner [ref=f13e95]:
+          - generic [ref=f13e96]:
+            - button [ref=f13e360]
+            - generic [ref=f13e98]: Super-admin
+            - button [ref=f13e361]:
+              - generic [ref=f13e100]: SA
+              - generic [ref=f13e101]: Super Admin
+        - main [ref=f13e102]:
+          - generic [ref=f13e103]:
+            - generic [ref=f13e104]:
+              - generic [ref=f13e105]:
+                - heading [level=1] [ref=f13e362]: Packs
+                - paragraph [ref=f13e107]: "Paliers et plan de rémunération. Un pack ne se supprime jamais : on le désactive."
+              - button [ref=f13e363]: Nouveau pack
+            - alert [ref=f13e110]:
+              - generic [ref=f13e113]: État
+              - generic [ref=f13e114]: Modifier un pack n’affecte que les activations À VENIR. Les membres déjà activés conservent le snapshot figé au jour de leur activation — l’historique et les commissions passées restent intacts.
+            - table [ref=f13e118]:
+              - rowgroup [ref=f13e119]:
+                - row [ref=f13e364]:
+                  - columnheader [ref=f13e365]: Nom
+                  - columnheader [ref=f13e366]: Palier
+                  - columnheader [ref=f13e367]: Prix
+                  - columnheader [ref=f13e368]: Comm. directe
+                  - columnheader [ref=f13e369]: Comm. indirecte
+                  - columnheader [ref=f13e370]: Plafond hebdo
+                  - columnheader [ref=f13e371]: Membres
+                  - columnheader [ref=f13e372]: État
+                  - columnheader [ref=f13e129]
+              - rowgroup [ref=f13e130]:
+                - row [ref=f13e373]:
+                  - cell [ref=f13e374]: Silver
+                  - cell [ref=f13e375]:
+                    - generic [ref=f13e134]:
+                      - text: 1 000
+                      - generic [ref=f13e135]: pts
+                  - cell [ref=f13e376]:
+                    - generic [ref=f13e137]:
+                      - text: 2 200,000
+                      - generic [ref=f13e138]: DT
+                  - cell [ref=f13e377]:
+                    - generic [ref=f13e140]:
+                      - text: 500,000
+                      - generic [ref=f13e141]: DT
+                  - cell [ref=f13e378]:
+                    - generic [ref=f13e143]:
+                      - text: 250,000
+                      - generic [ref=f13e144]: DT
+                  - cell [ref=f13e379]:
+                    - generic [ref=f13e146]:
+                      - text: 10 000,000
+                      - generic [ref=f13e147]: DT
+                  - cell [ref=f13e380]: "17"
+                  - cell [ref=f13e381]:
+                    - generic [ref=f13e150]: Actif
+                  - cell [ref=f13e382]:
+                    - button [ref=f13e383]: Modifier
+                - row [ref=f13e384]:
+                  - cell [ref=f13e385]: Gold
+                  - cell [ref=f13e386]:
+                    - generic [ref=f13e157]:
+                      - text: 2 000
+                      - generic [ref=f13e158]: pts
+                  - cell [ref=f13e387]:
+                    - generic [ref=f13e160]:
+                      - text: 3 350,000
+                      - generic [ref=f13e161]: DT
+                  - cell [ref=f13e388]:
+                    - generic [ref=f13e163]:
+                      - text: 700,000
+                      - generic [ref=f13e164]: DT
+                  - cell [ref=f13e389]:
+                    - generic [ref=f13e166]:
+                      - text: 400,000
+                      - generic [ref=f13e167]: DT
+                  - cell [ref=f13e390]:
+                    - generic [ref=f13e169]:
+                      - text: 16 000,000
+                      - generic [ref=f13e170]: DT
+                  - cell [ref=f13e391]: "0"
+                  - cell [ref=f13e392]:
+                    - generic [ref=f13e173]: Actif
+                  - cell [ref=f13e393]:
+                    - button [ref=f13e394]: Modifier
+                - row [ref=f13e395]:
+                  - cell [ref=f13e396]: Safari
+                  - cell [ref=f13e397]:
+                    - generic [ref=f13e180]:
+                      - text: 3 000
+                      - generic [ref=f13e181]: pts
+                  - cell [ref=f13e398]:
+                    - generic [ref=f13e183]:
+                      - text: 5 400,000
+                      - generic [ref=f13e184]: DT
+                  - cell [ref=f13e399]:
+                    - generic [ref=f13e186]:
+                      - text: 900,000
+                      - generic [ref=f13e187]: DT
+                  - cell [ref=f13e400]:
+                    - generic [ref=f13e189]:
+                      - text: 600,000
+                      - generic [ref=f13e190]: DT
+                  - cell [ref=f13e401]:
+                    - generic [ref=f13e192]:
+                      - text: 24 000,000
+                      - generic [ref=f13e193]: DT
+                  - cell [ref=f13e402]: "0"
+                  - cell [ref=f13e403]:
+                    - generic [ref=f13e196]: Actif
+                  - cell [ref=f13e404]:
+                    - button [ref=f13e405]: Modifier
+                - row [ref=f13e406]:
+                  - cell [ref=f13e407]: Diamond
+                  - cell [ref=f13e408]:
+                    - generic [ref=f13e203]:
+                      - text: 4 000
+                      - generic [ref=f13e204]: pts
+                  - cell [ref=f13e409]:
+                    - generic [ref=f13e206]:
+                      - text: 8 350,000
+                      - generic [ref=f13e207]: DT
+                  - cell [ref=f13e410]:
+                    - generic [ref=f13e209]:
+                      - text: 1 200,000
+                      - generic [ref=f13e210]: DT
+                  - cell [ref=f13e411]:
+                    - generic [ref=f13e212]:
+                      - text: 900,000
+                      - generic [ref=f13e213]: DT
+                  - cell [ref=f13e412]:
+                    - generic [ref=f13e215]:
+                      - text: 36 000,000
+                      - generic [ref=f13e216]: DT
+                  - cell [ref=f13e413]: "0"
+                  - cell [ref=f13e414]:
+                    - generic [ref=f13e219]: Actif
+                  - cell [ref=f13e415]:
+                    - button [ref=f13e416]: Modifier
+            - paragraph [ref=f13e223]: Désactiver retire le pack du choix d’activation sans toucher aux membres qui l’ont déjà pris.
+    - region "Notifications alt+T"
+  - dialog [ref=f13e420]:
+    - generic [ref=f13e421]:
+      - heading "Modifier le pack" [level=2] [ref=f13e422]
+      - paragraph [ref=f13e423]: "Paliers et plan de rémunération. Un pack ne se supprime jamais : on le désactive."
+    - alert [ref=f13e424]:
+      - generic [ref=f13e427]: Modifier un pack n’affecte que les activations À VENIR. Les membres déjà activés conservent le snapshot figé au jour de leur activation — l’historique et les commissions passées restent intacts.
+    - generic [ref=f13e428]:
+      - generic [ref=f13e429]:
+        - generic [ref=f13e430]: Nom
+        - textbox "Nom" [ref=f13e431]: Silver
+      - generic [ref=f13e432]:
+        - generic [ref=f13e433]: Palier (points)
+        - spinbutton "Palier (points)" [ref=f13e434]: "1000"
+        - paragraph [ref=f13e435]: "En POINTS : total exact que le panier doit atteindre à l’activation, et points injectés dans l’arbre. Sans valeur monétaire."
+      - generic [ref=f13e436]:
+        - generic [ref=f13e437]:
+          - generic [ref=f13e438]: Prix (DT)
+          - spinbutton "Prix (DT)" [ref=f13e439]: "2200"
+          - paragraph [ref=f13e440]: En DINARS. L’acompte d’inscription déjà versé en est déduit au moment de l’activation.
+        - generic [ref=f13e441]:
+          - generic [ref=f13e442]: Plafond hebdomadaire (DT)
+          - spinbutton "Plafond hebdomadaire (DT)" [invalid] [ref=f13e443]: "10"
+          - paragraph [ref=f13e444]: En DINARS. Au-delà du plafond, la commission de la semaine est PERDUE — jamais reportée.
+          - paragraph [ref=f13e463]: Le plafond hebdomadaire doit être au moins égal à chacune des deux commissions.
+        - generic [ref=f13e445]:
+          - generic [ref=f13e446]: Commission directe (DT)
+          - spinbutton "Commission directe (DT)" [ref=f13e447]: "500"
+        - generic [ref=f13e448]:
+          - generic [ref=f13e449]: Commission indirecte par équilibre (DT)
+          - spinbutton "Commission indirecte par équilibre (DT)" [ref=f13e450]: "250"
+      - generic [ref=f13e451]:
+        - generic [ref=f13e452]:
+          - generic [ref=f13e453]: Pack proposé à l’activation
+          - paragraph [ref=f13e454]: Désactiver retire le pack du choix d’activation sans toucher aux membres qui l’ont déjà pris.
+        - switch "Pack proposé à l’activation" [checked] [ref=f13e455]
+        - checkbox [checked] [ref=f13e456]
+      - generic [ref=f13e457]:
+        - button "Annuler" [ref=f13e458]
+        - button "Enregistrer" [active] [ref=f13e459]
+    - button "Close" [ref=f13e460]

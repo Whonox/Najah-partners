@@ -62,6 +62,13 @@ export const fr = {
   "state.forbiddenTitle": "Accès refusé",
   "state.forbiddenBody":
     "Votre rôle ne permet pas d’accéder à ce module. Rapprochez-vous d’un super-admin.",
+  /* Filet de sécurité d'ÉCRAN : une carte qui tombe ne doit jamais emporter l'application
+     entière (sidebar comprise). Le message reste sobre — l'admin n'a pas à lire une pile
+     d'appels, il a besoin de savoir que le reste du back-office fonctionne encore. */
+  "state.crashTitle": "Cet écran n’a pas pu s’afficher",
+  "state.crashBody":
+    "Une donnée inattendue a interrompu l’affichage. La navigation reste utilisable : vous pouvez réessayer ou changer de module.",
+  "state.crashRetry": "Réafficher l’écran",
   "state.notFoundTitle": "Page introuvable",
   "state.notFoundBody": "Cette adresse ne correspond à aucun écran du back-office.",
   "state.backToDashboard": "Retour au tableau de bord",
@@ -93,6 +100,20 @@ export const fr = {
     "Lecture seule : seul un super-admin peut modifier un paramètre système.",
   "settings.valueLabel": "Nouvelle valeur",
   "settings.noDescription": "—",
+  "settings.column.label": "Paramètre",
+
+  /* Libellé lisible de chaque clé. Il vit ICI et non en base parce que c'est du texte
+     d'INTERFACE : le jour où l'arabe arrive, un `ar.ts` le traduit sans migration, là où une
+     colonne `label` figerait le français dans les données. Une clé sans libellé retombe sur
+     la clé elle-même — jamais un écran vide. */
+  "settings.label.ecard_expiration_days": "Validité des e-cards",
+  "settings.label.registration_fee_dt": "Frais d’inscription",
+  "settings.label.annual_renewal_dt": "Renouvellement annuel",
+  "settings.label.commission_cron_day": "Jour de clôture des commissions",
+  "settings.label.commission_cron_time": "Heure de clôture des commissions",
+  "settings.label.commission_timezone": "Fuseau horaire des commissions",
+  "settings.label.member_code_prefix": "Préfixe des codes membres",
+  "settings.label.currency": "Devise",
 
   // ── Vocabulaire commun aux tables et aux formulaires ──
   "common.active": "Actif",
@@ -155,6 +176,12 @@ export const fr = {
   "members.filter.status": "Statut",
   "members.filter.pack": "Pack",
   "members.filter.verification": "Identité",
+  /* Option « pas de filtre ». Le libellé est propre à chaque liste : un « Tous » générique
+     se lit mal en français (« Tous » pour des catégories, « Toutes » pour des expéditions) et
+     surtout, il doit REMPLACER à l'écran la valeur technique du filtre vide. */
+  "members.filter.statusAll": "Tous les statuts",
+  "members.filter.packAll": "Tous les packs",
+  "members.filter.verificationAll": "Toutes les identités",
   "members.filter.from": "Inscrit à partir du",
   "members.filter.to": "Inscrit jusqu’au",
   "members.legLeft": "G",
@@ -179,6 +206,9 @@ export const fr = {
   "member.field.renewalAt": "Échéance de renouvellement",
   "member.field.idType": "Type de pièce",
   "member.field.idNumber": "Numéro saisi",
+  /* Libellé du champ, distinct de l'état « À vérifier » qu'il porte : afficher
+     « À vérifier : [À vérifier] » ne disait pas de quoi il s'agissait. */
+  "member.field.verification": "Vérification d’identité",
   "member.field.sponsor": "Sponsor (parrain)",
   "member.field.upline": "Upline de placement",
   "member.field.leg": "Jambe occupée",
@@ -246,7 +276,13 @@ export const fr = {
   "genealogy.rootPrompt":
     "Recherchez un code membre, ou ouvrez un membre depuis la liste, pour afficher son sous-arbre.",
   "genealogy.up": "Remonter à l’upline",
+  "genealogy.upNone":
+    "Ce membre est la racine de l’arbre : il n’a pas d’upline de placement.",
   "genealogy.descend": "Descendre sur ce membre",
+  /* `{code}` est remplacé par le code du membre : chaque carte annonce SA propre action,
+     sinon un lecteur d'écran énonce sept fois « Recentrer l'arbre ». */
+  "genealogy.recenterOn": "Recentrer l’arbre sur {code}",
+  "genealogy.recenter": "Recentrer",
   "genealogy.openMember": "Ouvrir la fiche",
   "genealogy.free": "Position libre",
   "genealogy.legLeft": "Jambe gauche",
@@ -259,6 +295,9 @@ export const fr = {
   "packs.title": "Packs",
   "packs.description":
     "Paliers et plan de rémunération. Un pack ne se supprime jamais : on le désactive.",
+  /* Titre PROPRE à l'avertissement de snapshot : il empruntait « État » à l'en-tête de
+     colonne des packs, qui ne dit rien de ce que l'encart annonce. */
+  "packs.warningTitle": "Modifier un pack ne réécrit jamais le passé",
   "packs.warning":
     "Modifier un pack n’affecte que les activations À VENIR. Les membres déjà activés conservent le snapshot figé au jour de leur activation — l’historique et les commissions passées restent intacts.",
   "packs.new": "Nouveau pack",
@@ -336,6 +375,7 @@ export const fr = {
   "products.type.VIRTUAL": "Virtuel",
   "products.stockUnlimited": "Illimité",
   "products.filter.category": "Catégorie",
+  "products.filter.categoryAll": "Toutes les catégories",
   "products.error.promoAbovePrice":
     "Le prix promotionnel doit être inférieur ou égal au prix.",
   "products.error.stockRequired":
@@ -357,6 +397,10 @@ export const fr = {
   "categories.deleteBody":
     "Seule une catégorie VIDE peut être supprimée. Si elle contient des produits, l’opération sera refusée.",
   "categories.deleted": "Catégorie supprimée.",
+  /* Phrase propre à la boîte de dialogue : elle reprenait le libellé de l'onglet
+     (« Catégories »), qui ne décrit pas ce que le formulaire attend. */
+  "categories.dialogHint":
+    "Une catégorie regroupe des produits dans la boutique. L’ordre d’affichage décide de sa place dans la liste.",
 
   // ── Commandes (§7.2.6) ──
   "orders.title": "Commandes",
@@ -373,7 +417,11 @@ export const fr = {
   "orders.column.date": "Date",
   "orders.filter.context": "Contexte",
   "orders.filter.shipment": "Expédition",
-  "orders.filter.member": "N° de membre",
+  "orders.filter.contextAll": "Tous les contextes",
+  "orders.filter.shipmentAll": "Toutes les expéditions",
+  /* L'admin ne connaît QUE le code membre : le n° technique de la base ne lui dit rien. */
+  "orders.filter.member": "Code membre",
+  "orders.filter.memberPlaceholder": "NP000042",
   "orders.detailTitle": "Commande",
   "orders.section.lines": "Lignes (valeurs figées au checkout)",
   "orders.section.payment": "Règlement",

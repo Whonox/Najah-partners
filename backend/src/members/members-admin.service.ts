@@ -231,6 +231,47 @@ export class MembersAdminService {
     };
   }
 
+  /**
+   * Lecture DÉFENSIVE du snapshot d'activation. La colonne est du `Json` libre : elle porte la
+   * forme qui avait cours au moment de l'activation, et le back-office n'a aucun moyen de la
+   * refuser après coup. Les activations d'avant D-028 y ont figé `weeklyCapBv`,
+   * `directCommissionBv`, `indirectCommissionBv` — un plan de rémunération que l'on croyait
+   * alors libellé en POINTS — et rien d'autre : ni prix, ni acompte, ni montant dû.
+   *
+   * On ne retient donc QUE les clés présentes et bien formées. Le reste sort `null` :
+   *  — pas de conversion `…Bv → …Dt` : elle inventerait un taux points↔dinars qui n'existe pas ;
+   *  — pas de relecture du `Pack` courant : le snapshot vaut parce qu'il ne suit pas le pack.
+   *
+   * Le service ne « répare » rien en base non plus : réécrire ces sept lignes effacerait la
+   * seule trace de ce qui a réellement été figé, et ne protégerait pas la route du prochain
+   * snapshot inattendu. Ici, l'absence est une réponse — et c'est la réponse honnête.
+   */
+  private toActivationSnapshot(
+    raw: Prisma.JsonValue | null,
+  ): ActivationSnapshotDto | null {
+    if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+      return null;
+    }
+    const snapshot = raw as Record<string, unknown>;
+    const text = (key: string): string | null =>
+      typeof snapshot[key] === 'string' ? (snapshot[key] as string) : null;
+    const count = (key: string): number | null =>
+      typeof snapshot[key] === 'number' && Number.isFinite(snapshot[key])
+        ? (snapshot[key] as number)
+        : null;
+
+    return {
+      packName: text('packName'),
+      tierBv: count('tierBv'),
+      priceDt: text('priceDt'),
+      registrationCreditDt: text('registrationCreditDt'),
+      amountDueDt: text('amountDueDt'),
+      directCommissionDt: text('directCommissionDt'),
+      indirectCommissionDt: text('indirectCommissionDt'),
+      weeklyCapDt: text('weeklyCapDt'),
+    };
+  }
+
   private toListItem(member: MemberForList): MemberListItemDto {
     return {
       id: member.id,
@@ -270,8 +311,7 @@ export class MembersAdminService {
       packId: member.packId,
       packName: member.pack?.name ?? null,
       activationTierBv: member.activationTierBv,
-      activationSnapshot:
-        (member.activationSnapshot as ActivationSnapshotDto | null) ?? null,
+      activationSnapshot: this.toActivationSnapshot(member.activationSnapshot),
 
       sponsor: member.sponsor ? this.toRef(member.sponsor) : null,
       upline: member.upline ? this.toRef(member.upline) : null,

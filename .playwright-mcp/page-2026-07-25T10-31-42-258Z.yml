@@ -1,0 +1,108 @@
+- generic [ref=f6e2]:
+  - generic [ref=f6e4]:
+    - complementary [ref=f6e5]:
+      - generic [ref=f6e7]:
+        - generic [ref=f6e8]: NP
+        - generic [ref=f6e9]:
+          - generic [ref=f6e10]: Najah Partners
+          - generic [ref=f6e11]: Back-office
+      - navigation "Navigation principale" [ref=f6e13]:
+        - link "Tableau de bord À venir" [ref=f6e14] [cursor=pointer]:
+          - /url: /dashboard
+          - generic [ref=f6e20]: Tableau de bord
+          - generic [ref=f6e21]: À venir
+        - link "Membres" [ref=f6e22] [cursor=pointer]:
+          - /url: /members
+        - link "Généalogie" [ref=f6e29] [cursor=pointer]:
+          - /url: /genealogy
+        - link "Packs" [ref=f6e36] [cursor=pointer]:
+          - /url: /packs
+        - link "Produits" [ref=f6e42] [cursor=pointer]:
+          - /url: /products
+        - link "Commandes" [ref=f6e48] [cursor=pointer]:
+          - /url: /orders
+        - link "Commissions À venir" [ref=f6e60] [cursor=pointer]:
+          - /url: /commissions
+          - generic [ref=f6e64]: Commissions
+          - generic [ref=f6e65]: À venir
+        - link "Soldes & mouvements À venir" [ref=f6e66] [cursor=pointer]:
+          - /url: /ledger
+          - generic [ref=f6e70]: Soldes & mouvements
+          - generic [ref=f6e71]: À venir
+        - link "E-cards À venir" [ref=f6e72] [cursor=pointer]:
+          - /url: /ecards
+          - generic [ref=f6e75]: E-cards
+          - generic [ref=f6e76]: À venir
+        - link "Rapports À venir" [ref=f6e77] [cursor=pointer]:
+          - /url: /reports
+          - generic [ref=f6e81]: Rapports
+          - generic [ref=f6e82]: À venir
+        - link "Paramètres" [ref=f6e83] [cursor=pointer]:
+          - /url: /settings
+        - link "Comptes admin À venir" [ref=f6e88] [cursor=pointer]:
+          - /url: /admin-users
+          - generic [ref=f6e92]: Comptes admin
+          - generic [ref=f6e93]: À venir
+    - generic [ref=f6e94]:
+      - banner [ref=f6e95]:
+        - generic [ref=f6e96]:
+          - button "Thème" [ref=f6e97]
+          - generic [ref=f6e98]: Super-admin
+          - button "Compte" [ref=f6e99]:
+            - generic [ref=f6e100]: SA
+            - generic [ref=f6e101]: Super Admin
+      - main [ref=f6e102]:
+        - generic [ref=f6e103]:
+          - generic [ref=f6e105]:
+            - heading "Produits" [level=1] [ref=f6e106]
+            - paragraph [ref=f6e107]: "Catalogue complet, produits inactifs et masqués compris. Un produit ne se supprime pas : il se désactive."
+          - alert [ref=f6e108]:
+            - generic [ref=f6e111]: La valeur en POINTS sert à composer le palier d’un pack à l’activation. Une promotion baisse le prix en DINARS sans jamais toucher aux points.
+          - generic [ref=f6e112]:
+            - tablist [ref=f6e113]:
+              - tab "Produits" [ref=f6e114]
+              - tab "Catégories" [active] [selected] [ref=f6e115]
+            - tabpanel "Catégories" [ref=f6e463]:
+              - generic [ref=f6e464]:
+                - button "Nouvelle catégorie" [ref=f6e466]
+                - table [ref=f6e470]:
+                  - rowgroup [ref=f6e471]:
+                    - row [ref=f6e472]:
+                      - columnheader "Nom" [ref=f6e473]
+                      - columnheader "Description" [ref=f6e474]
+                      - columnheader "Ordre" [ref=f6e475]
+                      - columnheader [ref=f6e476]
+                  - rowgroup [ref=f6e477]:
+                    - row [ref=f6e478]:
+                      - cell "Catégorie test 1784891426518" [ref=f6e479]
+                      - cell "—" [ref=f6e480]
+                      - cell "0" [ref=f6e481]
+                      - cell [ref=f6e482]:
+                        - generic [ref=f6e483]:
+                          - button "Modifier" [ref=f6e484]
+                          - button "Supprimer" [ref=f6e485]
+                    - row [ref=f6e486]:
+                      - cell "Huiles d’olive" [ref=f6e487]
+                      - cell "Huiles extra-vierges pressées à froid." [ref=f6e488]
+                      - cell "1" [ref=f6e489]
+                      - cell [ref=f6e490]:
+                        - generic [ref=f6e491]:
+                          - button "Modifier" [ref=f6e492]
+                          - button "Supprimer" [ref=f6e493]
+                    - row [ref=f6e494]:
+                      - cell "Produits naturels" [ref=f6e495]
+                      - cell "Savons, miels et dérivés de l’olive." [ref=f6e496]
+                      - cell "2" [ref=f6e497]
+                      - cell [ref=f6e498]:
+                        - generic [ref=f6e499]:
+                          - button "Modifier" [ref=f6e500]
+                          - button "Supprimer" [ref=f6e501]
+                    - row [ref=f6e502]:
+                      - cell "Contenus numériques" [ref=f6e503]
+                      - cell "Guides et formations (livraison immédiate)." [ref=f6e504]
+                      - cell "3" [ref=f6e505]
+                      - cell [ref=f6e506]:
+                        - generic [ref=f6e507]:
+                          - button "Modifier" [ref=f6e508]
+                          - button "Supprimer" [ref=f6e509]
+  - region "Notifications alt+T"

@@ -52,9 +52,22 @@ export interface OrderLineView {
   unitPriceDt: string;
 }
 
+/**
+ * Le membre d'une commande, tel qu'un ADMIN l'identifie : par son CODE (`NP000042`), la clé
+ * métier qu'il lit sur les fiches, dans l'arbre et dans les e-mails. L'`id` reste exposé parce
+ * qu'il sert à construire les liens, mais il n'a jamais à s'afficher tel quel.
+ */
+export interface OrderMemberView {
+  id: number;
+  memberCode: string;
+  firstName: string;
+  lastName: string;
+}
+
 export interface OrderView {
   id: number;
   memberId: number;
+  member: OrderMemberView;
   context: OrderContext;
   status: OrderStatus;
   /**

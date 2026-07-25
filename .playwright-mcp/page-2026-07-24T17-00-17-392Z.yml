@@ -1,0 +1,563 @@
+- generic [ref=e2]:
+  - generic [ref=e25]:
+    - complementary [ref=e26]:
+      - generic [ref=e28]:
+        - generic [ref=e29]: NP
+        - generic [ref=e30]:
+          - generic [ref=e31]: Najah Partners
+          - generic [ref=e32]: Back-office
+      - navigation "Navigation principale" [ref=e34]:
+        - link "Tableau de bord À venir" [ref=e35] [cursor=pointer]:
+          - /url: /dashboard
+          - generic [ref=e41]: Tableau de bord
+          - generic [ref=e42]: À venir
+        - link "Membres" [active] [ref=e43] [cursor=pointer]:
+          - /url: /members
+        - link "Généalogie" [ref=e50] [cursor=pointer]:
+          - /url: /genealogy
+        - link "Packs" [ref=e57] [cursor=pointer]:
+          - /url: /packs
+        - link "Produits" [ref=e63] [cursor=pointer]:
+          - /url: /products
+        - link "Commandes" [ref=e69] [cursor=pointer]:
+          - /url: /orders
+        - link "Commissions À venir" [ref=e81] [cursor=pointer]:
+          - /url: /commissions
+          - generic [ref=e85]: Commissions
+          - generic [ref=e86]: À venir
+        - link "Soldes & mouvements À venir" [ref=e87] [cursor=pointer]:
+          - /url: /ledger
+          - generic [ref=e91]: Soldes & mouvements
+          - generic [ref=e92]: À venir
+        - link "E-cards À venir" [ref=e93] [cursor=pointer]:
+          - /url: /ecards
+          - generic [ref=e96]: E-cards
+          - generic [ref=e97]: À venir
+        - link "Rapports À venir" [ref=e98] [cursor=pointer]:
+          - /url: /reports
+          - generic [ref=e102]: Rapports
+          - generic [ref=e103]: À venir
+        - link "Paramètres" [ref=e104] [cursor=pointer]:
+          - /url: /settings
+        - link "Comptes admin À venir" [ref=e109] [cursor=pointer]:
+          - /url: /admin-users
+          - generic [ref=e113]: Comptes admin
+          - generic [ref=e114]: À venir
+    - generic [ref=e115]:
+      - banner [ref=e116]:
+        - generic [ref=e117]:
+          - button "Thème" [ref=e118]
+          - generic [ref=e119]: Super-admin
+          - button "Compte" [ref=e120]:
+            - generic [ref=e121]: SA
+            - generic [ref=e122]: Super Admin
+      - main [ref=e132]:
+        - generic [ref=e133]:
+          - generic [ref=e135]:
+            - heading "Membres" [level=1] [ref=e136]
+            - paragraph [ref=e137]: "Consultation du réseau. Le placement est immuable et l’activation passe par la boutique : aucun écran ne les modifie."
+          - generic [ref=e138]:
+            - generic [ref=e139]:
+              - generic [ref=e140]: Rechercher
+              - textbox "Rechercher" [ref=e142]:
+                - /placeholder: Code, nom, e-mail…
+            - generic [ref=e143]:
+              - generic [ref=e144]: Statut
+              - combobox "Statut" [ref=e145]:
+                - generic [ref=e146]: __any__
+                - img: ▼
+              - textbox [ref=e147]: __any__
+            - generic [ref=e148]:
+              - generic [ref=e149]: Pack
+              - combobox "Pack" [ref=e150]:
+                - generic [ref=e151]: __any__
+                - img: ▼
+              - textbox [ref=e152]: __any__
+            - generic [ref=e153]:
+              - generic [ref=e154]: Identité
+              - combobox "Identité" [ref=e155]:
+                - generic [ref=e156]: __any__
+                - img: ▼
+              - textbox [ref=e157]: __any__
+            - generic [ref=e158]:
+              - generic [ref=e159]: Inscrit à partir du
+              - textbox "Inscrit à partir du" [ref=e160]
+            - generic [ref=e161]:
+              - generic [ref=e162]: Inscrit jusqu’au
+              - textbox "Inscrit jusqu’au" [ref=e163]
+          - table [ref=e167]:
+            - rowgroup [ref=e168]:
+              - row [ref=e169]:
+                - columnheader [ref=e170]:
+                  - button "Trier sur cette colonne" [ref=e171]: Code
+                - columnheader [ref=e172]:
+                  - button "Trier sur cette colonne" [ref=e173]: Nom
+                - columnheader [ref=e174]:
+                  - button "Trier sur cette colonne" [ref=e175]: Statut
+                - columnheader "Pack" [ref=e176]
+                - columnheader [ref=e177]:
+                  - button "Trier sur cette colonne" [ref=e178]: Solde
+                - columnheader "Downlines G / D" [ref=e179]
+                - columnheader [ref=e180]:
+                  - button "Trier sur cette colonne" [ref=e181]: Inscrit le
+                - columnheader [ref=e182]:
+                  - button "Trier sur cette colonne" [ref=e183]: Activé le
+                - columnheader "Identité" [ref=e184]
+            - rowgroup [ref=e185]:
+              - row [ref=e186]:
+                - cell [ref=e187]:
+                  - link "NP002291" [ref=e188] [cursor=pointer]:
+                    - /url: /members/1426
+                - cell "Test S39" [ref=e189]
+                - cell "Actif" [ref=e190]
+                - cell "Silver" [ref=e192]
+                - cell "0,000 DT" [ref=e193]:
+                  - generic [ref=e194]:
+                    - text: 0,000
+                    - generic [ref=e195]: DT
+                - cell "G libre · D libre" [ref=e196]:
+                  - generic [ref=e197]:
+                    - generic [ref=e198]: G
+                    - text: libre
+                  - text: ·
+                  - generic [ref=e199]:
+                    - generic [ref=e200]: D
+                    - text: libre
+                - cell "24/07/2026 12:10" [ref=e201]
+                - cell "24/07/2026 12:10" [ref=e202]
+                - cell "À vérifier" [ref=e203]
+              - row [ref=e205]:
+                - cell [ref=e206]:
+                  - link "NP002290" [ref=e207] [cursor=pointer]:
+                    - /url: /members/1425
+                - cell "Racine S38" [ref=e208]
+                - cell "Inscrit" [ref=e209]
+                - cell "—" [ref=e211]
+                - cell "0,000 DT" [ref=e212]:
+                  - generic [ref=e213]:
+                    - text: 0,000
+                    - generic [ref=e214]: DT
+                - cell "G NP002291 · D libre" [ref=e215]:
+                  - generic [ref=e216]:
+                    - generic [ref=e217]: G
+                    - link "NP002291" [ref=e218] [cursor=pointer]:
+                      - /url: /members/1426
+                  - text: ·
+                  - generic [ref=e219]:
+                    - generic [ref=e220]: D
+                    - text: libre
+                - cell "24/07/2026 12:10" [ref=e221]
+                - cell "—" [ref=e222]
+                - cell "À vérifier" [ref=e223]
+              - row [ref=e225]:
+                - cell [ref=e226]:
+                  - link "NP002289" [ref=e227] [cursor=pointer]:
+                    - /url: /members/1424
+                - cell "Test S36" [ref=e228]
+                - cell "Actif" [ref=e229]
+                - cell "Silver" [ref=e231]
+                - cell "0,000 DT" [ref=e232]:
+                  - generic [ref=e233]:
+                    - text: 0,000
+                    - generic [ref=e234]: DT
+                - cell "G libre · D libre" [ref=e235]:
+                  - generic [ref=e236]:
+                    - generic [ref=e237]: G
+                    - text: libre
+                  - text: ·
+                  - generic [ref=e238]:
+                    - generic [ref=e239]: D
+                    - text: libre
+                - cell "24/07/2026 12:10" [ref=e240]
+                - cell "24/07/2026 12:10" [ref=e241]
+                - cell "À vérifier" [ref=e242]
+              - row [ref=e244]:
+                - cell [ref=e245]:
+                  - link "NP002288" [ref=e246] [cursor=pointer]:
+                    - /url: /members/1423
+                - cell "Racine S35" [ref=e247]
+                - cell "Inscrit" [ref=e248]
+                - cell "—" [ref=e250]
+                - cell "0,000 DT" [ref=e251]:
+                  - generic [ref=e252]:
+                    - text: 0,000
+                    - generic [ref=e253]: DT
+                - cell "G NP002289 · D libre" [ref=e254]:
+                  - generic [ref=e255]:
+                    - generic [ref=e256]: G
+                    - link "NP002289" [ref=e257] [cursor=pointer]:
+                      - /url: /members/1424
+                  - text: ·
+                  - generic [ref=e258]:
+                    - generic [ref=e259]: D
+                    - text: libre
+                - cell "24/07/2026 12:10" [ref=e260]
+                - cell "—" [ref=e261]
+                - cell "À vérifier" [ref=e262]
+              - row [ref=e264]:
+                - cell [ref=e265]:
+                  - link "NP002287" [ref=e266] [cursor=pointer]:
+                    - /url: /members/1422
+                - cell "Test S33" [ref=e267]
+                - cell "Actif" [ref=e268]
+                - cell "Silver" [ref=e270]
+                - cell "0,000 DT" [ref=e271]:
+                  - generic [ref=e272]:
+                    - text: 0,000
+                    - generic [ref=e273]: DT
+                - cell "G libre · D libre" [ref=e274]:
+                  - generic [ref=e275]:
+                    - generic [ref=e276]: G
+                    - text: libre
+                  - text: ·
+                  - generic [ref=e277]:
+                    - generic [ref=e278]: D
+                    - text: libre
+                - cell "24/07/2026 12:10" [ref=e279]
+                - cell "24/07/2026 12:10" [ref=e280]
+                - cell "À vérifier" [ref=e281]
+              - row [ref=e283]:
+                - cell [ref=e284]:
+                  - link "NP002286" [ref=e285] [cursor=pointer]:
+                    - /url: /members/1421
+                - cell "Racine S32" [ref=e286]
+                - cell "Inscrit" [ref=e287]
+                - cell "—" [ref=e289]
+                - cell "0,000 DT" [ref=e290]:
+                  - generic [ref=e291]:
+                    - text: 0,000
+                    - generic [ref=e292]: DT
+                - cell "G NP002287 · D libre" [ref=e293]:
+                  - generic [ref=e294]:
+                    - generic [ref=e295]: G
+                    - link "NP002287" [ref=e296] [cursor=pointer]:
+                      - /url: /members/1422
+                  - text: ·
+                  - generic [ref=e297]:
+                    - generic [ref=e298]: D
+                    - text: libre
+                - cell "24/07/2026 12:10" [ref=e299]
+                - cell "—" [ref=e300]
+                - cell "À vérifier" [ref=e301]
+              - row [ref=e303]:
+                - cell [ref=e304]:
+                  - link "NP002285" [ref=e305] [cursor=pointer]:
+                    - /url: /members/1420
+                - cell "Test S30" [ref=e306]
+                - cell "Actif" [ref=e307]
+                - cell "Silver" [ref=e309]
+                - cell "0,000 DT" [ref=e310]:
+                  - generic [ref=e311]:
+                    - text: 0,000
+                    - generic [ref=e312]: DT
+                - cell "G libre · D libre" [ref=e313]:
+                  - generic [ref=e314]:
+                    - generic [ref=e315]: G
+                    - text: libre
+                  - text: ·
+                  - generic [ref=e316]:
+                    - generic [ref=e317]: D
+                    - text: libre
+                - cell "24/07/2026 12:10" [ref=e318]
+                - cell "24/07/2026 12:10" [ref=e319]
+                - cell "À vérifier" [ref=e320]
+              - row [ref=e322]:
+                - cell [ref=e323]:
+                  - link "NP002284" [ref=e324] [cursor=pointer]:
+                    - /url: /members/1419
+                - cell "Test S29" [ref=e325]
+                - cell "Actif" [ref=e326]
+                - cell "Silver" [ref=e328]
+                - cell "0,000 DT" [ref=e329]:
+                  - generic [ref=e330]:
+                    - text: 0,000
+                    - generic [ref=e331]: DT
+                - cell "G libre · D libre" [ref=e332]:
+                  - generic [ref=e333]:
+                    - generic [ref=e334]: G
+                    - text: libre
+                  - text: ·
+                  - generic [ref=e335]:
+                    - generic [ref=e336]: D
+                    - text: libre
+                - cell "24/07/2026 12:10" [ref=e337]
+                - cell "24/07/2026 12:10" [ref=e338]
+                - cell "À vérifier" [ref=e339]
+              - row [ref=e341]:
+                - cell [ref=e342]:
+                  - link "NP002283" [ref=e343] [cursor=pointer]:
+                    - /url: /members/1418
+                - cell "Racine S28" [ref=e344]
+                - cell "Inscrit" [ref=e345]
+                - cell "—" [ref=e347]
+                - cell "0,000 DT" [ref=e348]:
+                  - generic [ref=e349]:
+                    - text: 0,000
+                    - generic [ref=e350]: DT
+                - cell "G NP002284 · D NP002285" [ref=e351]:
+                  - generic [ref=e352]:
+                    - generic [ref=e353]: G
+                    - link "NP002284" [ref=e354] [cursor=pointer]:
+                      - /url: /members/1419
+                  - text: ·
+                  - generic [ref=e355]:
+                    - generic [ref=e356]: D
+                    - link "NP002285" [ref=e357] [cursor=pointer]:
+                      - /url: /members/1420
+                - cell "24/07/2026 12:10" [ref=e358]
+                - cell "—" [ref=e359]
+                - cell "À vérifier" [ref=e360]
+              - row [ref=e362]:
+                - cell [ref=e363]:
+                  - link "NP002282" [ref=e364] [cursor=pointer]:
+                    - /url: /members/1417
+                - cell "Test S26" [ref=e365]
+                - cell "Actif" [ref=e366]
+                - cell "Silver" [ref=e368]
+                - cell "0,000 DT" [ref=e369]:
+                  - generic [ref=e370]:
+                    - text: 0,000
+                    - generic [ref=e371]: DT
+                - cell "G libre · D libre" [ref=e372]:
+                  - generic [ref=e373]:
+                    - generic [ref=e374]: G
+                    - text: libre
+                  - text: ·
+                  - generic [ref=e375]:
+                    - generic [ref=e376]: D
+                    - text: libre
+                - cell "24/07/2026 12:10" [ref=e377]
+                - cell "24/07/2026 12:10" [ref=e378]
+                - cell "À vérifier" [ref=e379]
+              - row [ref=e381]:
+                - cell [ref=e382]:
+                  - link "NP002281" [ref=e383] [cursor=pointer]:
+                    - /url: /members/1416
+                - cell "Racine S25" [ref=e384]
+                - cell "Inscrit" [ref=e385]
+                - cell "—" [ref=e387]
+                - cell "0,000 DT" [ref=e388]:
+                  - generic [ref=e389]:
+                    - text: 0,000
+                    - generic [ref=e390]: DT
+                - cell "G NP002282 · D libre" [ref=e391]:
+                  - generic [ref=e392]:
+                    - generic [ref=e393]: G
+                    - link "NP002282" [ref=e394] [cursor=pointer]:
+                      - /url: /members/1417
+                  - text: ·
+                  - generic [ref=e395]:
+                    - generic [ref=e396]: D
+                    - text: libre
+                - cell "24/07/2026 12:10" [ref=e397]
+                - cell "—" [ref=e398]
+                - cell "À vérifier" [ref=e399]
+              - row [ref=e401]:
+                - cell [ref=e402]:
+                  - link "NP002280" [ref=e403] [cursor=pointer]:
+                    - /url: /members/1415
+                - cell "Test S23" [ref=e404]
+                - cell "Actif" [ref=e405]
+                - cell "Silver" [ref=e407]
+                - cell "0,000 DT" [ref=e408]:
+                  - generic [ref=e409]:
+                    - text: 0,000
+                    - generic [ref=e410]: DT
+                - cell "G libre · D libre" [ref=e411]:
+                  - generic [ref=e412]:
+                    - generic [ref=e413]: G
+                    - text: libre
+                  - text: ·
+                  - generic [ref=e414]:
+                    - generic [ref=e415]: D
+                    - text: libre
+                - cell "24/07/2026 12:10" [ref=e416]
+                - cell "24/07/2026 12:10" [ref=e417]
+                - cell "À vérifier" [ref=e418]
+              - row [ref=e420]:
+                - cell [ref=e421]:
+                  - link "NP002279" [ref=e422] [cursor=pointer]:
+                    - /url: /members/1414
+                - cell "Racine S22" [ref=e423]
+                - cell "Inscrit" [ref=e424]
+                - cell "—" [ref=e426]
+                - cell "0,000 DT" [ref=e427]:
+                  - generic [ref=e428]:
+                    - text: 0,000
+                    - generic [ref=e429]: DT
+                - cell "G NP002280 · D libre" [ref=e430]:
+                  - generic [ref=e431]:
+                    - generic [ref=e432]: G
+                    - link "NP002280" [ref=e433] [cursor=pointer]:
+                      - /url: /members/1415
+                  - text: ·
+                  - generic [ref=e434]:
+                    - generic [ref=e435]: D
+                    - text: libre
+                - cell "24/07/2026 12:10" [ref=e436]
+                - cell "—" [ref=e437]
+                - cell "À vérifier" [ref=e438]
+              - row [ref=e440]:
+                - cell [ref=e441]:
+                  - link "NP002278" [ref=e442] [cursor=pointer]:
+                    - /url: /members/1413
+                - cell "Test S20" [ref=e443]
+                - cell "Inscrit" [ref=e444]
+                - cell "—" [ref=e446]
+                - cell "0,000 DT" [ref=e447]:
+                  - generic [ref=e448]:
+                    - text: 0,000
+                    - generic [ref=e449]: DT
+                - cell "G libre · D libre" [ref=e450]:
+                  - generic [ref=e451]:
+                    - generic [ref=e452]: G
+                    - text: libre
+                  - text: ·
+                  - generic [ref=e453]:
+                    - generic [ref=e454]: D
+                    - text: libre
+                - cell "24/07/2026 12:10" [ref=e455]
+                - cell "—" [ref=e456]
+                - cell "À vérifier" [ref=e457]
+              - row [ref=e459]:
+                - cell [ref=e460]:
+                  - link "NP002277" [ref=e461] [cursor=pointer]:
+                    - /url: /members/1412
+                - cell "Racine S19" [ref=e462]
+                - cell "Inscrit" [ref=e463]
+                - cell "—" [ref=e465]
+                - cell "0,000 DT" [ref=e466]:
+                  - generic [ref=e467]:
+                    - text: 0,000
+                    - generic [ref=e468]: DT
+                - cell "G NP002278 · D libre" [ref=e469]:
+                  - generic [ref=e470]:
+                    - generic [ref=e471]: G
+                    - link "NP002278" [ref=e472] [cursor=pointer]:
+                      - /url: /members/1413
+                  - text: ·
+                  - generic [ref=e473]:
+                    - generic [ref=e474]: D
+                    - text: libre
+                - cell "24/07/2026 12:10" [ref=e475]
+                - cell "—" [ref=e476]
+                - cell "À vérifier" [ref=e477]
+              - row [ref=e479]:
+                - cell [ref=e480]:
+                  - link "NP002276" [ref=e481] [cursor=pointer]:
+                    - /url: /members/1411
+                - cell "Test S17" [ref=e482]
+                - cell "Actif" [ref=e483]
+                - cell "Silver" [ref=e485]
+                - cell "0,000 DT" [ref=e486]:
+                  - generic [ref=e487]:
+                    - text: 0,000
+                    - generic [ref=e488]: DT
+                - cell "G libre · D libre" [ref=e489]:
+                  - generic [ref=e490]:
+                    - generic [ref=e491]: G
+                    - text: libre
+                  - text: ·
+                  - generic [ref=e492]:
+                    - generic [ref=e493]: D
+                    - text: libre
+                - cell "24/07/2026 12:10" [ref=e494]
+                - cell "24/07/2026 12:10" [ref=e495]
+                - cell "À vérifier" [ref=e496]
+              - row [ref=e498]:
+                - cell [ref=e499]:
+                  - link "NP002275" [ref=e500] [cursor=pointer]:
+                    - /url: /members/1410
+                - cell "Racine S16" [ref=e501]
+                - cell "Inscrit" [ref=e502]
+                - cell "—" [ref=e504]
+                - cell "0,000 DT" [ref=e505]:
+                  - generic [ref=e506]:
+                    - text: 0,000
+                    - generic [ref=e507]: DT
+                - cell "G NP002276 · D libre" [ref=e508]:
+                  - generic [ref=e509]:
+                    - generic [ref=e510]: G
+                    - link "NP002276" [ref=e511] [cursor=pointer]:
+                      - /url: /members/1411
+                  - text: ·
+                  - generic [ref=e512]:
+                    - generic [ref=e513]: D
+                    - text: libre
+                - cell "24/07/2026 12:10" [ref=e514]
+                - cell "—" [ref=e515]
+                - cell "À vérifier" [ref=e516]
+              - row [ref=e518]:
+                - cell [ref=e519]:
+                  - link "NP002274" [ref=e520] [cursor=pointer]:
+                    - /url: /members/1409
+                - cell "Test S14" [ref=e521]
+                - cell "Actif" [ref=e522]
+                - cell "Silver" [ref=e524]
+                - cell "0,000 DT" [ref=e525]:
+                  - generic [ref=e526]:
+                    - text: 0,000
+                    - generic [ref=e527]: DT
+                - cell "G libre · D libre" [ref=e528]:
+                  - generic [ref=e529]:
+                    - generic [ref=e530]: G
+                    - text: libre
+                  - text: ·
+                  - generic [ref=e531]:
+                    - generic [ref=e532]: D
+                    - text: libre
+                - cell "24/07/2026 12:10" [ref=e533]
+                - cell "24/07/2026 12:10" [ref=e534]
+                - cell "À vérifier" [ref=e535]
+              - row [ref=e537]:
+                - cell [ref=e538]:
+                  - link "NP002273" [ref=e539] [cursor=pointer]:
+                    - /url: /members/1408
+                - cell "Racine S13" [ref=e540]
+                - cell "Inscrit" [ref=e541]
+                - cell "—" [ref=e543]
+                - cell "0,000 DT" [ref=e544]:
+                  - generic [ref=e545]:
+                    - text: 0,000
+                    - generic [ref=e546]: DT
+                - cell "G NP002274 · D libre" [ref=e547]:
+                  - generic [ref=e548]:
+                    - generic [ref=e549]: G
+                    - link "NP002274" [ref=e550] [cursor=pointer]:
+                      - /url: /members/1409
+                  - text: ·
+                  - generic [ref=e551]:
+                    - generic [ref=e552]: D
+                    - text: libre
+                - cell "24/07/2026 12:10" [ref=e553]
+                - cell "—" [ref=e554]
+                - cell "À vérifier" [ref=e555]
+              - row [ref=e557]:
+                - cell [ref=e558]:
+                  - link "NP002272" [ref=e559] [cursor=pointer]:
+                    - /url: /members/1407
+                - cell "Test S11" [ref=e560]
+                - cell "Inscrit" [ref=e561]
+                - cell "—" [ref=e563]
+                - cell "0,000 DT" [ref=e564]:
+                  - generic [ref=e565]:
+                    - text: 0,000
+                    - generic [ref=e566]: DT
+                - cell "G libre · D libre" [ref=e567]:
+                  - generic [ref=e568]:
+                    - generic [ref=e569]: G
+                    - text: libre
+                  - text: ·
+                  - generic [ref=e570]:
+                    - generic [ref=e571]: D
+                    - text: libre
+                - cell "24/07/2026 12:10" [ref=e572]
+                - cell "—" [ref=e573]
+                - cell "À vérifier" [ref=e574]
+          - generic [ref=e576]:
+            - generic [ref=e577]: Résultats 1–20 sur 34
+            - generic [ref=e578]:
+              - button "Précédent" [disabled]
+              - generic [ref=e579]: 1 / 2
+              - button "Suivant" [ref=e580]
+  - region "Notifications alt+T"

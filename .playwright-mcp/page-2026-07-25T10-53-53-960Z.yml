@@ -1,0 +1,22 @@
+- generic [ref=f13e2]:
+  - generic [ref=f13e547]:
+    - generic [ref=f13e548]:
+      - generic [ref=f13e549]:
+        - generic [ref=f13e550]: NP
+        - generic [ref=f13e551]:
+          - generic [ref=f13e552]: Najah Partners
+          - generic [ref=f13e553]: Back-office
+      - button "Thème" [ref=f13e554]
+    - generic [ref=f13e556]:
+      - generic [ref=f13e557]:
+        - generic [ref=f13e558]: Connexion au back-office
+        - generic [ref=f13e559]: Espace réservé aux administrateurs Najah Partners.
+      - generic [ref=f13e561]:
+        - generic [ref=f13e562]:
+          - generic [ref=f13e563]: Adresse e-mail
+          - textbox "Adresse e-mail" [ref=f13e564]: admin@najah.local
+        - generic [ref=f13e565]:
+          - generic [ref=f13e566]: Mot de passe
+          - textbox "Mot de passe" [ref=f13e567]: ChangeMe123!
+        - button "Se connecter" [ref=f13e568]
+  - region "Notifications alt+T"

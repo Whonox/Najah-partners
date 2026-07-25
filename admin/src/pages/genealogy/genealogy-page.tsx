@@ -34,7 +34,19 @@ export function GenealogyPage() {
    * l'historique du navigateur sous des dizaines d'entrées, et le bouton « précédent »
    * deviendrait inutilisable.
    */
-  const [rootId, setRootId] = useState<number | null>(null)
+  const memberParam = Number(searchParams.get("member"))
+  const paramRoot =
+    Number.isInteger(memberParam) && memberParam > 0 ? memberParam : null
+
+  /**
+   * La racine est initialisée DEPUIS L'URL, pas à `null`. Le motif « ajuster l'état quand une
+   * entrée change » (plus bas) ne se déclenche que sur un CHANGEMENT : au premier rendu, la
+   * valeur vue et la valeur courante sont égales par construction, donc il ne pose jamais la
+   * racine initiale. Résultat : `/genealogy?member=1` — c'est-à-dire le bouton « Voir dans
+   * l'arbre » de la fiche membre — affichait l'invite « recherchez un code », comme si le
+   * lien n'existait pas.
+   */
+  const [rootId, setRootId] = useState<number | null>(paramRoot)
   const [trail, setTrail] = useState<TreeNode[]>([])
   const [code, setCode] = useState("")
   const [notFound, setNotFound] = useState(false)
@@ -45,12 +57,11 @@ export function GenealogyPage() {
    * effet provoquerait un rendu intermédiaire avec l'ancienne racine, donc un arbre
    * brièvement faux à l'écran, puis un second rendu.
    */
-  const memberParam = Number(searchParams.get("member"))
   const [seenParam, setSeenParam] = useState(memberParam)
   if (memberParam !== seenParam) {
     setSeenParam(memberParam)
-    if (Number.isInteger(memberParam) && memberParam > 0) {
-      setRootId(memberParam)
+    if (paramRoot !== null) {
+      setRootId(paramRoot)
       setTrail([])
     }
   }
@@ -92,12 +103,28 @@ export function GenealogyPage() {
     setRootId(node.id)
   }
 
-  /** Remonter d'un cran : on reprend la dernière racine du fil. */
+  /**
+   * Remonter d'un cran. DEUX chemins, et il faut les deux :
+   *
+   *  — si l'on est descendu, on reprend la dernière racine du fil (aucune requête) ;
+   *  — sinon, on recentre sur l'UPLINE DE PLACEMENT réel du nœud courant (`uplineId`, que la
+   *    CTE ramène déjà). Sans ce second chemin, arriver par la recherche ou par un lien
+   *    `?member=` — donc avec un fil vide — enfermait l'admin sur ce sous-arbre : aucun
+   *    ancêtre n'est ramené par une descente, et il n'existait aucun moyen de sortir.
+   */
+  const uplineOfRoot = tree.data?.uplineId ?? null
+  const canGoUp = trail.length > 0 || uplineOfRoot !== null
+
   function goUp() {
     const previous = trail.at(-1)
-    if (!previous) return
-    setTrail(trail.slice(0, -1))
-    setRootId(previous.id)
+    if (previous) {
+      setTrail(trail.slice(0, -1))
+      setRootId(previous.id)
+      return
+    }
+    if (uplineOfRoot !== null) {
+      setRootId(uplineOfRoot)
+    }
   }
 
   function jumpTo(index: number) {
@@ -166,7 +193,9 @@ export function GenealogyPage() {
         </Alert>
       ) : null}
 
-      {trail.length > 0 ? (
+      {/* La barre de remontée n'est plus conditionnée au fil d'Ariane : elle apparaît dès
+          qu'il y a un cran à remonter, fil ou upline réel. */}
+      {rootId !== null && canGoUp ? (
         <nav
           aria-label={t("genealogy.path")}
           className="flex flex-wrap items-center gap-1 text-sm"
@@ -175,7 +204,9 @@ export function GenealogyPage() {
             <CornerLeftUp />
             {t("genealogy.up")}
           </Button>
-          <span className="mx-1 text-muted-foreground">·</span>
+          {trail.length > 0 ? (
+            <span className="mx-1 text-muted-foreground">·</span>
+          ) : null}
           {trail.map((node, index) => (
             <span key={node.id} className="flex items-center gap-1">
               <button
@@ -189,6 +220,9 @@ export function GenealogyPage() {
             </span>
           ))}
         </nav>
+      ) : rootId !== null && tree.data ? (
+        // Pas de bouton grisé sans explication : on DIT pourquoi il n'y a rien au-dessus.
+        <p className="text-xs text-muted-foreground">{t("genealogy.upNone")}</p>
       ) : null}
 
       {rootId === null ? (

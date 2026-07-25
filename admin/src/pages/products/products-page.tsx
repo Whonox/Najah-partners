@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button"
 import {
   Select,
   SelectContent,
-  SelectItem,
+  SelectOptions,
   SelectTrigger,
   SelectValue,
+  type SelectOption,
 } from "@/components/ui/select"
 import {
   Table,
@@ -62,6 +63,16 @@ export function ProductsPage() {
     categories.data?.find((category) => category.id === id)?.name ??
     t("common.none")
 
+  // `ANY` porte un LIBELLÉ comme n'importe quelle autre option : c'est ce qui empêche
+  // « __any__ » d'apparaître dans le déclencheur quand aucun filtre n'est posé.
+  const categoryOptions: SelectOption[] = [
+    { value: ANY, label: t("products.filter.categoryAll") },
+    ...(categories.data ?? []).map((category) => ({
+      value: String(category.id),
+      label: category.name,
+    })),
+  ]
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -94,6 +105,7 @@ export function ProductsPage() {
             <FilterBar>
               <FilterField label={t("products.filter.category")} className="w-56">
                 <Select
+                  options={categoryOptions}
                   value={categoryId ? String(categoryId) : ANY}
                   onValueChange={(value) =>
                     setCategoryId(value === ANY ? undefined : Number(value))
@@ -103,12 +115,7 @@ export function ProductsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={ANY}>{t("common.all")}</SelectItem>
-                    {(categories.data ?? []).map((category) => (
-                      <SelectItem key={category.id} value={String(category.id)}>
-                        {category.name}
-                      </SelectItem>
-                    ))}
+                    <SelectOptions options={categoryOptions} />
                   </SelectContent>
                 </Select>
               </FilterField>

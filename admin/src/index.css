@@ -173,10 +173,18 @@
   /* Voile posé sous une surface flottante : noir pur, seul à assombrir un fond déjà sombre. */
   --overlay: #000000;
 
-  /* Trait de séparation : bordure de carte, filet de tableau, séparateur. */
-  --border: #292524;
-  /* Contour d'un champ de saisie au repos. */
-  --input: #292524;
+  /* Trait de séparation : bordure de carte, filet de tableau, séparateur.
+     MESURÉ : 3,47:1 sur le fond de page (#0E0E0C) et 3,14:1 sur une carte (#1C1917).
+     Une bordure est un élément d'interface STRUCTURANT — elle délimite une carte, sépare deux
+     lignes d'un tableau de montants —, donc soumise au seuil de 3:1 (WCAG 1.4.11), et non au
+     confort visuel. L'ancien #292524 tombait à 1,27:1 : sur un écran dense, les limites de
+     cartes et les filets de tableau disparaissaient purement et simplement en mode sombre.
+     Toute nouvelle valeur doit être vérifiée contre CES DEUX surfaces, pas seulement le fond :
+     une bordure passe son temps sur les cartes, qui sont plus claires que la page. */
+  --border: #6e675f;
+  /* Contour d'un champ de saisie au repos (même contrainte : c'est ce trait qui dit où
+     commence la zone de saisie). */
+  --input: #6e675f;
   /* Anneau de focus clavier. */
   --ring: #c6b23e;
 
@@ -199,8 +207,8 @@
   --sidebar-accent: #292524;
   /* Texte d'une entrée survolée. */
   --sidebar-accent-foreground: #fafaf9;
-  /* Filet séparant la navigation de la zone de travail. */
-  --sidebar-border: #292524;
+  /* Filet séparant la navigation de la zone de travail — même seuil que --border. */
+  --sidebar-border: #6e675f;
   /* Anneau de focus dans la navigation. */
   --sidebar-ring: #c6b23e;
 }

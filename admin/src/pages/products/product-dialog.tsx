@@ -24,9 +24,10 @@ import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
-  SelectItem,
+  SelectOptions,
   SelectTrigger,
   SelectValue,
+  type SelectOption,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
@@ -130,6 +131,17 @@ export function ProductDialog({
   const type = useWatch({ control: form.control, name: "type" })
   const pending = create.isPending || update.isPending
 
+  // Les options sont construites UNE fois et servent à la fois au déclencheur (via `items`)
+  // et au popup : le libellé affiché après enregistrement est celui qu'on a cliqué.
+  const categoryOptions: SelectOption[] = categories.map((category) => ({
+    value: String(category.id),
+    label: category.name,
+  }))
+  const typeOptions: SelectOption[] = PRODUCT_TYPES.map((value) => ({
+    value,
+    label: t(`products.type.${value}`),
+  }))
+
   function submit(values: ProductForm) {
     const body = {
       name: values.name,
@@ -213,6 +225,7 @@ export function ProductDialog({
                   <FormItem>
                     <FormLabel>{t("products.field.category")}</FormLabel>
                     <Select
+                      options={categoryOptions}
                       value={field.value ? String(field.value) : ""}
                       onValueChange={(value) => field.onChange(Number(value))}
                     >
@@ -222,11 +235,7 @@ export function ProductDialog({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {categories.map((category) => (
-                          <SelectItem key={category.id} value={String(category.id)}>
-                            {category.name}
-                          </SelectItem>
-                        ))}
+                        <SelectOptions options={categoryOptions} />
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -240,18 +249,18 @@ export function ProductDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t("products.field.type")}</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select
+                      options={typeOptions}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {PRODUCT_TYPES.map((value) => (
-                          <SelectItem key={value} value={value}>
-                            {t(`products.type.${value}`)}
-                          </SelectItem>
-                        ))}
+                        <SelectOptions options={typeOptions} />
                       </SelectContent>
                     </Select>
                     <FormMessage />

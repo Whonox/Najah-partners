@@ -4,7 +4,41 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const Select = SelectPrimitive.Root
+/**
+ * Une option : sa VALEUR (ce qui part au backend) et son LIBELLÉ (ce que lit l'admin).
+ * Les deux voyagent ensemble — c'est ce qui empêche le déclencheur et la liste de diverger.
+ */
+export type SelectOption = { value: string; label: string }
+
+/**
+ * Base UI rend, dans le déclencheur, la VALEUR BRUTE de l'option sélectionnée tant qu'on ne
+ * lui a pas dit à quoi elle correspond : « REGISTERED » au lieu de « Inscrit », « PHYSICAL »
+ * au lieu de « Physique », et l'affreux « __any__ » du filtre « sans filtre ». Sur un
+ * formulaire, cela revient à faire enregistrer à l'admin une saisie qu'il ne peut pas relire.
+ *
+ * Le prop natif `items` est exactement la table valeur→libellé attendue : quand il est
+ * renseigné, `<Select.Value>` affiche le libellé. On l'alimente ici depuis `options`, LA MÊME
+ * liste qui rend les `<SelectItem>` via `<SelectOptions>` : une seule source, donc aucun
+ * risque qu'un libellé change d'un côté et pas de l'autre.
+ */
+function Select<Value>({
+  options,
+  items,
+  ...props
+}: SelectPrimitive.Root.Props<Value> & {
+  options?: readonly SelectOption[]
+}) {
+  return <SelectPrimitive.Root items={items ?? options} {...props} />
+}
+
+/** Les options d'un `Select`, rendues dans le popup depuis la liste passée à `options`. */
+function SelectOptions({ options }: { options: readonly SelectOption[] }) {
+  return options.map((option) => (
+    <SelectItem key={option.value} value={option.value}>
+      {option.label}
+    </SelectItem>
+  ))
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (
@@ -191,6 +225,7 @@ export {
   SelectGroup,
   SelectItem,
   SelectLabel,
+  SelectOptions,
   SelectScrollDownButton,
   SelectScrollUpButton,
   SelectSeparator,

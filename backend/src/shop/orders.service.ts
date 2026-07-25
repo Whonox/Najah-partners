@@ -20,6 +20,11 @@ const DEFAULT_PAGE_SIZE = 20;
 export const ORDER_INCLUDE = {
   lines: { include: { product: { select: { name: true } } } },
   ecards: { select: { id: true }, orderBy: { id: 'asc' } },
+  // Le CODE du membre, pas seulement son id : c'est la clé que l'admin connaît. Trois colonnes
+  // en `select`, jamais le membre entier — une commande n'a pas à charrier un solde.
+  member: {
+    select: { id: true, memberCode: true, firstName: true, lastName: true },
+  },
 } satisfies Prisma.OrderInclude;
 
 type OrderWithLines = Prisma.OrderGetPayload<{ include: typeof ORDER_INCLUDE }>;
@@ -65,6 +70,21 @@ export class OrdersService {
     return this.paginate(
       {
         ...(query.memberId ? { memberId: query.memberId } : {}),
+        // Filtre par CODE membre : c'est la seule clé que l'admin ait sous les yeux. Égalité
+        // EXACTE, insensible à la casse — un code est un identifiant, pas une recherche
+        // plein texte : « NP00004 » ne doit jamais ramener les commandes de « NP000042 ».
+        ...(query.memberCode
+          ? {
+              member: {
+                is: {
+                  memberCode: {
+                    equals: query.memberCode.trim(),
+                    mode: Prisma.QueryMode.insensitive,
+                  },
+                },
+              },
+            }
+          : {}),
         ...(query.context ? { context: query.context } : {}),
         ...(query.status ? { status: query.status } : {}),
         ...(query.shipmentStatus
@@ -177,6 +197,12 @@ export class OrdersService {
     return {
       id: order.id,
       memberId: order.memberId,
+      member: {
+        id: order.member.id,
+        memberCode: order.member.memberCode,
+        firstName: order.member.firstName,
+        lastName: order.member.lastName,
+      },
       context: order.context,
       status: order.status,
       totalDt: moneyToApi(order.totalDt),

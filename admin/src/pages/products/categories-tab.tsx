@@ -210,7 +210,7 @@ function CategoryDialog({
           <DialogTitle>
             {t(isEdit ? "categories.edit" : "categories.new")}
           </DialogTitle>
-          <DialogDescription>{t("products.tab.categories")}</DialogDescription>
+          <DialogDescription>{t("categories.dialogHint")}</DialogDescription>
         </DialogHeader>
 
         <Form {...form}>

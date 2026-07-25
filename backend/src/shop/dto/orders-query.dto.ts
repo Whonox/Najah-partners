@@ -1,7 +1,15 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { OrderContext, OrderStatus, ShipmentStatus } from '@prisma/client';
-import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class OrdersQueryDto {
   @ApiPropertyOptional({ default: 1, minimum: 1 })
@@ -40,12 +48,24 @@ export class AdminOrdersQueryDto extends OrdersQueryDto {
   @IsEnum(ShipmentStatus)
   shipmentStatus?: ShipmentStatus;
 
-  @ApiPropertyOptional({ description: 'Commandes d’un membre donné.' })
+  @ApiPropertyOptional({
+    description: 'Commandes d’un membre donné, par identifiant technique.',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   memberId?: number;
+
+  @ApiPropertyOptional({
+    example: 'NP000042',
+    description:
+      'Commandes d’un membre donné, par CODE membre (égalité exacte, insensible à la casse). C’est la clé que l’admin connaît.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  memberCode?: string;
 }
 
 export class UpdateShipmentDto {

@@ -101,6 +101,14 @@ function makeService(scenario: Scenario = {}) {
   const orderFindUniqueOrThrow = jest.fn(async () => ({
     id: 99,
     memberId: lastOrder!.memberId,
+    // La relecture porte `ORDER_INCLUDE`, qui ramène le membre : la vue l'identifie par son
+    // CODE (`NP…`), la seule clé qu'un administrateur lise.
+    member: {
+      id: lastOrder!.memberId,
+      memberCode: 'NP000042',
+      firstName: 'Test',
+      lastName: 'Membre',
+    },
     context: lastOrder!.context,
     status: lastOrder!.status,
     totalDt: lastOrder!.totalDt,

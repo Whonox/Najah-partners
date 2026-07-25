@@ -62,7 +62,7 @@ export function PacksPage() {
           l'utilisateur doit le lire AVANT de décider de modifier, pas après. */}
       <Alert>
         <AlertTriangle />
-        <AlertTitle>{t("packs.column.status")}</AlertTitle>
+        <AlertTitle>{t("packs.warningTitle")}</AlertTitle>
         <AlertDescription>{t("packs.warning")}</AlertDescription>
       </Alert>
 

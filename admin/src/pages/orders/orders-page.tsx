@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
-  SelectItem,
+  SelectOptions,
   SelectTrigger,
   SelectValue,
+  type SelectOption,
 } from "@/components/ui/select"
 import {
   Table,
@@ -61,24 +62,26 @@ export function OrdersPage() {
   const t = useT()
   const [searchParams, setSearchParams] = useSearchParams()
 
-  // `?memberId=` : la fiche membre renvoie ici. Le filtre est pré-rempli, et modifiable.
-  const [memberId, setMemberId] = useState(searchParams.get("memberId") ?? "")
+  /**
+   * `?memberCode=` : la fiche membre renvoie ici. Le filtre porte sur le CODE (`NP000042`) et
+   * non sur l'identifiant technique — c'est la seule clé qu'un administrateur ait sous les
+   * yeux, sur une fiche comme dans l'arbre. Un filtre qui réclamerait « 1419 » serait
+   * inutilisable sans une table de correspondance que personne n'a.
+   */
+  const [memberCode, setMemberCode] = useState(searchParams.get("memberCode") ?? "")
   const [context, setContext] = useState<OrderContext | undefined>()
   const [shipment, setShipment] = useState<ShipmentStatus | undefined>()
   const [page, setPage] = useState(1)
 
   const query = useMemo<OrdersQuery>(() => {
-    const parsedMember = Number(memberId)
     return {
       page,
       pageSize: PAGE_SIZE,
-      ...(Number.isInteger(parsedMember) && parsedMember > 0
-        ? { memberId: parsedMember }
-        : {}),
+      ...(memberCode.trim() ? { memberCode: memberCode.trim() } : {}),
       ...(context ? { context } : {}),
       ...(shipment ? { shipmentStatus: shipment } : {}),
     }
-  }, [page, memberId, context, shipment])
+  }, [page, memberCode, context, shipment])
 
   const orders = useQuery(ordersQueryOptions(query))
 
@@ -89,7 +92,22 @@ export function OrdersPage() {
     }
   }
 
-  const hasFilters = memberId !== "" || !!context || !!shipment
+  const contextOptions: SelectOption[] = [
+    { value: ANY, label: t("orders.filter.contextAll") },
+    ...ORDER_CONTEXTS.map((value) => ({
+      value,
+      label: t(`orderContext.${value}`),
+    })),
+  ]
+  const shipmentOptions: SelectOption[] = [
+    { value: ANY, label: t("orders.filter.shipmentAll") },
+    ...SHIPMENT_STATUSES.map((value) => ({
+      value,
+      label: t(`shipment.${value}`),
+    })),
+  ]
+
+  const hasFilters = memberCode !== "" || !!context || !!shipment
 
   return (
     <div className="space-y-6">
@@ -99,15 +117,16 @@ export function OrdersPage() {
         <FilterField label={t("orders.filter.member")} htmlFor="orders-member">
           <Input
             id="orders-member"
-            inputMode="numeric"
-            className="w-32 tabular-nums"
-            value={memberId}
-            onChange={(event) => filter(setMemberId)(event.target.value)}
+            className="w-36 font-mono"
+            placeholder={t("orders.filter.memberPlaceholder")}
+            value={memberCode}
+            onChange={(event) => filter(setMemberCode)(event.target.value)}
           />
         </FilterField>
 
         <FilterField label={t("orders.filter.context")} className="w-40">
           <Select
+            options={contextOptions}
             value={context ?? ANY}
             onValueChange={(value) =>
               filter(setContext)(value === ANY ? undefined : (value as OrderContext))
@@ -117,18 +136,14 @@ export function OrdersPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ANY}>{t("common.all")}</SelectItem>
-              {ORDER_CONTEXTS.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {t(`orderContext.${value}`)}
-                </SelectItem>
-              ))}
+              <SelectOptions options={contextOptions} />
             </SelectContent>
           </Select>
         </FilterField>
 
         <FilterField label={t("orders.filter.shipment")} className="w-44">
           <Select
+            options={shipmentOptions}
             value={shipment ?? ANY}
             onValueChange={(value) =>
               filter(setShipment)(
@@ -140,12 +155,7 @@ export function OrdersPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ANY}>{t("common.all")}</SelectItem>
-              {SHIPMENT_STATUSES.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {t(`shipment.${value}`)}
-                </SelectItem>
-              ))}
+              <SelectOptions options={shipmentOptions} />
             </SelectContent>
           </Select>
         </FilterField>
@@ -155,7 +165,7 @@ export function OrdersPage() {
             variant="ghost"
             size="sm"
             onClick={() => {
-              setMemberId("")
+              setMemberCode("")
               setContext(undefined)
               setShipment(undefined)
               setPage(1)
@@ -180,7 +190,7 @@ export function OrdersPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-20">{t("orders.column.id")}</TableHead>
-                <TableHead className="w-24">
+                <TableHead className="w-44">
                   {t("orders.column.member")}
                 </TableHead>
                 <TableHead className="w-28">
@@ -217,13 +227,21 @@ export function OrdersPage() {
                       #{order.id}
                     </Link>
                   </TableCell>
+                  {/* Le membre s'identifie par son CODE, et par son nom quand on l'a. Un
+                      « #1419 » n'est reconnaissable par personne : l'admin travaille avec des
+                      codes NP, jamais avec les clés primaires de la base. */}
                   <TableCell>
                     <Link
                       to={`/members/${order.memberId}`}
-                      className="font-mono text-xs text-primary underline-offset-4 hover:underline"
+                      className="text-primary underline-offset-4 hover:underline"
                     >
-                      #{order.memberId}
+                      <span className="font-mono text-xs">
+                        {order.member.memberCode}
+                      </span>
                     </Link>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {order.member.lastName} {order.member.firstName}
+                    </span>
                   </TableCell>
                   <TableCell>
                     <OrderContextBadge context={order.context} />

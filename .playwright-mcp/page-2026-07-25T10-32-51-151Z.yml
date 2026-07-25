@@ -1,0 +1,133 @@
+- generic [ref=f6e1]:
+  - generic [ref=f6e2]:
+    - generic [ref=f6e4]:
+      - complementary [ref=f6e5]:
+        - generic [ref=f6e7]:
+          - generic [ref=f6e8]: NP
+          - generic [ref=f6e9]:
+            - generic [ref=f6e10]: Najah Partners
+            - generic [ref=f6e11]: Back-office
+        - navigation [ref=f6e510]:
+          - link [ref=f6e511] [cursor=pointer]:
+            - /url: /dashboard
+            - generic [ref=f6e20]: Tableau de bord
+            - generic [ref=f6e21]: À venir
+          - link [ref=f6e512] [cursor=pointer]:
+            - /url: /members
+            - generic [ref=f6e28]: Membres
+          - link [ref=f6e513] [cursor=pointer]:
+            - /url: /genealogy
+            - generic [ref=f6e35]: Généalogie
+          - link [ref=f6e514] [cursor=pointer]:
+            - /url: /packs
+            - generic [ref=f6e41]: Packs
+          - link [ref=f6e515] [cursor=pointer]:
+            - /url: /products
+            - generic [ref=f6e47]: Produits
+          - link [ref=f6e516] [cursor=pointer]:
+            - /url: /orders
+            - generic [ref=f6e59]: Commandes
+          - link [ref=f6e517] [cursor=pointer]:
+            - /url: /commissions
+            - generic [ref=f6e64]: Commissions
+            - generic [ref=f6e65]: À venir
+          - link [ref=f6e518] [cursor=pointer]:
+            - /url: /ledger
+            - generic [ref=f6e70]: Soldes & mouvements
+            - generic [ref=f6e71]: À venir
+          - link [ref=f6e519] [cursor=pointer]:
+            - /url: /ecards
+            - generic [ref=f6e75]: E-cards
+            - generic [ref=f6e76]: À venir
+          - link [ref=f6e520] [cursor=pointer]:
+            - /url: /reports
+            - generic [ref=f6e81]: Rapports
+            - generic [ref=f6e82]: À venir
+          - link [ref=f6e521] [cursor=pointer]:
+            - /url: /settings
+            - generic [ref=f6e87]: Paramètres
+          - link [ref=f6e522] [cursor=pointer]:
+            - /url: /admin-users
+            - generic [ref=f6e92]: Comptes admin
+            - generic [ref=f6e93]: À venir
+      - generic [ref=f6e94]:
+        - banner [ref=f6e95]:
+          - generic [ref=f6e96]:
+            - button [ref=f6e523]
+            - generic [ref=f6e98]: Super-admin
+            - button [ref=f6e524]:
+              - generic [ref=f6e100]: SA
+              - generic [ref=f6e101]: Super Admin
+        - main [ref=f6e102]:
+          - generic [ref=f6e103]:
+            - generic [ref=f6e105]:
+              - heading [level=1] [ref=f6e525]: Produits
+              - paragraph [ref=f6e107]: "Catalogue complet, produits inactifs et masqués compris. Un produit ne se supprime pas : il se désactive."
+            - alert [ref=f6e108]:
+              - generic [ref=f6e111]: La valeur en POINTS sert à composer le palier d’un pack à l’activation. Une promotion baisse le prix en DINARS sans jamais toucher aux points.
+            - generic [ref=f6e112]:
+              - tablist [ref=f6e113]:
+                - tab [ref=f6e526]: Produits
+                - tab [selected] [ref=f6e527]: Catégories
+              - tabpanel [ref=f6e528]:
+                - generic [ref=f6e464]:
+                  - button [ref=f6e529]: Nouvelle catégorie
+                  - table [ref=f6e470]:
+                    - rowgroup [ref=f6e471]:
+                      - row [ref=f6e530]:
+                        - columnheader [ref=f6e531]: Nom
+                        - columnheader [ref=f6e532]: Description
+                        - columnheader [ref=f6e533]: Ordre
+                        - columnheader [ref=f6e476]
+                    - rowgroup [ref=f6e477]:
+                      - row [ref=f6e534]:
+                        - cell [ref=f6e535]: Catégorie test 1784891426518
+                        - cell [ref=f6e536]: —
+                        - cell [ref=f6e537]: "0"
+                        - cell [ref=f6e538]:
+                          - generic [ref=f6e483]:
+                            - button [ref=f6e539]
+                            - button [ref=f6e540]
+                      - row [ref=f6e541]:
+                        - cell [ref=f6e542]: Huiles d’olive
+                        - cell [ref=f6e543]: Huiles extra-vierges pressées à froid.
+                        - cell [ref=f6e544]: "1"
+                        - cell [ref=f6e545]:
+                          - generic [ref=f6e491]:
+                            - button [ref=f6e546]
+                            - button [ref=f6e547]
+                      - row [ref=f6e548]:
+                        - cell [ref=f6e549]: Produits naturels
+                        - cell [ref=f6e550]: Savons, miels et dérivés de l’olive.
+                        - cell [ref=f6e551]: "2"
+                        - cell [ref=f6e552]:
+                          - generic [ref=f6e499]:
+                            - button [ref=f6e553]
+                            - button [ref=f6e554]
+                      - row [ref=f6e555]:
+                        - cell [ref=f6e556]: Contenus numériques
+                        - cell [ref=f6e557]: Guides et formations (livraison immédiate).
+                        - cell [ref=f6e558]: "3"
+                        - cell [ref=f6e559]:
+                          - generic [ref=f6e507]:
+                            - button [ref=f6e560]
+                            - button [ref=f6e561]
+    - region "Notifications alt+T"
+  - dialog [ref=f6e565]:
+    - generic [ref=f6e566]:
+      - heading "Modifier la catégorie" [level=2] [ref=f6e567]
+      - paragraph [ref=f6e568]: Catégories
+    - generic [ref=f6e569]:
+      - generic [ref=f6e570]:
+        - generic [ref=f6e571]: Nom
+        - textbox "Nom" [active] [ref=f6e572]: Huiles d’olive
+      - generic [ref=f6e573]:
+        - generic [ref=f6e574]: Description
+        - textbox "Description" [ref=f6e575]: Huiles extra-vierges pressées à froid.
+      - generic [ref=f6e576]:
+        - generic [ref=f6e577]: Ordre d’affichage
+        - spinbutton "Ordre d’affichage" [ref=f6e578]: "1"
+      - generic [ref=f6e579]:
+        - button "Annuler" [ref=f6e580]
+        - button "Enregistrer" [ref=f6e581]
+    - button "Close" [ref=f6e582]

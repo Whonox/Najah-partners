@@ -1,6 +1,5 @@
 import { Link } from "react-router"
 import { ChevronDown, ExternalLink } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import type { TreeNode } from "@/api/queries/genealogy"
 import { MemberStatusBadge } from "@/components/common/status-badge"
 import { PointsBv } from "@/components/format/amount"
@@ -129,21 +128,46 @@ function NodeCard({
   isRoot?: boolean
 }) {
   const t = useT()
-  const canDescend =
-    !isRoot && (node.hasLeftChild || node.hasRightChild)
+  /**
+   * Toute carte AUTRE que la racine recentre — y compris une feuille : l'écran annonce
+   * « cliquez un membre pour recentrer l'arbre sur lui », il doit le faire pour tous. Le
+   * recentrage sur la racine courante n'aurait, lui, aucun effet.
+   */
+  const canRecenter = !isRoot
 
   return (
     <div
       className={cn(
-        "w-52 rounded-lg border bg-background p-3 text-sm shadow-xs",
+        // `relative` porte le bouton en surimpression ci-dessous.
+        "relative w-52 rounded-lg border bg-background p-3 text-sm shadow-xs transition-colors",
         isRoot && "border-primary",
+        canRecenter &&
+          "cursor-pointer hover:border-primary hover:bg-accent focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
       )}
     >
+      {/*
+        La carte entière est cliquable par un VRAI <button> étalé dessus, plutôt qu'un
+        `role="button"` posé sur la carte : une carte contient déjà un lien (« ouvrir la
+        fiche »), et l'ARIA interdit à un bouton d'englober un élément interactif. Le bouton
+        en surimpression garde une sémantique valide, le focus clavier natif et l'ordre de
+        tabulation — le lien, remonté par `z-10`, reste cliquable par-dessus.
+      */}
+      {canRecenter ? (
+        <button
+          type="button"
+          className="absolute inset-0 z-0 rounded-lg outline-none"
+          aria-label={t("genealogy.recenterOn", { code: node.memberCode })}
+          onClick={() => onDescend(node)}
+        />
+      ) : null}
+
       <div className="flex items-start justify-between gap-2">
+        {/* SEUL élément remonté au-dessus du bouton : le lien vers la fiche. Tout le reste de
+            la carte est transparent au clic et déclenche donc le recentrage. */}
         <Link
           to={`/members/${node.id}`}
           title={t("genealogy.openMember")}
-          className="font-mono text-xs text-primary underline-offset-4 hover:underline"
+          className="relative z-10 font-mono text-xs text-primary underline-offset-4 hover:underline"
         >
           {node.memberCode}
           <ExternalLink className="ms-1 inline size-3" />
@@ -174,16 +198,16 @@ function NodeCard({
         </div>
       </div>
 
-      {canDescend ? (
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-2 w-full"
-          onClick={() => onDescend(node)}
+      {/* Affordance PUREMENT VISUELLE : c'est le bouton en surimpression qui reçoit le clic.
+          Un second élément interactif ici doublerait l'arrêt de tabulation sur chaque carte. */}
+      {canRecenter ? (
+        <p
+          aria-hidden
+          className="mt-2 flex items-center justify-center gap-1 rounded-md border py-1 text-xs text-muted-foreground"
         >
-          <ChevronDown />
-          {t("genealogy.descend")}
-        </Button>
+          <ChevronDown className="size-3" />
+          {t("genealogy.recenter")}
+        </p>
       ) : null}
     </div>
   )

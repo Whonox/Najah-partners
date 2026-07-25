@@ -20,6 +20,7 @@ import { DataState } from "@/components/common/data-state"
 import { PageHeader } from "@/components/common/page-header"
 import { useAuth } from "@/auth/use-auth"
 import { useT } from "@/i18n/use-t"
+import type { TranslationKey } from "@/i18n/fr"
 
 /**
  * Paramètres système (spec §7.2.11) — premier écran branché de bout en bout : API → client
@@ -59,7 +60,7 @@ export function SettingsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-56">{t("settings.column.key")}</TableHead>
+                  <TableHead className="w-64">{t("settings.column.label")}</TableHead>
                   <TableHead>{t("settings.column.description")}</TableHead>
                   <TableHead className="w-48">{t("settings.column.value")}</TableHead>
                   <TableHead className="w-28" />
@@ -121,9 +122,31 @@ function SettingRow({
     onDone()
   }
 
+  /**
+   * La clé technique reste — c'est elle qui IDENTIFIE le paramètre, et l'admin la retrouve
+   * dans une consigne ou un échange avec l'équipe. Mais elle ne se lit pas : on la surmonte
+   * d'un libellé en français.
+   *
+   * Le libellé vit dans le dictionnaire d'interface et non en base : c'est du texte d'écran,
+   * traduisible le jour où l'arabe arrive, là où une colonne figerait le français dans les
+   * données. La clé d'un paramètre venant de la BASE, elle n'est pas connue à la compilation :
+   * on interroge le dictionnaire de façon tolérante — `t` rend la clé elle-même quand elle est
+   * absente, ce qui donne le repli « pas de libellé » sans jamais casser l'écran.
+   */
+  const labelKey = `settings.label.${setting.key}` as TranslationKey
+  const label = t(labelKey)
+  const hasLabel = label !== labelKey
+
   return (
     <TableRow>
-      <TableCell className="font-mono text-xs">{setting.key}</TableCell>
+      <TableCell>
+        {hasLabel ? (
+          <span className="block font-medium">{label}</span>
+        ) : null}
+        <span className="font-mono text-xs text-muted-foreground">
+          {setting.key}
+        </span>
+      </TableCell>
       {/* `whitespace-normal` : les cellules shadcn sont en `nowrap` par défaut, ce qui pousserait
           la colonne d'actions hors de l'écran sur une description un peu longue. */}
       <TableCell className="whitespace-normal text-muted-foreground">

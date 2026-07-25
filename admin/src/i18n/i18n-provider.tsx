@@ -29,7 +29,15 @@ export function I18nProvider({
     () => ({
       locale,
       dir,
-      t: (key: TranslationKey) => dictionary[key] ?? key,
+      t: (key: TranslationKey, vars?: Record<string, string | number>) => {
+        const text = dictionary[key] ?? key
+        if (!vars) return text
+        return text.replace(/\{(\w+)\}/g, (match, name: string) =>
+          // Un marqueur sans valeur est laissé TEL QUEL plutôt que vidé : à l'écran, un
+          // « {code} » visible se corrige, un mot manquant passe inaperçu.
+          name in vars ? String(vars[name]) : match,
+        )
+      },
     }),
     [locale, dir, dictionary],
   )

@@ -36,8 +36,16 @@ Accent            #8A6D1F   primary (texte blanc dessus — contraste ~5,5:1)
 Accent liens      #9A8A2E   pour texte doré sur fond clair
 Danger / Succès   défauts shadcn
 
-Mode sombre : requis. Fond #0E0E0C (noir Najah), cartes #1C1917, bordures #292524,
+Mode sombre : requis. Fond #0E0E0C (noir Najah), cartes #1C1917, bordures #6E675F,
 texte #FAFAF9, secondaire #A8A29E, accent #C6B23E (l'or clair passe bien sur sombre).
+
+### Contraste des bordures (D-044)
+Une bordure n'est pas de la décoration : elle délimite une carte, sépare deux lignes d'un
+tableau de montants. C'est un élément d'interface STRUCTURANT, donc soumis au seuil de
+**3:1** (WCAG 1.4.11) — pas au confort visuel. La valeur sombre est mesurée contre les DEUX
+surfaces qu'elle rencontre : #6E675F donne **3,47:1** sur le fond de page et **3,14:1** sur
+une carte. L'ancienne valeur (#292524) tombait à 1,27:1 : les cartes et les filets de
+tableau disparaissaient. Toute nouvelle valeur se vérifie contre le fond ET la carte.
 
 ### Fichier de thème
 src/index.css contient TOUTES les variables, avec un commentaire au-dessus de chacune

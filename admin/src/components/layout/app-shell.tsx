@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Outlet, useLocation } from "react-router"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { ErrorBoundary } from "@/components/common/error-boundary"
 import { useT } from "@/i18n/use-t"
 import { AppHeader } from "./app-header"
 import { Brand } from "./brand"
@@ -47,9 +48,15 @@ export function AppShell() {
       <div className="flex min-w-0 flex-1 flex-col">
         <AppHeader onOpenNav={() => setNavOpen(true)} />
         {/* `key` sur la route : un changement de module remonte la page en haut et repart d'un
-            état propre, sans qu'aucun écran n'ait à s'en préoccuper. */}
+            état propre, sans qu'aucun écran n'ait à s'en préoccuper. La MÊME clé réarme la
+            limite d'erreur — changer de module suffit à sortir d'un écran tombé, sans que
+            l'admin ait à recharger l'application. */}
         <main key={location.pathname} className="min-w-0 flex-1 p-4 lg:p-6">
-          <Outlet />
+          {/* La limite est ICI et pas autour de <AppShell> : la navigation doit survivre à
+              l'écran qu'elle affiche. */}
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
     </div>
