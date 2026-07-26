@@ -759,6 +759,37 @@ export const fr = {
     "Votre pièce sera vérifiée par notre équipe. Cela ne bloque rien : vous pouvez dès maintenant acheter, activer votre pack et percevoir vos commissions.",
   "onboarding.done.enter": "Entrer dans mon espace",
   "onboarding.done.entering": "Ouverture…",
+
+  // ── Accueil — espace RÉSEAU (D-053) ──
+  // Aucune de ces clés ne parle d'argent, et c'est structurel : la route qui alimente cet
+  // écran ne porte aucun montant.
+  "home.greeting": "Bonjour",
+  "home.memberCode": "Code",
+  "home.verificationPending": "Pièce en cours de vérification",
+
+  "home.legs.title": "Votre progression",
+  "home.legs.subtitle":
+    "Un équilibre se complète quand vos DEUX jambes atteignent votre palier. C’est la jambe la plus faible qui décide.",
+
+  "home.actions": "Actions rapides",
+  "home.action.sponsor": "Parrainer",
+  "home.action.shop": "Boutique",
+  "home.action.tree": "Mon arbre",
+  "home.action.ecards": "Mes e-cards",
+
+  "home.network.title": "Votre réseau",
+  "home.network.all": "Voir mon arbre",
+  "home.network.downlines": "Membres",
+  "home.network.activated": "Activés",
+  "home.network.referrals": "Filleuls directs",
+
+  "home.milestones.balances": "Équilibres",
+  "home.milestones.rewardPoints": "Points Fidélité",
+
+  "home.recent.title": "Ils viennent de vous rejoindre",
+  "home.recent.all": "Tout voir",
+  "home.recent.empty":
+    "Personne n’a encore rejoint votre réseau. Partagez votre code pour commencer.",
 } as const
 
 export type Dictionary = typeof fr

@@ -12,7 +12,10 @@ import { LEDGER_KEYS, ME_KEYS, RENEWALS_KEYS } from "./keys"
  * autre affilié — ce n'est pas une précaution d'écriture, c'est la forme même du contrat.
  */
 export type MemberProfile = components["schemas"]["MemberProfileDto"]
-export type MemberDashboard = components["schemas"]["MemberDashboardDto"]
+/** ACCUEIL — espace réseau. Ce type ne contient AUCUN champ monétaire (D-053). */
+export type MemberNetwork = components["schemas"]["MemberNetworkDto"]
+/** PORTEFEUILLE — tout ce que D-053 a sorti de l'accueil, derrière la seconde auth (D-058). */
+export type MemberWallet = components["schemas"]["MemberWalletDto"]
 export type MemberPackSnapshot = components["schemas"]["MemberPackSnapshotDto"]
 export type MemberRenewalState = components["schemas"]["MemberRenewalStateDto"]
 export type LedgerEntry = components["schemas"]["LedgerEntryResponseDto"]
@@ -31,10 +34,25 @@ export function profileQueryOptions() {
   })
 }
 
-export function dashboardQueryOptions() {
+/**
+ * MON ACCUEIL — espace RÉSEAU (D-053). Le contrat ne porte AUCUN montant : ce n'est pas une
+ * consigne d'affichage, c'est le type qui l'empêche.
+ */
+export function networkQueryOptions() {
   return queryOptions({
-    queryKey: ME_KEYS.detail("dashboard"),
+    queryKey: ME_KEYS.detail("network"),
     queryFn: async () => unwrap(await apiClient.GET("/members/me/dashboard")),
+  })
+}
+
+/**
+ * MON PORTEFEUILLE — derrière la seconde authentification (D-058). Ouvrir un écran qui en
+ * dépend déclenche la boîte de dialogue : c'est le transport qui s'en charge, pas l'écran.
+ */
+export function walletQueryOptions() {
+  return queryOptions({
+    queryKey: ME_KEYS.detail("wallet"),
+    queryFn: async () => unwrap(await apiClient.GET("/members/me/wallet")),
   })
 }
 

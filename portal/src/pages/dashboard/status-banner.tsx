@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Notice } from "@/components/common/explain"
 import { formatDateTime } from "@/lib/format"
 import { useT } from "@/i18n/use-t"
-import type { MemberDashboard } from "@/api/queries/me"
+import type { MemberNetwork } from "@/api/queries/me"
 
 /** Fenêtre au-delà de laquelle une échéance de renouvellement n'a pas à être rappelée. */
 const SOON_DAYS = 30
@@ -24,9 +24,9 @@ const SOON_DAYS = 30
  * L'échéance PROCHE (moins de 30 jours) n'apparaît que si rien de plus grave ne s'affiche :
  * un membre déjà gelé n'a pas besoin qu'on lui rappelle une date, il a besoin de payer.
  */
-export function StatusBanner({ dashboard }: { dashboard: MemberDashboard }) {
+export function StatusBanner({ network }: { network: MemberNetwork }) {
   const t = useT()
-  const { status, renewal } = dashboard
+  const { status, renewal } = network
   // L'heure courante est lue UNE FOIS, à l'ouverture de l'écran, et non à chaque rendu :
   // une valeur qui change d'un rendu à l'autre rend le composant impur, et le bandeau
   // pourrait apparaître ou disparaître sur un simple re-rendu sans que rien n'ait changé.

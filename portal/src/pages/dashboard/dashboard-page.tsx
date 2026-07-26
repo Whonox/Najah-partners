@@ -1,285 +1,174 @@
+import type { ReactNode } from "react"
 import { Link } from "react-router"
 import { useQuery } from "@tanstack/react-query"
-import {
-  ArrowRight,
-  CalendarClock,
-  CreditCard,
-  Gift,
-  Network,
-  Share2,
-  Sparkles,
-  Trophy,
-  Wallet,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ArrowRight, Sparkles, Trophy } from "lucide-react"
+import { networkQueryOptions, profileQueryOptions } from "@/api/queries/me"
 import { DataState } from "@/components/common/data-state"
-import { Explain, Notice } from "@/components/common/explain"
-import { PageHeader } from "@/components/common/page-header"
-import { StatCard } from "@/components/common/stat-card"
-import { MoneyDt, PointsBv, RewardPoints } from "@/components/format/amount"
-import { dashboardQueryOptions } from "@/api/queries/me"
-import { useAuth } from "@/auth/use-auth"
-import { formatDateTime, formatDt } from "@/lib/format"
+import { Explain } from "@/components/common/explain"
+import { LegProgress } from "@/components/common/leg-progress"
+import { RewardPoints } from "@/components/format/amount"
 import { useT } from "@/i18n/use-t"
-import { LegsCard } from "./legs-card"
+import { MemberHeader } from "./member-header"
+import { QuickActions } from "./quick-actions"
+import { RecentActivity } from "./recent-activity"
 import { StatusBanner } from "./status-banner"
 
 /**
- * TABLEAU DE BORD (spec §7.1.1) — l'écran qui compte le plus.
+ * ACCUEIL DU PORTAIL — un ESPACE RÉSEAU, pas un tableau de bord (D-053).
  *
- * ORDRE DE LECTURE, décidé et non subi : ce que l'affilié vient voir d'abord (son SOLDE, ses
- * gains), puis ce qui l'explique (le dernier versement, ce qui arrive), puis son réseau, puis
- * les compteurs du moteur. Le solde est le seul chiffre en très grand : c'est la question
- * qu'on se pose en ouvrant l'application.
+ * ═══ AUCUNE INFORMATION MONÉTAIRE, ET CE N'EST PAS UNE CONSIGNE D'ÉCRAN ═══
+ * La route qui alimente cette page ne PORTE aucun montant : `MemberNetworkDto` ne déclare
+ * aucun champ `…Dt`, donc en afficher un depuis ici ne compilerait pas. Le solde, les gains
+ * et le dernier versement vivent dans « Mes gains » et « Mes e-cards », derrière la seconde
+ * authentification. Il n'y a donc rien à surveiller ici — l'invariant est porté par le contrat.
  *
- * PÉDAGOGIE : chaque chiffre du modèle MLM porte sa phrase. Un affilié n'est pas technicien ;
- * « carry-over » ou « événement inéligible » ne veulent rien dire pour lui. Les explications
- * dépliables (`Explain`) évitent d'écraser l'écran tout en laissant la réponse à un clic.
+ * ═══ LA PROGRESSION DES DEUX JAMBES EST LA PIÈCE CENTRALE ═══
+ * Elle occupe la place et la surface qui le disent : juste sous l'en-tête personnel, seule sur
+ * sa ligne, avec « il vous manque N points à droite » en évidence. Ce n'est pas une carte
+ * parmi d'autres, et c'est délibéré — c'est CE bloc qui rend le binaire compréhensible à
+ * quelqu'un qui ne connaît pas le modèle. Deux nombres bruts ne l'auraient pas fait.
  *
- * D-028 À L'ÉCRAN : les DINARS passent par `MoneyDt` (3 décimales, unité DT), les POINTS par
- * `PointsBv` (entiers, unité pts), les Points Fidélité par `RewardPoints` (3ᵉ unité). Aucun
- * chiffre de cet écran n'est rendu en texte brut — c'est ce qui rend la confusion impossible.
+ * ═══ CE QUI ÉLOIGNE CET ÉCRAN DU BACK-OFFICE ═══
+ * Pas de grille de cartes plates, pas de filets, pas de tableaux. Des surfaces posées sur le
+ * fond (`bg-card`, sans bordure), des rayons larges, des respirations généreuses, et une
+ * hiérarchie franche : la personne, ce qui demande une action, sa progression, ses raccourcis,
+ * son réseau. Le back-office est un outil de saisie ; ceci est un endroit où l'on vient voir
+ * où l'on en est.
  */
 export function DashboardPage() {
   const t = useT()
-  const { member } = useAuth()
-  const dashboard = useQuery(dashboardQueryOptions())
+  const profile = useQuery(profileQueryOptions())
+  const network = useQuery(networkQueryOptions())
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={t("dashboard.title", { name: member?.firstName ?? "" })}
-        description={t("dashboard.subtitle")}
-      />
+    <DataState
+      isLoading={profile.isPending || network.isPending}
+      error={profile.error ?? network.error}
+      onRetry={() => {
+        void profile.refetch()
+        void network.refetch()
+      }}
+      isEmpty={!profile.data || !network.data}
+    >
+      {profile.data && network.data && (
+        <div className="space-y-5">
+          <MemberHeader
+            profile={profile.data}
+            packName={network.data.packName ?? null}
+            status={network.data.status}
+          />
 
-      <DataState
-        isLoading={dashboard.isPending}
-        error={dashboard.error}
-        onRetry={() => void dashboard.refetch()}
-        rows={4}
-      >
-        {dashboard.data ? (
-          <div className="space-y-6">
-            <StatusBanner dashboard={dashboard.data} />
+          {/* Ce qui demande une ACTION passe avant tout le reste : un compte gelé ou une
+              échéance proche ne se découvre pas en bas de page. */}
+          <StatusBanner network={network.data} />
 
-            {/* ── L'argent ── */}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <StatCard
-                tone="highlight"
-                label={t("dashboard.balance")}
-                hint={t("dashboard.balanceHint")}
-                icon={<Wallet className="size-5" />}
-                value={<MoneyDt value={dashboard.data.balanceDt} />}
-                action={
-                  <Button size="sm" variant="outline" nativeButton={false} render={<Link to="/e-cards" />}>
-                    {t("ecards.create")}
-                    <ArrowRight />
-                  </Button>
-                }
-              />
-              <StatCard
-                tone="highlight"
-                label={t("dashboard.lifetimeEarned")}
-                hint={t("dashboard.lifetimeEarnedHint")}
-                icon={<Trophy className="size-5" />}
-                value={<MoneyDt value={dashboard.data.lifetimeEarnedDt} />}
-                action={
-                  <Button size="sm" variant="outline" nativeButton={false} render={<Link to="/gains" />}>
-                    {t("dashboard.seeCommissions")}
-                    <ArrowRight />
-                  </Button>
-                }
-              />
+          {/* ═══ LA PIÈCE CENTRALE ═══ */}
+          <section className="rounded-2xl bg-card p-5 sm:p-7">
+            <div className="mb-5">
+              <h2 className="text-lg font-semibold">{t("home.legs.title")}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{t("home.legs.subtitle")}</p>
             </div>
 
-            {/* ── Le versement : celui qui vient d'avoir lieu, celui qui arrive ── */}
-            <Card>
-              <CardHeader>
-                <CardTitle>{t("dashboard.lastRun")}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {dashboard.data.lastRun ? (
-                  <div className="space-y-3">
-                    <p className="text-sm text-muted-foreground">
-                      {t("commissions.week", {
-                        date: formatDateTime(dashboard.data.lastRun.periodEnd),
-                      })}
-                    </p>
-                    <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                      <Figure
-                        label={t("dashboard.lastRunGross")}
-                        value={<MoneyDt value={dashboard.data.lastRun.grossDt} />}
-                      />
-                      <Figure
-                        label={t("dashboard.lastRunPaid")}
-                        value={<MoneyDt value={dashboard.data.lastRun.paidDt} />}
-                        strong
-                      />
-                      <Figure
-                        label={t("dashboard.lastRunLost")}
-                        value={<MoneyDt value={dashboard.data.lastRun.lostDt} />}
-                      />
-                    </dl>
-                    {/* L'explication du plafond n'apparaît QUE si quelque chose a été perdu :
-                        l'afficher à vide apprendrait à l'affilié à ne plus la lire. */}
-                    {Number(dashboard.data.lastRun.lostDt) > 0 ? (
-                      <Explain titleKey="explain.cap.title" bodyKey="explain.cap.body" />
-                    ) : null}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    {t("dashboard.lastRunNone")}
-                  </p>
-                )}
+            <LegProgress
+              left={network.data.carriedLeftPoints}
+              right={network.data.carriedRightPoints}
+              tier={network.data.tierBv ?? null}
+              missing={network.data.pointsToNextBalance ?? null}
+              weakestLeg={network.data.weakestLeg ?? null}
+              lifetimeLeft={network.data.leftPoints}
+              lifetimeRight={network.data.rightPoints}
+            />
 
-                <div className="rounded-lg border bg-muted/30 p-3">
-                  <p className="text-sm font-medium">{t("dashboard.pending")}</p>
-                  <p className="mt-1 text-xl font-semibold">
-                    <MoneyDt value={dashboard.data.pendingGrossDt} />
-                  </p>
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                    {dashboard.data.pendingEventCount > 0
-                      ? t("dashboard.pendingHint", {
-                          count: dashboard.data.pendingEventCount,
-                        })
-                      : t("dashboard.pendingNone")}
-                  </p>
-                </div>
+            <div className="mt-5 space-y-1 border-t pt-4">
+              <Explain titleKey="explain.balance.title" bodyKey="explain.balance.body" />
+              <Explain titleKey="explain.carry.title" bodyKey="explain.carry.body" />
+            </div>
+          </section>
 
-                <p className="flex items-center gap-2 text-sm">
-                  <CalendarClock className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                  <span className="font-medium">{t("dashboard.nextRun")} :</span>
-                  <span>{formatDateTime(dashboard.data.nextRunAt)}</span>
-                </p>
-                <p className="text-xs text-muted-foreground">{t("dashboard.nextRunHint")}</p>
-              </CardContent>
-            </Card>
+          <QuickActions />
 
-            {/* ── L'arbre ── */}
-            <LegsCard dashboard={dashboard.data} />
+          {/* Le RÉSEAU en trois nombres, et rien de plus : des repères, pas un rapport. Le
+              détail vit dans « Mon réseau ». */}
+          <section className="rounded-2xl bg-card p-5 sm:p-6">
+            <div className="mb-4 flex items-baseline justify-between gap-3">
+              <h2 className="text-base font-semibold">{t("home.network.title")}</h2>
+              <Link
+                to="/reseau"
+                className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-sm text-link underline-offset-4 hover:underline"
+              >
+                {t("home.network.all")}
+                <ArrowRight className="size-3.5" aria-hidden />
+              </Link>
+            </div>
 
-            {/* ── Les compteurs du moteur ── */}
-            <div className="grid gap-3 sm:grid-cols-3">
-              <StatCard
-                label={t("dashboard.balancesCount")}
-                hint={t("dashboard.balancesCountHint")}
-                icon={<Sparkles className="size-4" />}
-                value={dashboard.data.lifetimeBalanceCount}
+            <dl className="grid grid-cols-3 gap-3 text-center">
+              <NetworkFigure
+                label={t("home.network.downlines")}
+                value={network.data.downlineCount}
               />
-              <StatCard
-                label={t("unit.rewardPoints")}
-                hint={t("dashboard.rewardPointsHint")}
-                icon={<Gift className="size-4" />}
-                value={<RewardPoints value={dashboard.data.rewardPoints} />}
+              <NetworkFigure
+                label={t("home.network.activated")}
+                value={network.data.activatedDownlineCount}
               />
-              <StatCard
-                label={t("dashboard.startupBonus")}
-                hint={t("explain.startup.body")}
-                icon={<Trophy className="size-4" />}
+              <NetworkFigure
+                label={t("home.network.referrals")}
+                value={network.data.referralCount}
+              />
+            </dl>
+
+            {/* Compteurs du moteur : des JALONS et des POINTS FIDÉLITÉ, jamais de l'argent —
+                ils ont donc toute leur place sur cet écran (D-053, D-032). */}
+            <div className="mt-4 flex flex-wrap gap-2 border-t pt-4">
+              {/* Un NOMBRE d'équilibres, pas des points : surtout pas `PointsBv`, qui
+                  collerait l'unité « pts » derrière « 155 » et ferait croire à 155 points.
+                  Les compteurs du moteur ne sont ni des points, ni des dinars (D-028). */}
+              <Milestone
+                icon={<Trophy className="size-4 text-primary" aria-hidden />}
+                label={t("home.milestones.balances")}
                 value={
-                  <span className="text-base font-medium">
-                    {t(
-                      dashboard.data.startupBonusUsed
-                        ? "dashboard.startupBonusUsed"
-                        : "dashboard.startupBonusPending",
-                    )}
-                  </span>
+                  <span className="tabular-nums">{network.data.lifetimeBalanceCount}</span>
                 }
               />
+              {network.data.rewardPoints > 0 && (
+                <Milestone
+                  icon={<Sparkles className="size-4 text-primary" aria-hidden />}
+                  label={t("home.milestones.rewardPoints")}
+                  value={<RewardPoints value={network.data.rewardPoints} />}
+                />
+              )}
             </div>
+          </section>
 
-            {/* ── Le réseau et les e-cards ── */}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <StatCard
-                label={t("dashboard.downlines")}
-                hint={`${dashboard.data.activatedDownlineCount} ${t("dashboard.activatedDownlines")}`}
-                icon={<Network className="size-4" />}
-                value={dashboard.data.downlineCount}
-                action={
-                  <Button size="sm" variant="outline" nativeButton={false} render={<Link to="/reseau" />}>
-                    {t("nav.network")}
-                    <ArrowRight />
-                  </Button>
-                }
-              />
-              <StatCard
-                label={t("dashboard.referrals")}
-                hint={t("explain.sponsorVsUpline.body")}
-                icon={<Share2 className="size-4" />}
-                value={dashboard.data.referralCount}
-                action={
-                  <Button size="sm" variant="outline" nativeButton={false} render={<Link to="/parrainer" />}>
-                    {t("nav.sponsor")}
-                    <ArrowRight />
-                  </Button>
-                }
-              />
-            </div>
+          <RecentActivity />
+        </div>
+      )}
+    </DataState>
+  )
+}
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <StatCard
-                label={t("dashboard.ecards")}
-                hint={t("dashboard.ecardsValue")}
-                icon={<CreditCard className="size-4" />}
-                value={
-                  <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                    <span>{dashboard.data.activeEcardCount}</span>
-                    <MoneyDt
-                      value={dashboard.data.activeEcardValueDt}
-                      className="text-base font-normal text-muted-foreground"
-                    />
-                  </span>
-                }
-              />
-              <StatCard
-                label={t("dashboard.pack")}
-                // Le plafond n'est affiché que s'il EXISTE en dinars : un snapshot
-                // d'activation antérieur à D-028 n'en porte pas, et écrire « 0,000 DT »
-                // annoncerait un plafond nul là où la donnée est simplement absente.
-                hint={
-                  dashboard.data.weeklyCapDt
-                    ? `${t("dashboard.weeklyCap")} : ${formatDt(dashboard.data.weeklyCapDt)} ${t("unit.dt")}`
-                    : undefined
-                }
-                value={
-                  <span className="text-base font-medium">
-                    {dashboard.data.packName ?? t("dashboard.noPack")}
-                  </span>
-                }
-                action={
-                  dashboard.data.tierBv !== null ? (
-                    <span className="text-sm text-muted-foreground">
-                      {t("activation.packTier")} :{" "}
-                      <PointsBv value={dashboard.data.tierBv} />
-                    </span>
-                  ) : undefined
-                }
-              />
-            </div>
-
-            {/* ── Le rappel qui prévient le plus de malentendus ── */}
-            <Notice title={t("explain.twoUnits.title")}>{t("explain.twoUnits.body")}</Notice>
-          </div>
-        ) : null}
-      </DataState>
+function NetworkFigure({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl bg-muted/60 px-2 py-4">
+      <dd className="text-2xl font-semibold tabular-nums">{value}</dd>
+      <dt className="mt-0.5 text-xs leading-tight text-muted-foreground">{label}</dt>
     </div>
   )
 }
 
-function Figure({
+function Milestone({
+  icon,
   label,
   value,
-  strong,
 }: {
+  icon: ReactNode
   label: string
-  value: React.ReactNode
-  strong?: boolean
+  value: ReactNode
 }) {
   return (
-    <div>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className={strong ? "text-lg font-semibold" : "font-medium"}>{value}</dd>
-    </div>
+    <span className="inline-flex items-center gap-2 rounded-full bg-muted/60 px-3 py-1.5 text-sm">
+      {icon}
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-semibold">{value}</span>
+    </span>
   )
 }

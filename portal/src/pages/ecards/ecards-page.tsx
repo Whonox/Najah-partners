@@ -26,7 +26,7 @@ import {
   useExtendEcard,
   type Ecard,
 } from "@/api/queries/ecards"
-import { dashboardQueryOptions } from "@/api/queries/me"
+import { walletQueryOptions } from "@/api/queries/me"
 import { formatDateTime } from "@/lib/format"
 import { useT } from "@/i18n/use-t"
 import { CreateEcardDialog } from "./create-ecard-dialog"
@@ -48,12 +48,12 @@ import { VerifyEcardDialog } from "./verify-ecard-dialog"
 export function EcardsPage() {
   const t = useT()
   const ecards = useQuery(myEcardsQueryOptions())
-  const dashboard = useQuery(dashboardQueryOptions())
+  const wallet = useQuery(walletQueryOptions())
   const [createOpen, setCreateOpen] = useState(false)
   const [verifyOpen, setVerifyOpen] = useState(false)
   const [extending, setExtending] = useState<Ecard | null>(null)
 
-  const balanceDt = dashboard.data?.balanceDt ?? "0.000"
+  const balanceDt = wallet.data?.balanceDt ?? "0.000"
 
   return (
     <div className="space-y-6">

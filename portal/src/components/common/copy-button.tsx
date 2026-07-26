@@ -17,11 +17,21 @@ export function CopyButton({
   value,
   label,
   successMessage,
+  iconOnly,
   className,
 }: {
   value: string
   label: string
   successMessage?: string
+  /**
+   * Rend l'icône SEULE, le libellé passant en nom accessible.
+   *
+   * Utile quand le bouton est collé à ce qu'il copie — dans une puce qui affiche déjà le code
+   * membre, « Copier » écrit en toutes lettres redit ce que l'icône dit, et double la largeur
+   * d'un élément qui doit tenir sur une ligne à 390 px. Le libellé n'est pas perdu pour
+   * autant : il devient `aria-label`, donc lu par un lecteur d'écran et affiché en infobulle.
+   */
+  iconOnly?: boolean
   className?: string
 }) {
   const t = useT()
@@ -36,6 +46,21 @@ export function CopyButton({
     } catch {
       toast.error(t("action.copyFailed"))
     }
+  }
+
+  if (iconOnly) {
+    return (
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={label}
+        title={label}
+        className={className}
+        onClick={() => void copy()}
+      >
+        {copied ? <Check /> : <Copy />}
+      </Button>
+    )
   }
 
   return (
