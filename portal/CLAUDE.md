@@ -52,6 +52,46 @@ ordinaire, et une assertion qui vise le mauvais des deux passe sans rien vérifi
 sans qu'on comprenne pourquoi. Les deux cas se sont produits en Tranche 9.5, et ESLint
 (`no-irregular-whitespace`) n'en attrape qu'une partie.
 
+## Ce que la Tranche 9.5 a établi (à lire avant de toucher un écran)
+
+### Le registre est porté par `Surface`, pas par des classes recopiées
+`components/common/surface.tsx` est le SEUL endroit où se décide à quoi ressemble un bloc.
+La règle du filet est une question d’**adjacence**, pas de goût (D-066) :
+
+- `panel` — bloc seul sur sa ligne : **pas** de filet. Le contraste `background`/`card` suffit,
+  et un filet ramènerait le registre « formulaire administratif » que cette tranche corrige.
+- `card` — bloc dans une grille ou une liste, collé à ses voisins : **filet**. Sans limite,
+  trois cartes côte à côte se lisent comme une seule zone.
+- `highlight` — la surface dorée, réservée aux chiffres qui portent l’identité (solde, gains,
+  code de parrainage). Rare par construction : tout mettre en avant n’avance rien.
+
+Le registre avait déjà divergé en deux phases (accueil sans filet, boutique avec) sans que
+personne le décide. Une apparence répétée à la main est une apparence qui dérive.
+
+### Ce qui est tenu par le SERVEUR, jamais par l’écran
+- **Parcours d’accueil** (D-050/D-057) : `OnboardingGuard`, défaut **FERMÉ**. Une route
+  nouvelle est protégée par omission.
+- **Seconde authentification** (D-051/D-058) : `StepUpGuard`, opt-in par `@RequireStepUp()`.
+  Le transport (`api/client.ts`) rejoue tout seul après le 403 — **aucun écran ne câble quoi
+  que ce soit**. Le compteur d’essais est COMMUN aux deux voies et vit côté serveur.
+- **Accueil sans argent** (D-053) : porté par le CONTRAT. `MemberNetworkDto` ne déclare aucun
+  champ `…Dt` — afficher un montant depuis cet écran ne compilerait pas. Ne pas « enrichir »
+  ce DTO : c’est lui, l’invariant.
+
+### Deux règles d’écran qui ne se devinent pas
+- **Aucune vérification d’e-card sur l’inscription** (D-052). `EcardCodesInput` est écrit MUET
+  exprès et porte l’avertissement en tête. Y ajouter un retour immédiat ferait de ce
+  formulaire public un oracle sur de la valeur au porteur. Les codes MEMBRES, eux, sont
+  vérifiés de façon **indistincte** (D-061) — un code membre est une adresse dans l’arbre, un
+  code d’e-card *est* de l’argent.
+- **La boutique fige son parcours au montage** (D-063). Le relire à chaque rendu faisait
+  disparaître la confirmation d’activation à la seconde où elle devait s’afficher.
+
+### Points et dinars, à l’écran
+`MoneyDt` (3 décimales, virgule française) et `PointsBv` (entier) ne se ressemblent jamais —
+c’est testé. Tout montant interpolé dans une phrase passe par `formatDt`, tout nombre de
+points par `formatPoints` : « il manque 130.000 DT » avec un point décimal se lit « cent
+trente mille » en français, juste sous un « 130,000 DT » correct.
 ## Direction visuelle
 
 Le portail affilié est un ESPACE PERSONNEL : l'affilié y vient consulter ses gains,

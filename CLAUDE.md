@@ -19,6 +19,8 @@ Web 100% responsive. Français au lancement, arabe/RTL en phase future. Pas d'ap
 - **Placement immuable.** Un membre est placé dans l'arbre dès l'inscription ; sa position ne change plus jamais.
 - **E-card usage unique.** Une e-card USED est définitive et irréversible.
 - **Baseline à l'activation.** Les commissions d'un membre ne portent que sur les points arrivés APRÈS son activation.
+- **Accès du portail tenu côté SERVEUR, jamais par l'écran** (D-050/D-051, tranchés en T9.5). Le parcours de première connexion est imposé par un garde à défaut **FERMÉ** (`OnboardingGuard`) : une route nouvelle est protégée par omission, pas par mémoire. La seconde authentification (`StepUpGuard`) couvre les mutations ET les lectures d'argent ; son compteur d'essais est **COMMUN** au PIN et aux questions secrètes, débité AVANT vérification, et ses refus sont **volontairement indistincts**. Masquer un bouton n'a jamais protégé une donnée.
+- **Un refus indistinct le reste sur TOUS les chemins qui portent la même information.** Le placement à l'inscription (D-061) en est le patron : sponsor inconnu, upline inconnu, upline hors réseau et position occupée rendent le même message, aussi bien à la pré-vérification qu'à la soumission — et par une seule implémentation partagée. La discrétion d'une route ne vaut rien si une autre répond à la même question.
 
 ## Architecture
 

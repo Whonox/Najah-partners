@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
+import { useLocation } from "react-router"
 import { KeyRound, MessageCircleQuestion, ShieldCheck } from "lucide-react"
 import { apiClient } from "@/api/client"
 import { unwrap } from "@/api/error"
@@ -42,6 +43,15 @@ import { PinInput } from "./pin-input"
  * ═══ ANNULER EST PERMIS ═══
  * Fermer la boîte résout la demande à `null` : la requête d'origine rend son refus et l'écran
  * l'affiche. Rien ne piège l'affilié dans un dialogue qu'il ne veut pas remplir.
+ *
+ * ═══ CHANGER D'ÉCRAN ANNULE LA DEMANDE ═══
+ * Le dialogue survivait à la navigation : on déclenchait la demande sur « Mes gains », on
+ * partait sans répondre, et l'on se retrouvait sur « Parrainer » — un écran qui ne touche à
+ * aucun argent — avec « Cette opération touche à votre argent, confirmez votre identité ».
+ * Deux raisons de fermer, et la seconde compte plus que la première : d'abord c'est
+ * incompréhensible, ensuite cela ENTRAÎNE à saisir son PIN sans savoir pour quoi. Une fenêtre
+ * qui réclame un secret doit toujours se rattacher à une intention visible et actuelle ; celle
+ * qui survit à un changement de contexte est le patron exact de l'hameçonnage.
  */
 
 type Method = "PIN" | "QUESTION"
@@ -68,6 +78,8 @@ export function StepUpProvider({ children }: { children: ReactNode }) {
   // La demande en cours est aussi gardée en ref : la fermeture peut survenir depuis un
   // gestionnaire qui ne voit pas le dernier état rendu.
   const pendingRef = useRef<PendingRequest | null>(null)
+
+  const { pathname } = useLocation()
 
   const reset = useCallback(() => {
     setPin("")
@@ -106,6 +118,24 @@ export function StepUpProvider({ children }: { children: ReactNode }) {
       pendingRef.current = null
     }
   }, [])
+
+  /**
+   * Un changement d'écran annule la demande en attente (voir l'en-tête).
+   *
+   * On résout à `null`, exactement comme un « Annuler » : la requête d'origine rend son refus
+   * et l'écran qu'on vient de quitter n'existe plus pour l'afficher — ce qui est correct, on
+   * est parti. Ce que l'on veut surtout, c'est qu'aucun secret ne soit réclamé hors du
+   * contexte qui le justifie.
+   *
+   * L'effet ne s'exécute pas au premier rendu : `pendingRef` est alors vide, et `settle` sur
+   * une demande inexistante ne fait rien.
+   */
+  useEffect(() => {
+    if (!pendingRef.current) return
+    settle(null)
+    // `settle` est stable (`useCallback` sans dépendance changeante) : c'est bien le
+    // changement de CHEMIN qui déclenche, pas une recréation de fonction.
+  }, [pathname, settle])
 
   /** Tire une question au hasard parmi les trois — le serveur choisit, pas nous (D-058). */
   const drawChallenge = useCallback(async () => {

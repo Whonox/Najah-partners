@@ -52,6 +52,25 @@ ordinaire, et une assertion qui vise le mauvais des deux passe sans rien vérifi
 sans qu'on comprenne pourquoi. Les deux cas se sont produits en Tranche 9.5, et ESLint
 (`no-irregular-whitespace`) n'en attrape qu'une partie.
 
+## Photos produit (Tranche 9.5 — D-054, D-059, D-062, D-065)
+
+`pages/products/product-images-dialog.tsx` — dépôt, ordre, retrait.
+
+- **On ne manipule que des POSITIONS.** Le contrat ne rend plus les chemins de stockage mais
+  `imageCount` : une photo se demande, se retire et se réordonne par son index. Il n’existe
+  aucun chemin de fichier à manipuler côté client — c’est ce qui rend impossible, et non
+  seulement improbable, de fabriquer une URL de travers.
+- **Le réordonnancement envoie une permutation d’ENTIERS** de 0…n-1. Le backend refuse tout
+  ce qui n’en est pas exactement une : une liste plus courte effacerait des images en
+  silence, un doublon en dupliquerait une et en perdrait une autre.
+- **Deux mécanismes de fraîcheur, et ils ne se remplacent pas.** Le serveur sert un ETag avec
+  revalidation (une URL qui désigne une position ne peut pas être `immutable` : le
+  réordonnancement change le contenu sans changer l’URL). Le compteur `revision` local, lui,
+  force le rafraîchissement de CET écran après une modification — sinon l’élément `<img>`
+  n’est pas remonté et le navigateur réaffiche l’image déjà décodée, sans même émettre la
+  requête conditionnelle.
+- Le contrôle de type qui compte lit les **OCTETS** du fichier, côté serveur. L’attribut
+  `accept` et la limite de taille ne sont que du confort.
 ## Direction visuelle
 
 Le back-office est un OUTIL DE TRAVAIL : dense, utilisé des heures, les données priment

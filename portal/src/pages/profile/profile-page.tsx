@@ -272,7 +272,11 @@ function PositionSection({ profile }: { profile: MemberProfile }) {
         {profile.pack ? (
           <div className="rounded-xl bg-muted/50 p-3">
             <p className="font-medium">{profile.pack.packName}</p>
-            <dl className="mt-2 grid grid-cols-2 gap-3 text-sm">
+            {/* UNE colonne au téléphone. Sur deux, « 10 000,000 DT » (le plafond hebdomadaire
+                d'un pack Diamond) et son libellé ne tiennent pas dans 170 px : la ligne déborde
+                et fait défiler la PAGE ENTIÈRE horizontalement. Un montant en dinars ne se
+                tronque pas et ne se réduit pas — c'est donc la grille qui doit céder. */}
+            <dl className="mt-2 grid gap-3 text-sm sm:grid-cols-2">
               <Pair
                 label={t("activation.packTier")}
                 value={<PointsBv value={profile.pack.tierBv} />}

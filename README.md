@@ -42,6 +42,11 @@ génération du client depuis `backend/openapi.json` fonctionne. Sans le flag, `
 | `backend/` | `npm run test:int` | Intégration (vrai PostgreSQL sur le port 5433) |
 | `portal/` · `admin/` | `npm test` | Vitest — **fonctions pures uniquement** |
 
+> **`npm run test:int` efface la base de développement.** Les tests d'intégration lisent le
+> `DATABASE_URL` de `backend/.env` — la même base que celle où vous travaillez — et le test
+> du seed la `TRUNCATE` avant de réamorcer les 500 comptes. Toute donnée locale préparée à la
+> main disparaît. Lancez-le AVANT de constituer un jeu de données, jamais après.
+
 Le périmètre des fronts est volontairement étroit : on y teste ce qui se trompe **en silence**
 (arithmétique en millimes, formatage des deux unités, composition de panier, mise en page de
 l'arbre, échappement CSV). La logique métier vit dans `backend/`, les parcours se vérifient au

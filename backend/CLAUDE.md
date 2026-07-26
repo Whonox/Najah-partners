@@ -22,4 +22,14 @@ Cœur métier de Najah Partners. Voir la spec racine (`../docs/spec.md`) et `../
 - **Solde (DT)** : passer par `LedgerService.recordMovementInTx`. Ne jamais écrire `Member.balanceDt` directement. Manipuler l'argent en `Decimal` via `src/common/money.ts` (jamais en `number`/flottant) ; relire un montant SQL en `::text`.
 - **Snapshot** : l'activation fige les paramètres du pack (`activationTierBv`, `activationSnapshot`). Le moteur de commissions lit ces colonnes, jamais `Pack` en direct.
 - **Raw SQL** : `nextval`/`setval`/`count(*)` renvoient un `bigint` → `BigInt` côté Node, qui casse la sérialisation JSON bien plus loin. Caster en `::int` ou formater en SQL.
+- **`npm run test:int` DÉTRUIT la base de développement.** `test/setup-int.ts` charge le
+  `DATABASE_URL` de `backend/.env` : les tests d'intégration tournent donc sur la MÊME base
+  que le développement, et `seed.int-spec.ts` la `TRUNCATE` en entier avant de réamorcer les
+  500 comptes. Le truncate est délibéré et justifié (un seed ne s'observe que sur une base
+  vierge) ; ce qui ne l'est pas, c'est qu'il vise la base de travail. Conséquence pratique :
+  toute donnée locale — activations de test, e-cards créées à la main, PIN modifié, photos
+  déposées — disparaît à chaque lancement, sans avertissement. Constaté en Tranche 9.5 : un
+  PIN changé pendant la QA était revenu à sa valeur de seed après un `test:int`. Ne rien
+  bâtir manuellement qu'on ne saurait refaire, ou lancer `test:int` AVANT de préparer un jeu
+  de données. **À trancher** : base dédiée `najah_partners_test` (voir `docs/decisions.md`).
 - **Tests** : `npm test` = unitaire (Prisma mocké, sans base) ; `npm run test:int` = intégration (vrai Postgres sur le port 5433, fichiers `*.int-spec.ts`).
