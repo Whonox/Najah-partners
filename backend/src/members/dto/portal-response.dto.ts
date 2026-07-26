@@ -255,8 +255,155 @@ export class MemberLastRunDto {
  * lu tel qu'il a été écrit par une activation, un run ou un paiement. Le portail affiche et
  * déclenche ; le backend décide.
  */
-export class MemberDashboardDto {
-  // ── L'argent (DINARS) ──
+/**
+ * ═══ ACCUEIL — ESPACE RÉSEAU, SANS UN SEUL DINAR (D-053) ═══
+ *
+ * Ce DTO portait, jusqu'en Tranche 9.5, le solde, les gains cumulés, le dernier versement et
+ * la valeur des e-cards actives. La cliente a tranché : la page d'accueil du portail ne montre
+ * AUCUNE information monétaire. L'argent vit dans « Mes gains » et « Mes e-cards ».
+ *
+ * L'invariant est porté par le CONTRAT, pas par une consigne d'écran : aucun champ `…Dt` n'est
+ * déclaré ici, donc aucun écran ne PEUT en afficher un depuis cette route — l'écrire ne
+ * compilerait pas. Un simple « ne l'affichez pas » se serait perdu à la première évolution.
+ *
+ * Conséquence heureuse : cette route ne transportant plus d'argent, elle n'a plus besoin de la
+ * seconde authentification (D-058) — l'accueil s'ouvre sans redemander de PIN, ce qui serait
+ * insupportable sur l'écran que l'affilié ouvre le plus souvent.
+ *
+ * Les POINTS, eux, sont chez eux ici : ils ne sont pas de l'argent (D-028) et ils sont
+ * exactement ce que l'accueil doit raconter.
+ */
+export class MemberNetworkDto {
+  // ── Les deux jambes, en POINTS ──
+  @ApiProperty({
+    example: 4000,
+    description:
+      'POINTS — cumul À VIE reçu par la jambe gauche, quel que soit mon état (D-020). Ne descend JAMAIS : ce n’est pas ce qui reste à apparier.',
+  })
+  leftPoints!: number;
+
+  @ApiProperty({ example: 2500, description: 'POINTS — idem, jambe droite.' })
+  rightPoints!: number;
+
+  @ApiProperty({
+    example: 1000,
+    description:
+      'POINTS — réserve APPARIABLE de gauche (carry-over courant) : ce qui reste après les équilibres déjà réglés. C’est CELUI-CI qui dit la distance au prochain équilibre. Jamais perdu, sans échéance (D-033).',
+  })
+  carriedLeftPoints!: number;
+
+  @ApiProperty({
+    example: 500,
+    description: 'POINTS — idem, réserve appariable de droite.',
+  })
+  carriedRightPoints!: number;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    example: 1000,
+    description:
+      'POINTS — mon palier, figé à l’activation. `null` tant que je n’ai pas activé : il n’y a alors pas de « prochain équilibre » à viser.',
+  })
+  tierBv!: number | null;
+
+  // ═══ LA DISTANCE AU PROCHAIN ÉQUILIBRE EST CALCULÉE ICI, PAS À L'ÉCRAN ═══
+  // D-053 demande que l'accueil dise « il vous manque 400 points à droite » — c'est ce qui
+  // rend le binaire compréhensible, bien plus que deux nombres bruts. Mais le calcul EST une
+  // règle du moteur : un équilibre se complète sur le MINIMUM des deux réserves appariables
+  // (D-035, `floor(min(poolG, poolD) / palier)`), jamais sur leur somme ni leur moyenne. Le
+  // déduire côté portail dupliquerait la règle — et la copie mentirait le jour où le moteur
+  // changerait, sans que rien ne le signale.
+
+  @ApiPropertyOptional({
+    nullable: true,
+    example: 400,
+    description:
+      'POINTS manquants sur la jambe la plus faible pour compléter le PROCHAIN équilibre : ' +
+      '`palier − min(réserve gauche, réserve droite)`. `0` quand l’équilibre est déjà acquis ' +
+      'et sera constaté à la prochaine activation ; `null` tant que le membre n’a pas activé.',
+  })
+  pointsToNextBalance!: number | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    enum: Leg,
+    description:
+      'La jambe où ces points manquent — c’est ELLE qui dit de quel côté placer le prochain ' +
+      'filleul. Sans cette précision, « il vous manque 400 points » serait inexploitable. ' +
+      '`null` si le membre n’a pas activé ou si l’équilibre est déjà acquis.',
+  })
+  weakestLeg!: Leg | null;
+
+  // ── Le moteur, côté compteurs (aucun montant) ──
+  @ApiProperty({
+    description:
+      'Nombre d’équilibres À VIE, jamais remis à zéro (bonus de démarrage compris — D-032).',
+  })
+  lifetimeBalanceCount!: number;
+
+  @ApiProperty({
+    description:
+      'Points Fidélité — TROISIÈME unité (ni points BV, ni dinars) : 1 par équilibre dont l’index à vie est un multiple de 6 (D-032). Leur présence ici ne contredit pas D-053 : ce n’est pas de l’argent.',
+  })
+  rewardPoints!: number;
+
+  @ApiProperty({
+    description:
+      'Bonus de démarrage déjà consommé — une seule fois à vie (D-031).',
+  })
+  startupBonusUsed!: boolean;
+
+  // ── Le réseau ──
+  @ApiProperty({
+    description: 'Membres dans mon sous-arbre, tous états confondus.',
+  })
+  downlineCount!: number;
+
+  @ApiProperty({
+    description:
+      'Parmi eux, ceux qui ont ACTIVÉ (seuls ceux-là ont injecté des points).',
+  })
+  activatedDownlineCount!: number;
+
+  @ApiProperty({
+    description: 'Filleuls que j’ai PARRAINÉS (sponsoring ≠ placement).',
+  })
+  referralCount!: number;
+
+  @ApiProperty({
+    description: 'Mes e-cards encore ACTIVE — un COMPTE, pas une valeur.',
+  })
+  activeEcardCount!: number;
+
+  // ── Mon état ──
+  @ApiProperty({ enum: MemberStatus }) status!: MemberStatus;
+  @ApiPropertyOptional({ nullable: true, example: 'Silver' }) packName!:
+    string | null;
+
+  @ApiProperty({
+    type: MemberRenewalStateDto,
+    description:
+      'Échéance et état du renouvellement. Le MONTANT dû y figure — c’est un TARIF public (D-038), pas une information sur mon argent : il ne dit rien de ce que je possède.',
+  })
+  renewal!: MemberRenewalStateDto;
+
+  @ApiProperty({
+    description:
+      'Prochaine clôture hebdomadaire (D-009), calculée depuis la MÊME expression cron que le déclencheur : deux calendriers feraient deux vérités.',
+  })
+  nextRunAt!: Date;
+}
+
+/**
+ * ═══ MON PORTEFEUILLE — TOUT CE QUE D-053 A SORTI DE L'ACCUEIL ═══
+ *
+ * Derrière la SECONDE AUTHENTIFICATION (D-051/D-058), comme les autres lectures d'argent
+ * (`/ecards/mine`, `/commissions/mine`, `/members/me/ledger`). Séparer le réseau de l'argent
+ * n'était pas qu'une affaire d'écran : tant que les deux voyageaient ensemble, il fallait
+ * ouvrir l'accueil au public de la seconde auth ou laisser passer du solde sans elle. Aucune
+ * des deux options n'était acceptable.
+ */
+export class MemberWalletDto {
   @ApiProperty({
     example: '1250.500',
     description: 'DINARS — mon solde courant.',
@@ -276,108 +423,35 @@ export class MemberDashboardDto {
   @ApiProperty({
     example: '500.000',
     description:
-      'DINARS — dû BRUT en attente du prochain run (événements éligibles pas encore réclamés). Le plafond ne s’applique qu’au run : ce montant n’est donc pas une promesse de versement.',
+      'DINARS — dû BRUT en attente du prochain run, ÉLIGIBLE uniquement : un événement né chez un gelé est tracé mais ne sera jamais payé (D-034), l’annoncer serait une promesse fausse. Le plafond hebdomadaire (D-033) n’est PAS appliqué ici — c’est un brut, pas une prévision de versement.',
   })
   pendingGrossDt!: string;
 
   @ApiProperty({
-    description:
-      'Nombre d’événements de commission en attente du prochain run.',
+    description: 'Nombre d’événements en attente du prochain run.',
   })
   pendingEventCount!: number;
 
   @ApiProperty({
-    description: 'Clôture du PROCHAIN run (vendredi 23:59, Tunis — D-009).',
-  })
-  nextRunAt!: Date;
-
-  // ── L'arbre (POINTS) ──
-  @ApiProperty({
-    example: 3000,
-    description: 'POINTS — cumul À VIE reçu sur ma jambe GAUCHE.',
-  })
-  leftPoints!: number;
-  @ApiProperty({
-    example: 2000,
-    description: 'POINTS — cumul À VIE reçu sur ma jambe DROITE.',
-  })
-  rightPoints!: number;
-
-  @ApiProperty({
-    example: 1000,
-    description:
-      'POINTS — carry-over GAUCHE : points pas encore appariés, en réserve SANS ÉCHÉANCE. Jamais perdus (à ne pas confondre avec l’argent au-delà du plafond, lui perdu).',
-  })
-  carriedLeftPoints!: number;
-  @ApiProperty({
-    example: 0,
-    description: 'POINTS — carry-over DROIT, même règle.',
-  })
-  carriedRightPoints!: number;
-
-  @ApiPropertyOptional({
-    nullable: true,
-    example: 1000,
-    description:
-      'POINTS — mon palier, FIGÉ à l’activation. C’est lui qui définit combien de points font un équilibre. `null` tant que je n’ai pas activé.',
-  })
-  tierBv!: number | null;
-
-  // ── Le moteur ──
-  @ApiProperty({
-    description:
-      'Nombre d’équilibres À VIE, jamais remis à zéro (bonus de démarrage compris — D-032).',
-  })
-  lifetimeBalanceCount!: number;
-
-  @ApiProperty({
-    description:
-      'Points Fidélité — TROISIÈME unité (ni points BV, ni dinars) : 1 par équilibre dont l’index à vie est un multiple de 6 (D-032).',
-  })
-  rewardPoints!: number;
-
-  @ApiProperty({
-    description:
-      'Bonus de démarrage déjà consommé — une seule fois à vie (D-031).',
-  })
-  startupBonusUsed!: boolean;
-
-  // ── Le réseau ──
-  @ApiProperty({
-    description: 'Membres dans mon sous-arbre, tous états confondus.',
-  })
-  downlineCount!: number;
-  @ApiProperty({
-    description:
-      'Parmi eux, ceux qui ont ACTIVÉ (seuls ceux-là ont injecté des points).',
-  })
-  activatedDownlineCount!: number;
-  @ApiProperty({
-    description: 'Filleuls que j’ai PARRAINÉS (sponsoring ≠ placement).',
-  })
-  referralCount!: number;
-
-  // ── Mes e-cards ──
-  @ApiProperty({ description: 'Mes e-cards encore ACTIVE.' })
-  activeEcardCount!: number;
-  @ApiProperty({
     example: '450.000',
     description:
-      'DINARS — valeur totale de mes e-cards actives (argent sorti de mon solde).',
+      'DINARS — valeur totale de mes e-cards actives. Cet argent est SORTI de mon solde à l’émission (D-025) : il ne s’additionne pas au solde, il en est déjà déduit.',
   })
   activeEcardValueDt!: string;
 
-  // ── Mon état ──
-  @ApiProperty({ enum: MemberStatus }) status!: MemberStatus;
-  @ApiPropertyOptional({ nullable: true, example: 'Silver' }) packName!:
-    string | null;
-  @ApiProperty({ type: MemberRenewalStateDto }) renewal!: MemberRenewalStateDto;
+  @ApiProperty({ description: 'Mes e-cards encore ACTIVE.' })
+  activeEcardCount!: number;
+
   @ApiPropertyOptional({
     nullable: true,
     example: '10000.000',
-    description: 'DINARS — mon plafond hebdomadaire, figé à l’activation.',
+    description:
+      'DINARS — mon plafond HEBDOMADAIRE, figé à l’activation. Au-delà, l’argent de la semaine est PERDU, jamais reporté (D-033).',
   })
   weeklyCapDt!: string | null;
+
+  @ApiProperty({ description: 'Prochaine clôture hebdomadaire (D-009).' })
+  nextRunAt!: Date;
 }
 
 /**

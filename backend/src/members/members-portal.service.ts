@@ -23,7 +23,8 @@ import { DownlinesQueryDto } from './dto/portal-query.dto';
 import {
   DownlinePageDto,
   DownlineRowDto,
-  MemberDashboardDto,
+  MemberNetworkDto,
+  MemberWalletDto,
   MemberProfileDto,
   MemberRenewalStateDto,
 } from './dto/portal-response.dto';
@@ -185,10 +186,17 @@ export class MembersPortalService {
 
   // ─────────────────────────── Tableau de bord (§7.1.1) ───────────────────────────
 
-  async dashboard(
+  /**
+   * ACCUEIL — espace RÉSEAU (§7.1.1, D-053). Aucun montant : voir `MemberNetworkDto`.
+   *
+   * Les requêtes d'argent (solde, commissions perçues, e-cards en valeur) ne sont même pas
+   * ÉMISES ici. Les laisser tourner pour ne rien rendre aurait coûté quatre agrégats à chaque
+   * ouverture de l'écran le plus consulté du portail.
+   */
+  async network(
     memberId: number,
     now: Date = new Date(),
-  ): Promise<MemberDashboardDto> {
+  ): Promise<MemberNetworkDto> {
     const member = await this.prisma.member.findUnique({
       where: { id: memberId },
       include: { pack: { select: { name: true } } },
@@ -197,33 +205,134 @@ export class MembersPortalService {
       throw new NotFoundException('Membre introuvable.');
     }
 
-    const [subtree, referralCount, ecards, earned, lastCommission, pending] =
-      await Promise.all([
-        this.countSubtree(memberId),
-        this.prisma.member.count({ where: { sponsorId: memberId } }),
-        this.prisma.ecard.aggregate({
-          where: { creatorId: memberId, status: EcardStatus.ACTIVE },
-          _count: { _all: true },
-          _sum: { valueDt: true },
-        }),
-        this.prisma.commission.aggregate({
-          where: { memberId },
-          _sum: { paidDt: true },
-        }),
-        this.prisma.commission.findFirst({
-          where: { memberId },
-          orderBy: { runId: 'desc' },
-          include: { run: { select: { periodEnd: true } } },
-        }),
-        // Ce que le PROCHAIN run examinera : les événements non encore réclamés (`runId IS
-        // NULL`). Seuls les ÉLIGIBLES sont comptés — un événement né chez un gelé est tracé
-        // mais ne sera jamais payé (D-034), l'annoncer serait une promesse fausse.
-        this.prisma.commissionEvent.aggregate({
-          where: { memberId, runId: null, eligible: true },
-          _count: { _all: true },
-          _sum: { amountDt: true },
-        }),
-      ]);
+    const [subtree, referralCount, activeEcardCount] = await Promise.all([
+      this.countSubtree(memberId),
+      this.prisma.member.count({ where: { sponsorId: memberId } }),
+      // Un COMPTE, pas une somme : « vous avez 3 e-cards actives » ne dit rien de leur valeur
+      // et reste donc du côté réseau de la frontière posée par D-053.
+      this.prisma.ecard.count({
+        where: { creatorId: memberId, status: EcardStatus.ACTIVE },
+      }),
+    ]);
+
+    const snapshot = this.readSnapshot(
+      member.activationSnapshot,
+      member.activationTierBv,
+    );
+
+    return {
+      leftPoints: member.leftPoints,
+      rightPoints: member.rightPoints,
+      carriedLeftPoints: member.carriedLeftPoints,
+      carriedRightPoints: member.carriedRightPoints,
+      tierBv: member.activationTierBv,
+      ...this.nextBalanceGap(
+        member.activationTierBv,
+        member.carriedLeftPoints,
+        member.carriedRightPoints,
+      ),
+
+      lifetimeBalanceCount: member.lifetimeBalanceCount,
+      rewardPoints: member.rewardPoints,
+      startupBonusUsed: member.startupBonusUsed,
+
+      downlineCount: subtree.total,
+      activatedDownlineCount: subtree.activated,
+      referralCount,
+      activeEcardCount,
+
+      status: member.status,
+      packName: member.pack?.name ?? snapshot?.packName ?? null,
+      renewal: await this.renewalState(memberId, member.renewalAt),
+      // Calculée depuis la MÊME expression cron que le déclencheur : deux calendriers feraient
+      // deux vérités, et l'écran finirait par annoncer un run qui n'a pas lieu.
+      nextRunAt: nextClosingAt(now),
+    };
+  }
+
+  /**
+   * Combien de POINTS manquent, et de quel côté, pour compléter le prochain équilibre.
+   *
+   * ═══ POURQUOI CE CALCUL EST ICI ET NON À L'ÉCRAN ═══
+   * C'est une règle du moteur : un équilibre se complète sur le MINIMUM des deux réserves
+   * APPARIABLES (D-035), jamais sur le cumul à vie, jamais sur leur somme. Trois occasions de
+   * se tromper, et une copie côté portail mentirait le jour où le moteur changerait — sans que
+   * rien ne le signale, puisque personne ne relit un affichage.
+   *
+   * On lit les réserves (`carried…`), pas les cumuls à vie : ces derniers ne descendent jamais
+   * et diraient qu'on approche d'un palier déjà franchi dix fois.
+   *
+   * `0` n'est pas `null` : zéro signifie « l'équilibre est acquis, il sera constaté à la
+   * prochaine activation » (D-035 : les équilibres naissent au fil de l'eau, pas au repos),
+   * tandis que `null` signifie « ce membre n'a pas activé, la question ne se pose pas ».
+   */
+  private nextBalanceGap(
+    tierBv: number | null,
+    carriedLeft: number,
+    carriedRight: number,
+  ): { pointsToNextBalance: number | null; weakestLeg: Leg | null } {
+    if (tierBv === null || tierBv <= 0) {
+      return { pointsToNextBalance: null, weakestLeg: null };
+    }
+
+    const weakest = Math.min(carriedLeft, carriedRight);
+    const missing = Math.max(0, tierBv - weakest);
+    if (missing === 0) {
+      return { pointsToNextBalance: 0, weakestLeg: null };
+    }
+
+    // À égalité, on désigne la GAUCHE. Le choix est arbitraire mais il doit être STABLE :
+    // une jambe qui change d'un rafraîchissement à l'autre ferait douter du conseil donné.
+    return {
+      pointsToNextBalance: missing,
+      weakestLeg: carriedLeft <= carriedRight ? Leg.LEFT : Leg.RIGHT,
+    };
+  }
+
+  /**
+   * MON PORTEFEUILLE — tout ce que D-053 a sorti de l'accueil. Derrière la seconde
+   * authentification (D-058), comme les autres lectures d'argent.
+   */
+  async wallet(
+    memberId: number,
+    now: Date = new Date(),
+  ): Promise<MemberWalletDto> {
+    const member = await this.prisma.member.findUnique({
+      where: { id: memberId },
+      select: {
+        balanceDt: true,
+        activationSnapshot: true,
+        activationTierBv: true,
+      },
+    });
+    if (!member) {
+      throw new NotFoundException('Membre introuvable.');
+    }
+
+    const [ecards, earned, lastCommission, pending] = await Promise.all([
+      this.prisma.ecard.aggregate({
+        where: { creatorId: memberId, status: EcardStatus.ACTIVE },
+        _count: { _all: true },
+        _sum: { valueDt: true },
+      }),
+      this.prisma.commission.aggregate({
+        where: { memberId },
+        _sum: { paidDt: true },
+      }),
+      this.prisma.commission.findFirst({
+        where: { memberId },
+        orderBy: { runId: 'desc' },
+        include: { run: { select: { periodEnd: true } } },
+      }),
+      // Ce que le PROCHAIN run examinera : les événements non encore réclamés (`runId IS
+      // NULL`). Seuls les ÉLIGIBLES sont comptés — un événement né chez un gelé est tracé
+      // mais ne sera jamais payé (D-034), l'annoncer serait une promesse fausse.
+      this.prisma.commissionEvent.aggregate({
+        where: { memberId, runId: null, eligible: true },
+        _count: { _all: true },
+        _sum: { amountDt: true },
+      }),
+    ]);
 
     const snapshot = this.readSnapshot(
       member.activationSnapshot,
@@ -249,31 +358,10 @@ export class MembersPortalService {
         : null,
       pendingGrossDt: moneyToApi(this.sum(pending._sum.amountDt)),
       pendingEventCount: pending._count._all,
-      // Calculée depuis la MÊME expression cron que le déclencheur : deux calendriers feraient
-      // deux vérités, et l'écran finirait par annoncer un run qui n'a pas lieu.
-      nextRunAt: nextClosingAt(now),
-
-      leftPoints: member.leftPoints,
-      rightPoints: member.rightPoints,
-      carriedLeftPoints: member.carriedLeftPoints,
-      carriedRightPoints: member.carriedRightPoints,
-      tierBv: member.activationTierBv,
-
-      lifetimeBalanceCount: member.lifetimeBalanceCount,
-      rewardPoints: member.rewardPoints,
-      startupBonusUsed: member.startupBonusUsed,
-
-      downlineCount: subtree.total,
-      activatedDownlineCount: subtree.activated,
-      referralCount,
-
       activeEcardCount: ecards._count._all,
       activeEcardValueDt: moneyToApi(this.sum(ecards._sum.valueDt)),
-
-      status: member.status,
-      packName: member.pack?.name ?? snapshot?.packName ?? null,
-      renewal: await this.renewalState(memberId, member.renewalAt),
       weeklyCapDt: snapshot?.weeklyCapDt ?? null,
+      nextRunAt: nextClosingAt(now),
     };
   }
 
@@ -331,7 +419,15 @@ export class MembersPortalService {
              OR d."rootLeg"::text = ${query.leg ?? null}::text)
         AND (${query.directReferralsOnly ?? false}::boolean IS NOT TRUE
              OR m."sponsorId" = ${memberId})
-      ORDER BY d.depth ASC, m."id" ASC
+      -- Deux tris, un seul chemin de code. newestFirst sert l'« activité récente » de
+      -- l'accueil (D-053) ; le défaut reste le parcours d'arbre, qui est ce qu'on attend
+      -- d'une LISTE de downlines. Le tri est porté par un CASE plutôt que par deux requêtes :
+      -- dupliquer cette CTE, ses cinq filtres et son comptage fenêtré pour un ORDER BY
+      -- différent serait la garantie qu'un filtre finisse par ne vivre que dans l'une des deux.
+      -- (Aucun accent grave dans ce commentaire : il fermerait le littéral gabarit.)
+      ORDER BY
+        CASE WHEN ${query.newestFirst ?? false}::boolean THEN 0 ELSE d.depth END ASC,
+        CASE WHEN ${query.newestFirst ?? false}::boolean THEN -m."id" ELSE m."id" END ASC
       LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
     `;
 

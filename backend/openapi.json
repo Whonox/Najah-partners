@@ -1331,7 +1331,7 @@
     },
     "/members/me/dashboard": {
       "get": {
-        "description": "Aucun calcul de règle : chaque chiffre est lu tel qu’une activation, un run ou un paiement l’a écrit. Rappel des DEUX débordements, qu’il ne faut jamais confondre — les POINTS non appariés restent en réserve sans échéance, l’ARGENT au-delà du plafond hebdomadaire est PERDU (D-033).",
+        "description": "D-053 : la page d’accueil du portail ne montre aucune information monétaire. L’invariant est porté par le CONTRAT — `MemberNetworkDto` ne déclare aucun champ `…Dt`, donc aucun écran ne PEUT en afficher un depuis ici. L’argent vit sur `/members/me/wallet`, derrière la seconde authentification. Aucun calcul de règle : chaque chiffre est lu tel qu’une activation l’a écrit.",
         "operationId": "MembersPortalController_dashboard",
         "parameters": [],
         "responses": {
@@ -1340,13 +1340,36 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MemberDashboardDto"
+                  "$ref": "#/components/schemas/MemberNetworkDto"
                 }
               }
             }
           }
         },
-        "summary": "Mon tableau de bord (spec §7.1.1) : solde, jambes, carry-over, gains, réseau, e-cards.",
+        "summary": "Mon accueil (spec §7.1.1) : jambes en POINTS, carry-over, réseau, état — AUCUN montant.",
+        "tags": [
+          "portal"
+        ]
+      }
+    },
+    "/members/me/wallet": {
+      "get": {
+        "description": "Rappel des DEUX débordements, qu’il ne faut jamais confondre — les POINTS non appariés restent en réserve sans échéance, l’ARGENT au-delà du plafond hebdomadaire est PERDU (D-033). La valeur des e-cards actives est déjà SORTIE du solde (D-025) : elle ne s’y ajoute pas.",
+        "operationId": "MembersPortalController_wallet",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberWalletDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Mon portefeuille : solde, gains cumulés, dernier versement, dû en attente.",
         "tags": [
           "portal"
         ]
@@ -1419,6 +1442,15 @@
             "required": false,
             "in": "query",
             "description": "Ne garder que mes filleuls directs (parrainage), quelle que soit leur position.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "newestFirst",
+            "required": false,
+            "in": "query",
+            "description": "Trier par ARRIVÉE dans le réseau (le plus récent d’abord) au lieu de l’ordre de parcours de l’arbre. Sert l’« activité récente » de l’accueil (D-053) : « qui vient de me rejoindre » ne se lit pas dans un tri par profondeur, où les derniers inscrits se retrouvent en dernière page.",
             "schema": {
               "type": "boolean"
             }
@@ -5826,6 +5858,122 @@
           "newPassword"
         ]
       },
+      "MemberNetworkDto": {
+        "type": "object",
+        "properties": {
+          "leftPoints": {
+            "type": "number",
+            "example": 4000,
+            "description": "POINTS — cumul À VIE reçu par la jambe gauche, quel que soit mon état (D-020). Ne descend JAMAIS : ce n’est pas ce qui reste à apparier."
+          },
+          "rightPoints": {
+            "type": "number",
+            "example": 2500,
+            "description": "POINTS — idem, jambe droite."
+          },
+          "carriedLeftPoints": {
+            "type": "number",
+            "example": 1000,
+            "description": "POINTS — réserve APPARIABLE de gauche (carry-over courant) : ce qui reste après les équilibres déjà réglés. C’est CELUI-CI qui dit la distance au prochain équilibre. Jamais perdu, sans échéance (D-033)."
+          },
+          "carriedRightPoints": {
+            "type": "number",
+            "example": 500,
+            "description": "POINTS — idem, réserve appariable de droite."
+          },
+          "tierBv": {
+            "type": "number",
+            "nullable": true,
+            "example": 1000,
+            "description": "POINTS — mon palier, figé à l’activation. `null` tant que je n’ai pas activé : il n’y a alors pas de « prochain équilibre » à viser."
+          },
+          "pointsToNextBalance": {
+            "type": "number",
+            "nullable": true,
+            "example": 400,
+            "description": "POINTS manquants sur la jambe la plus faible pour compléter le PROCHAIN équilibre : `palier − min(réserve gauche, réserve droite)`. `0` quand l’équilibre est déjà acquis et sera constaté à la prochaine activation ; `null` tant que le membre n’a pas activé."
+          },
+          "weakestLeg": {
+            "nullable": true,
+            "enum": [
+              "LEFT",
+              "RIGHT"
+            ],
+            "type": "string",
+            "description": "La jambe où ces points manquent — c’est ELLE qui dit de quel côté placer le prochain filleul. Sans cette précision, « il vous manque 400 points » serait inexploitable. `null` si le membre n’a pas activé ou si l’équilibre est déjà acquis."
+          },
+          "lifetimeBalanceCount": {
+            "type": "number",
+            "description": "Nombre d’équilibres À VIE, jamais remis à zéro (bonus de démarrage compris — D-032)."
+          },
+          "rewardPoints": {
+            "type": "number",
+            "description": "Points Fidélité — TROISIÈME unité (ni points BV, ni dinars) : 1 par équilibre dont l’index à vie est un multiple de 6 (D-032). Leur présence ici ne contredit pas D-053 : ce n’est pas de l’argent."
+          },
+          "startupBonusUsed": {
+            "type": "boolean",
+            "description": "Bonus de démarrage déjà consommé — une seule fois à vie (D-031)."
+          },
+          "downlineCount": {
+            "type": "number",
+            "description": "Membres dans mon sous-arbre, tous états confondus."
+          },
+          "activatedDownlineCount": {
+            "type": "number",
+            "description": "Parmi eux, ceux qui ont ACTIVÉ (seuls ceux-là ont injecté des points)."
+          },
+          "referralCount": {
+            "type": "number",
+            "description": "Filleuls que j’ai PARRAINÉS (sponsoring ≠ placement)."
+          },
+          "activeEcardCount": {
+            "type": "number",
+            "description": "Mes e-cards encore ACTIVE — un COMPTE, pas une valeur."
+          },
+          "status": {
+            "enum": [
+              "REGISTERED",
+              "ACTIVE",
+              "INACTIVE"
+            ],
+            "type": "string"
+          },
+          "packName": {
+            "type": "string",
+            "nullable": true,
+            "example": "Silver"
+          },
+          "renewal": {
+            "description": "Échéance et état du renouvellement. Le MONTANT dû y figure — c’est un TARIF public (D-038), pas une information sur mon argent : il ne dit rien de ce que je possède.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MemberRenewalStateDto"
+              }
+            ]
+          },
+          "nextRunAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Prochaine clôture hebdomadaire (D-009), calculée depuis la MÊME expression cron que le déclencheur : deux calendriers feraient deux vérités."
+          }
+        },
+        "required": [
+          "leftPoints",
+          "rightPoints",
+          "carriedLeftPoints",
+          "carriedRightPoints",
+          "lifetimeBalanceCount",
+          "rewardPoints",
+          "startupBonusUsed",
+          "downlineCount",
+          "activatedDownlineCount",
+          "referralCount",
+          "activeEcardCount",
+          "status",
+          "renewal",
+          "nextRunAt"
+        ]
+      },
       "MemberLastRunDto": {
         "type": "object",
         "properties": {
@@ -5866,7 +6014,7 @@
           "rewardPointsGranted"
         ]
       },
-      "MemberDashboardDto": {
+      "MemberWalletDto": {
         "type": "object",
         "properties": {
           "balanceDt": {
@@ -5891,97 +6039,31 @@
           "pendingGrossDt": {
             "type": "string",
             "example": "500.000",
-            "description": "DINARS — dû BRUT en attente du prochain run (événements éligibles pas encore réclamés). Le plafond ne s’applique qu’au run : ce montant n’est donc pas une promesse de versement."
+            "description": "DINARS — dû BRUT en attente du prochain run, ÉLIGIBLE uniquement : un événement né chez un gelé est tracé mais ne sera jamais payé (D-034), l’annoncer serait une promesse fausse. Le plafond hebdomadaire (D-033) n’est PAS appliqué ici — c’est un brut, pas une prévision de versement."
           },
           "pendingEventCount": {
             "type": "number",
-            "description": "Nombre d’événements de commission en attente du prochain run."
+            "description": "Nombre d’événements en attente du prochain run."
           },
-          "nextRunAt": {
-            "format": "date-time",
+          "activeEcardValueDt": {
             "type": "string",
-            "description": "Clôture du PROCHAIN run (vendredi 23:59, Tunis — D-009)."
-          },
-          "leftPoints": {
-            "type": "number",
-            "example": 3000,
-            "description": "POINTS — cumul À VIE reçu sur ma jambe GAUCHE."
-          },
-          "rightPoints": {
-            "type": "number",
-            "example": 2000,
-            "description": "POINTS — cumul À VIE reçu sur ma jambe DROITE."
-          },
-          "carriedLeftPoints": {
-            "type": "number",
-            "example": 1000,
-            "description": "POINTS — carry-over GAUCHE : points pas encore appariés, en réserve SANS ÉCHÉANCE. Jamais perdus (à ne pas confondre avec l’argent au-delà du plafond, lui perdu)."
-          },
-          "carriedRightPoints": {
-            "type": "number",
-            "example": 0,
-            "description": "POINTS — carry-over DROIT, même règle."
-          },
-          "tierBv": {
-            "type": "number",
-            "nullable": true,
-            "example": 1000,
-            "description": "POINTS — mon palier, FIGÉ à l’activation. C’est lui qui définit combien de points font un équilibre. `null` tant que je n’ai pas activé."
-          },
-          "lifetimeBalanceCount": {
-            "type": "number",
-            "description": "Nombre d’équilibres À VIE, jamais remis à zéro (bonus de démarrage compris — D-032)."
-          },
-          "rewardPoints": {
-            "type": "number",
-            "description": "Points Fidélité — TROISIÈME unité (ni points BV, ni dinars) : 1 par équilibre dont l’index à vie est un multiple de 6 (D-032)."
-          },
-          "startupBonusUsed": {
-            "type": "boolean",
-            "description": "Bonus de démarrage déjà consommé — une seule fois à vie (D-031)."
-          },
-          "downlineCount": {
-            "type": "number",
-            "description": "Membres dans mon sous-arbre, tous états confondus."
-          },
-          "activatedDownlineCount": {
-            "type": "number",
-            "description": "Parmi eux, ceux qui ont ACTIVÉ (seuls ceux-là ont injecté des points)."
-          },
-          "referralCount": {
-            "type": "number",
-            "description": "Filleuls que j’ai PARRAINÉS (sponsoring ≠ placement)."
+            "example": "450.000",
+            "description": "DINARS — valeur totale de mes e-cards actives. Cet argent est SORTI de mon solde à l’émission (D-025) : il ne s’additionne pas au solde, il en est déjà déduit."
           },
           "activeEcardCount": {
             "type": "number",
             "description": "Mes e-cards encore ACTIVE."
           },
-          "activeEcardValueDt": {
-            "type": "string",
-            "example": "450.000",
-            "description": "DINARS — valeur totale de mes e-cards actives (argent sorti de mon solde)."
-          },
-          "status": {
-            "enum": [
-              "REGISTERED",
-              "ACTIVE",
-              "INACTIVE"
-            ],
-            "type": "string"
-          },
-          "packName": {
-            "type": "string",
-            "nullable": true,
-            "example": "Silver"
-          },
-          "renewal": {
-            "$ref": "#/components/schemas/MemberRenewalStateDto"
-          },
           "weeklyCapDt": {
             "type": "string",
             "nullable": true,
             "example": "10000.000",
-            "description": "DINARS — mon plafond hebdomadaire, figé à l’activation."
+            "description": "DINARS — mon plafond HEBDOMADAIRE, figé à l’activation. Au-delà, l’argent de la semaine est PERDU, jamais reporté (D-033)."
+          },
+          "nextRunAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Prochaine clôture hebdomadaire (D-009)."
           }
         },
         "required": [
@@ -5989,21 +6071,9 @@
           "lifetimeEarnedDt",
           "pendingGrossDt",
           "pendingEventCount",
-          "nextRunAt",
-          "leftPoints",
-          "rightPoints",
-          "carriedLeftPoints",
-          "carriedRightPoints",
-          "lifetimeBalanceCount",
-          "rewardPoints",
-          "startupBonusUsed",
-          "downlineCount",
-          "activatedDownlineCount",
-          "referralCount",
-          "activeEcardCount",
           "activeEcardValueDt",
-          "status",
-          "renewal"
+          "activeEcardCount",
+          "nextRunAt"
         ]
       },
       "DownlineRowDto": {

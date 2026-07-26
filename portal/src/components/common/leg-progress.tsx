@@ -32,6 +32,15 @@ interface LegProgressProps {
   right: number
   /** Palier du pack, en points. `null` tant que le membre n'a pas activé. */
   tier: number | null
+  /**
+   * Points manquants pour le prochain équilibre, CALCULÉS PAR LE SERVEUR. `0` = équilibre
+   * acquis, `null` = membre non activé. Ce composant ne le recalcule pas : la règle
+   * (minimum des deux réserves, D-035) appartient au moteur, et une copie ici mentirait le
+   * jour où le moteur changerait.
+   */
+  missing: number | null
+  /** Jambe où ces points manquent, désignée par le serveur. */
+  weakestLeg: "LEFT" | "RIGHT" | null
   /** Cumul à VIE par jambe — affiché en second plan, jamais confondu avec la pool. */
   lifetimeLeft?: number
   lifetimeRight?: number
@@ -42,6 +51,8 @@ export function LegProgress({
   left,
   right,
   tier,
+  missing,
+  weakestLeg,
   lifetimeLeft,
   lifetimeRight,
   className,
@@ -71,7 +82,9 @@ export function LegProgress({
         />
       </div>
 
-      {hasTier && <NextBalanceHint left={left} right={right} tier={tier} />}
+      {missing !== null && (
+        <NextBalanceHint missing={missing} weakestLeg={weakestLeg} />
+      )}
     </div>
   )
 }
@@ -144,26 +157,24 @@ function LegBar({
 /**
  * « Il vous manque N points à droite. »
  *
- * L'équilibre se fait sur le MINIMUM des deux jambes : ce qu'il reste à faire est donc
- * l'écart de la jambe la plus FAIBLE au palier — jamais la somme, jamais la moyenne. Dire
- * « il vous manque 400 points » sans préciser le côté serait inexploitable : c'est justement
- * le côté qui indique où placer le prochain filleul.
+ * LA PHRASE CENTRALE DE L'ACCUEIL (D-053) — et elle est entièrement LUE, jamais déduite. Le
+ * nombre et le côté viennent du serveur (`pointsToNextBalance`, `weakestLeg`) : l'équilibre
+ * se complète sur le MINIMUM des deux réserves (D-035), et refaire ce calcul ici serait
+ * dupliquer une règle du moteur dans un composant d'affichage.
+ *
+ * Dire « il vous manque 400 points » sans le côté serait inexploitable : c'est justement le
+ * côté qui indique où placer le prochain filleul.
  */
 function NextBalanceHint({
-  left,
-  right,
-  tier,
+  missing,
+  weakestLeg,
 }: {
-  left: number
-  right: number
-  tier: number
+  missing: number
+  weakestLeg: "LEFT" | "RIGHT" | null
 }) {
   const t = useT()
 
-  const weakestIsLeft = left <= right
-  const missing = tier - Math.min(left, right)
-
-  if (missing <= 0) {
+  if (missing === 0) {
     return (
       <p className="rounded-lg bg-success/10 px-3 py-2 text-sm text-foreground">
         {t("legs.balanceReady")}
@@ -177,7 +188,7 @@ function NextBalanceHint({
       <strong className="font-semibold">
         <PointsBv value={missing} />
       </strong>{" "}
-      {weakestIsLeft ? t("legs.onLeft") : t("legs.onRight")}
+      {weakestLeg === "RIGHT" ? t("legs.onRight") : t("legs.onLeft")}
     </p>
   )
 }

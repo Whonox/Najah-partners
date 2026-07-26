@@ -60,4 +60,16 @@ export class DownlinesQueryDto {
   @Type(() => Boolean)
   @IsBoolean()
   directReferralsOnly?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Trier par ARRIVÉE dans le réseau (le plus récent d’abord) au lieu de l’ordre de ' +
+      'parcours de l’arbre. Sert l’« activité récente » de l’accueil (D-053) : « qui vient ' +
+      'de me rejoindre » ne se lit pas dans un tri par profondeur, où les derniers inscrits ' +
+      'se retrouvent en dernière page.',
+  })
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  newestFirst?: boolean;
 }

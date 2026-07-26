@@ -14,7 +14,8 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { DownlinesQueryDto } from './dto/portal-query.dto';
 import {
   DownlinePageDto,
-  MemberDashboardDto,
+  MemberNetworkDto,
+  MemberWalletDto,
   MemberProfileDto,
 } from './dto/portal-response.dto';
 import { UpdateMemberProfileDto } from './dto/update-profile.dto';
@@ -97,18 +98,39 @@ export class MembersPortalController {
   @Get('dashboard')
   @ApiOperation({
     summary:
-      'Mon tableau de bord (spec §7.1.1) : solde, jambes, carry-over, gains, réseau, e-cards.',
+      'Mon accueil (spec §7.1.1) : jambes en POINTS, carry-over, réseau, état — AUCUN montant.',
     description:
-      'Aucun calcul de règle : chaque chiffre est lu tel qu’une activation, un run ou un ' +
-      'paiement l’a écrit. Rappel des DEUX débordements, qu’il ne faut jamais confondre — les ' +
-      'POINTS non appariés restent en réserve sans échéance, l’ARGENT au-delà du plafond ' +
-      'hebdomadaire est PERDU (D-033).',
+      'D-053 : la page d’accueil du portail ne montre aucune information monétaire. ' +
+      'L’invariant est porté par le CONTRAT — `MemberNetworkDto` ne déclare aucun champ ' +
+      '`…Dt`, donc aucun écran ne PEUT en afficher un depuis ici. L’argent vit sur ' +
+      '`/members/me/wallet`, derrière la seconde authentification. ' +
+      'Aucun calcul de règle : chaque chiffre est lu tel qu’une activation l’a écrit.',
   })
-  @ApiOkResponse({ type: MemberDashboardDto })
+  @ApiOkResponse({ type: MemberNetworkDto })
   dashboard(
     @CurrentUser() actor: AuthenticatedActor,
-  ): Promise<MemberDashboardDto> {
-    return this.portal.dashboard(actor.id);
+  ): Promise<MemberNetworkDto> {
+    return this.portal.network(actor.id);
+  }
+
+  @Get('wallet')
+  // SECONDE AUTHENTIFICATION (D-051/D-058) : c'est ici qu'a atterri tout ce que D-053 a sorti
+  // de l'accueil — solde, gains cumulés, dernier versement, valeur des e-cards actives. Tant
+  // que ces montants voyageaient avec le réseau, il fallait soit ouvrir l'accueil à la
+  // seconde auth, soit laisser passer du solde sans elle. Séparer les deux règle les deux.
+  @RequireStepUp()
+  @ApiOperation({
+    summary:
+      'Mon portefeuille : solde, gains cumulés, dernier versement, dû en attente.',
+    description:
+      'Rappel des DEUX débordements, qu’il ne faut jamais confondre — les POINTS non appariés ' +
+      'restent en réserve sans échéance, l’ARGENT au-delà du plafond hebdomadaire est PERDU ' +
+      '(D-033). La valeur des e-cards actives est déjà SORTIE du solde (D-025) : elle ne s’y ' +
+      'ajoute pas.',
+  })
+  @ApiOkResponse({ type: MemberWalletDto })
+  wallet(@CurrentUser() actor: AuthenticatedActor): Promise<MemberWalletDto> {
+    return this.portal.wallet(actor.id);
   }
 
   @Get('downlines')
@@ -131,8 +153,9 @@ export class MembersPortalController {
   @Get('ledger')
   // SECONDE AUTHENTIFICATION (D-051/D-058) : le journal des mouvements est l'écran d'argent le
   // plus détaillé du portail — chaque commission perçue, chaque e-card émise, avec le solde
-  // après. Seule route de ce contrôleur à être fermée : les autres montrent l'identité, la
-  // position et le réseau, qui n'ont pas à coûter un PIN à chaque consultation.
+  // après. Avec `wallet`, l'une des DEUX seules routes fermées de ce contrôleur : les autres
+  // montrent l'identité, la position et le réseau, qui n'ont pas à coûter un PIN à chaque
+  // consultation.
   @RequireStepUp()
   @ApiOperation({
     summary: 'Mes mouvements de solde (DINARS), paginés.',
