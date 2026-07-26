@@ -22,11 +22,10 @@ import {
 } from './membership-fee.service';
 import {
   NothingToRenewError,
-  PositionTakenError,
+  PlacementCheckRefusedError,
   RegistrationPaymentRefusedError,
   RenewalAlreadyPendingError,
   RenewalPaymentNotPendingError,
-  UplineOutsideSponsorTreeError,
 } from './members.errors';
 import { MembersService } from './members.service';
 import { ActivationPayment } from './members.types';
@@ -365,7 +364,9 @@ describe('Members — intégration (vrai Postgres)', () => {
       codes,
     );
 
-    const used = await prisma.ecard.findMany({ where: { code: { in: codes } } });
+    const used = await prisma.ecard.findMany({
+      where: { code: { in: codes } },
+    });
     expect(used).toHaveLength(2);
     expect(used.every((e) => e.status === EcardStatus.USED)).toBe(true);
     const payment = await prisma.membershipPayment.findFirstOrThrow({
@@ -390,7 +391,9 @@ describe('Members — intégration (vrai Postgres)', () => {
 
     // Aucun membre n'a été créé sous cette position : elle est toujours libre.
     expect(
-      await prisma.member.count({ where: { uplineId: root.id, leg: Leg.LEFT } }),
+      await prisma.member.count({
+        where: { uplineId: root.id, leg: Leg.LEFT },
+      }),
     ).toBe(0);
   });
 
@@ -427,7 +430,7 @@ describe('Members — intégration (vrai Postgres)', () => {
     const code = await genesisEcard(feeDt);
     await expect(
       register(root.memberCode, root.memberCode, Leg.LEFT, [code]),
-    ).rejects.toBeInstanceOf(PositionTakenError);
+    ).rejects.toBeInstanceOf(PlacementCheckRefusedError);
 
     // La carte a bien traversé la transaction annulée : elle est intacte, réutilisable.
     const ecard = await prisma.ecard.findUniqueOrThrow({ where: { code } });
@@ -437,7 +440,9 @@ describe('Members — intégration (vrai Postgres)', () => {
 
     // Ni membre orphelin, ni paiement orphelin.
     expect(
-      await prisma.member.count({ where: { uplineId: root.id, leg: Leg.LEFT } }),
+      await prisma.member.count({
+        where: { uplineId: root.id, leg: Leg.LEFT },
+      }),
     ).toBe(1);
     const payments = await prisma.membershipPayment.count({
       where: { memberId: { in: created } },
@@ -499,7 +504,7 @@ describe('Members — intégration (vrai Postgres)', () => {
 
     await expect(
       register(root.memberCode, root.memberCode, Leg.LEFT),
-    ).rejects.toBeInstanceOf(PositionTakenError);
+    ).rejects.toBeInstanceOf(PlacementCheckRefusedError);
 
     // La jambe droite, elle, reste libre.
     await expect(
@@ -542,7 +547,7 @@ describe('Members — intégration (vrai Postgres)', () => {
     const lost = results.filter((r) => r.status === 'rejected');
     expect(won).toHaveLength(1); // le premier inscrit l'emporte (§5.4)
     expect(lost).toHaveLength(1);
-    expect(lost[0].reason).toBeInstanceOf(PositionTakenError);
+    expect(lost[0].reason).toBeInstanceOf(PlacementCheckRefusedError);
 
     for (const r of won) {
       created.push((r as PromiseFulfilledResult<{ id: number }>).value.id);
@@ -564,7 +569,7 @@ describe('Members — intégration (vrai Postgres)', () => {
     // rootA parraine, mais tente de placer dans l'arbre de rootB.
     await expect(
       register(rootA.memberCode, rootB.memberCode, Leg.RIGHT),
-    ).rejects.toBeInstanceOf(UplineOutsideSponsorTreeError);
+    ).rejects.toBeInstanceOf(PlacementCheckRefusedError);
   });
 
   it('upline = un downline (strict) du sponsor → accepté (branche récursive D-022)', async () => {

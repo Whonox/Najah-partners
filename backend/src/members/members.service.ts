@@ -29,11 +29,7 @@ import {
   ContactAlreadyUsedError,
   MissingContactError,
   PlacementCheckRefusedError,
-  PositionTakenError,
   RegistrationPaymentRefusedError,
-  SponsorNotFoundError,
-  UplineNotFoundError,
-  UplineOutsideSponsorTreeError,
 } from './members.errors';
 import { RegisterMemberInput, RegisteredMember } from './members.types';
 import { PlacementService } from './placement.service';
@@ -108,6 +104,35 @@ export class MembersService {
     uplineCode: string;
     leg: Leg;
   }): Promise<{ ok: true }> {
+    await this.resolvePlacement(input);
+    return { ok: true };
+  }
+
+  /**
+   * Les QUATRE contrôles de placement, en UN SEUL endroit — partagé par la pré-vérification
+   * et par l'inscription.
+   *
+   * ═══ POURQUOI UNE SEULE IMPLÉMENTATION ═══
+   * Deux copies auraient dérivé, et la dérive aurait été invisible : une pré-vérification plus
+   * laxiste laisse passer ce que l'inscription refusera (l'affilié saisit ses e-cards pour
+   * rien), une plus stricte refuse ce qu'elle accepterait (il renonce à un placement valide).
+   * Aucun test ne les compare naturellement ; la seule garantie est qu'il n'y ait rien à
+   * comparer.
+   *
+   * ═══ L'ORDRE DES CONTRÔLES EST UNE PROPRIÉTÉ, PAS UN DÉTAIL ═══
+   * Chaque échec sort IMMÉDIATEMENT. Un sponsor inconnu ne déclenche donc ni la remontée
+   * d'arbre, ni la lecture de position. Sans ce court-circuit, le temps de réponse
+   * distinguerait des causes que le message tait — et l'indistinction serait décorative.
+   *
+   * ═══ UN SEUL REFUS POUR QUATRE CAUSES (D-061) ═══
+   * `PlacementCheckRefusedError` ne nomme rien et ne recopie aucun code saisi. Le renvoyer,
+   * fût-ce par politesse, confirmerait qu'il a été lu et cherché.
+   */
+  private async resolvePlacement(input: {
+    sponsorCode: string;
+    uplineCode: string;
+    leg: Leg;
+  }): Promise<{ sponsorId: number; uplineId: number }> {
     const sponsor = await this.prisma.member.findUnique({
       where: { memberCode: input.sponsorCode.trim() },
       select: { id: true },
@@ -120,19 +145,21 @@ export class MembersService {
     });
     if (!upline) throw new PlacementCheckRefusedError();
 
+    // D-022 : on ne place un filleul que sous son sponsor ou dans le réseau de celui-ci.
     const insideNetwork = await this.placement.isSponsorOnPathOf(
       sponsor.id,
       upline.id,
     );
     if (!insideNetwork) throw new PlacementCheckRefusedError();
 
+    // Pas de spillover (D-004) : une position occupée n'est pas contournée, elle est refusée.
     const occupant = await this.prisma.member.findUnique({
       where: { uplineId_leg: { uplineId: upline.id, leg: input.leg } },
       select: { id: true },
     });
     if (occupant) throw new PlacementCheckRefusedError();
 
-    return { ok: true };
+    return { sponsorId: sponsor.id, uplineId: upline.id };
   }
 
   async register(input: RegisterMemberInput): Promise<RegisteredMember> {
@@ -145,44 +172,18 @@ export class MembersService {
       throw new MissingContactError();
     }
 
-    // ── Validations métier AVANT toute écriture (message clair plutôt qu'une violation
-    // de contrainte brute). La contrainte DB reste l'arbitre final sous concurrence.
-    const sponsor = await this.prisma.member.findUnique({
-      where: { memberCode: input.sponsorCode.trim() },
-      select: { id: true, memberCode: true },
-    });
-    if (!sponsor) {
-      throw new SponsorNotFoundError(input.sponsorCode);
-    }
-
-    const upline = await this.prisma.member.findUnique({
-      where: { memberCode: input.uplineCode.trim() },
-      select: { id: true, memberCode: true },
-    });
-    if (!upline) {
-      throw new UplineNotFoundError(input.uplineCode);
-    }
-
-    // D-022 : on ne place un filleul que sous son sponsor ou dans le réseau de celui-ci.
-    const insideNetwork = await this.placement.isSponsorOnPathOf(
-      sponsor.id,
-      upline.id,
-    );
-    if (!insideNetwork) {
-      throw new UplineOutsideSponsorTreeError(
-        upline.memberCode,
-        sponsor.memberCode,
-      );
-    }
-
-    // Pas de spillover (D-004) : une position occupée n'est pas contournée, elle est refusée.
-    const occupant = await this.prisma.member.findUnique({
-      where: { uplineId_leg: { uplineId: upline.id, leg: input.leg } },
-      select: { id: true },
-    });
-    if (occupant) {
-      throw new PositionTakenError(upline.memberCode, input.leg);
-    }
+    // ── Validations de placement AVANT toute écriture. MÊME code que la pré-vérification de
+    // l'étape 3 (D-061), donc même refus INDISTINCT : sponsor inconnu, upline inconnu, upline
+    // hors du réseau du sponsor et position occupée sont indistinguables ici aussi.
+    //
+    // C'est le point qui rend l'indistinction RÉELLE plutôt que décorative : tant que cet
+    // endpoint répondait « Code sponsor inconnu : NP000999 », il suffisait de l'interroger
+    // directement pour apprendre ce que la pré-vérification refusait de dire. La discrétion
+    // d'une route ne vaut que si toutes celles qui portent la même information la partagent.
+    //
+    // La contrainte DB reste l'arbitre final sous concurrence — et son mapping rend le même
+    // refus (voir `mapWriteError`).
+    const { sponsorId, uplineId } = await this.resolvePlacement(input);
 
     await this.assertContactsFree(email, phone);
 
@@ -207,8 +208,8 @@ export class MembersService {
               phone,
               passwordHash,
               status: MemberStatus.REGISTERED,
-              sponsorId: sponsor.id,
-              uplineId: upline.id,
+              sponsorId,
+              uplineId,
               leg: input.leg,
               idDocumentType: input.idDocument?.type ?? null,
               idDocumentNumber: input.idDocument?.number ?? null,
@@ -257,8 +258,8 @@ export class MembersService {
               target: `Member:${member.id}`,
               after: {
                 memberCode: member.memberCode,
-                sponsorCode: sponsor.memberCode,
-                uplineCode: upline.memberCode,
+                sponsorCode: input.sponsorCode.trim(),
+                uplineCode: input.uplineCode.trim(),
                 leg: input.leg,
                 registrationPaidDt: moneyToApi(feeDt),
                 membershipPaymentId: payment.id,
@@ -272,15 +273,15 @@ export class MembersService {
           return {
             ...member,
             leg: input.leg,
-            sponsorCode: sponsor.memberCode,
-            uplineCode: upline.memberCode,
+            sponsorCode: input.sponsorCode.trim(),
+            uplineCode: input.uplineCode.trim(),
             registrationPaidDt: moneyToApi(feeDt),
           };
         },
         { timeout: TX_TIMEOUT_MS },
       );
     } catch (error) {
-      throw this.translateUniqueViolation(error, upline.memberCode, input.leg);
+      throw this.translateUniqueViolation(error);
     }
   }
 
@@ -343,11 +344,7 @@ export class MembersService {
    * remonte ici. `Member` porte quatre contraintes uniques — on ne mappe donc JAMAIS P2002
    * en aveugle sur « position occupée » : on lit la cible.
    */
-  private translateUniqueViolation(
-    error: unknown,
-    uplineCode: string,
-    leg: Leg,
-  ): unknown {
+  private translateUniqueViolation(error: unknown): unknown {
     if (
       !(error instanceof Prisma.PrismaClientKnownRequestError) ||
       error.code !== 'P2002'
@@ -359,7 +356,11 @@ export class MembersService {
       : String(error.meta?.target ?? '');
 
     if (target.includes('uplineId')) {
-      return new PositionTakenError(uplineCode, leg);
+      // MÊME refus que le pré-contrôle (D-061), et il le fallait : c'est le chemin de la
+      // COURSE — deux inscriptions concurrentes sur la même position. S'il rendait un message
+      // distinct, il suffirait de provoquer la collision pour apprendre qu'une position est
+      // convoitée, alors même que le contrôle applicatif refuse de le dire.
+      return new PlacementCheckRefusedError();
     }
     if (target.includes('email')) {
       return new ContactAlreadyUsedError('email');

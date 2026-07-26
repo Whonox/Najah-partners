@@ -12,39 +12,6 @@ import { Leg } from '@prisma/client';
  * utilisable derrière un contrôleur sans filtre d'exception dédié.
  */
 
-/** Position (upline, jambe) déjà prise — pas de spillover : il faut en choisir une autre. */
-export class PositionTakenError extends ConflictException {
-  constructor(uplineCode: string, leg: Leg) {
-    const side = leg === Leg.LEFT ? 'gauche' : 'droite';
-    super(
-      `La position ${side} sous ${uplineCode} est déjà occupée. Le placement est définitif : choisissez une autre position libre.`,
-    );
-  }
-}
-
-/** Code sponsor inconnu. */
-export class SponsorNotFoundError extends NotFoundException {
-  constructor(sponsorCode: string) {
-    super(`Code sponsor inconnu : ${sponsorCode}.`);
-  }
-}
-
-/** Code upline de placement inconnu. */
-export class UplineNotFoundError extends NotFoundException {
-  constructor(uplineCode: string) {
-    super(`Code upline de placement inconnu : ${uplineCode}.`);
-  }
-}
-
-/** L'upline choisi n'est ni le sponsor, ni un membre de son sous-arbre (D-022). */
-export class UplineOutsideSponsorTreeError extends BadRequestException {
-  constructor(uplineCode: string, sponsorCode: string) {
-    super(
-      `L'upline ${uplineCode} n'appartient pas au réseau de ${sponsorCode} : un filleul ne peut être placé que sous son sponsor ou sous l'un de ses downlines.`,
-    );
-  }
-}
-
 /** E-mail ou téléphone déjà utilisé par un autre membre. */
 export class ContactAlreadyUsedError extends ConflictException {
   constructor(field: 'email' | 'phone') {

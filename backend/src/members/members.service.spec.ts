@@ -10,12 +10,9 @@ import { MemberCodeService } from './member-code.service';
 import { MembershipFeeService } from './membership-fee.service';
 import {
   ContactAlreadyUsedError,
+  PlacementCheckRefusedError,
   MissingContactError,
-  PositionTakenError,
   RegistrationPaymentRefusedError,
-  SponsorNotFoundError,
-  UplineNotFoundError,
-  UplineOutsideSponsorTreeError,
 } from './members.errors';
 import { MembersService } from './members.service';
 import { RegisterMemberInput } from './members.types';
@@ -81,18 +78,20 @@ function makeService(scenario: Scenario = {}) {
   const sponsor = 'sponsor' in scenario ? scenario.sponsor : SPONSOR;
   const upline = 'upline' in scenario ? scenario.upline : UPLINE;
 
-  const findUnique = jest.fn(async (args: { where: Record<string, unknown> }) => {
-    if ('memberCode' in args.where) {
-      const code = args.where.memberCode as string;
-      if (code === INPUT.sponsorCode) return sponsor;
-      if (code === INPUT.uplineCode) return upline;
+  const findUnique = jest.fn(
+    async (args: { where: Record<string, unknown> }) => {
+      if ('memberCode' in args.where) {
+        const code = args.where.memberCode as string;
+        if (code === INPUT.sponsorCode) return sponsor;
+        if (code === INPUT.uplineCode) return upline;
+        return null;
+      }
+      if ('uplineId_leg' in args.where) return scenario.occupant ?? null;
+      if ('email' in args.where) return scenario.emailTaken ? { id: 9 } : null;
+      if ('phone' in args.where) return scenario.phoneTaken ? { id: 9 } : null;
       return null;
-    }
-    if ('uplineId_leg' in args.where) return scenario.occupant ?? null;
-    if ('email' in args.where) return scenario.emailTaken ? { id: 9 } : null;
-    if ('phone' in args.where) return scenario.phoneTaken ? { id: 9 } : null;
-    return null;
-  });
+    },
+  );
 
   const tx = {
     member: { create },
@@ -115,7 +114,9 @@ function makeService(scenario: Scenario = {}) {
   } as unknown as PlacementService;
 
   const config = {
-    get: jest.fn((key: string, def?: string) => (key === 'BCRYPT_ROUNDS' ? '4' : def)),
+    get: jest.fn((key: string, def?: string) =>
+      key === 'BCRYPT_ROUNDS' ? '4' : def,
+    ),
   } as unknown as ConfigService;
 
   const memberCode = { allocate } as unknown as MemberCodeService;
@@ -136,6 +137,9 @@ function makeService(scenario: Scenario = {}) {
     allocate,
     placement,
     consumeManyInTx,
+    // Exposé pour vérifier l ORDRE des contrôles : un sponsor inconnu ne doit déclencher
+    // aucune lecture de position (D-061).
+    findUnique,
   };
 }
 
@@ -147,31 +151,80 @@ function uniqueViolation(target: string[]) {
   });
 }
 
-describe('MembersService.register — validations', () => {
-  it('code sponsor inconnu → SponsorNotFoundError', async () => {
-    const { service } = makeService({ sponsor: null });
-    await expect(service.register(INPUT)).rejects.toBeInstanceOf(SponsorNotFoundError);
-  });
+/**
+ * ═══ L'INSCRIPTION REFUSE UN PLACEMENT SANS JAMAIS DIRE POURQUOI (D-061) ═══
+ *
+ * Jusqu'à la Tranche 9.5, cet endpoint — public et anonyme — répondait « Code sponsor
+ * inconnu : NP000999 » ou « La position gauche sous NP000964 est déjà occupée ». La
+ * pré-vérification de l'étape 3 avait beau être indistincte, il suffisait d'interroger
+ * l'inscription directement pour tout apprendre : l'indistinction était décorative.
+ *
+ * Les tests ci-dessous comparent les refus ENTRE EUX plutôt qu'à un libellé figé — ils
+ * continueront donc de protéger l'invariant après une reformulation du message.
+ */
+describe('MembersService.register — les quatre refus de placement sont INDISTINGUABLES', () => {
+  const CAUSES = [
+    ['sponsor inconnu', { sponsor: null }],
+    ['upline inconnu', { upline: null }],
+    ['upline hors du réseau du sponsor (D-022)', { insideNetwork: false }],
+    ['position déjà occupée (D-004)', { occupant: { id: 7 } }],
+  ] as const;
 
-  it('code upline inconnu → UplineNotFoundError', async () => {
-    const { service } = makeService({ upline: null });
-    await expect(service.register(INPUT)).rejects.toBeInstanceOf(UplineNotFoundError);
-  });
-
-  it('upline hors du réseau du sponsor → refusé (D-022)', async () => {
-    const { service } = makeService({ insideNetwork: false });
+  it.each(CAUSES)('refuse : %s', async (_label, options) => {
+    const { service, create } = makeService(options);
     await expect(service.register(INPUT)).rejects.toBeInstanceOf(
-      UplineOutsideSponsorTreeError,
+      PlacementCheckRefusedError,
     );
-  });
-
-  it('position déjà occupée → refusée sans spillover, message explicite', async () => {
-    const { service, create } = makeService({ occupant: { id: 7 } });
-    await expect(service.register(INPUT)).rejects.toBeInstanceOf(PositionTakenError);
-    await expect(service.register(INPUT)).rejects.toThrow(/gauche sous NP000964/);
+    // Aucune écriture : le refus tombe AVANT la transaction.
     expect(create).not.toHaveBeenCalled();
   });
 
+  it('rend EXACTEMENT la même réponse dans les quatre cas', async () => {
+    const responses = await Promise.all(
+      CAUSES.map(async ([, options]) => {
+        const { service } = makeService(options);
+        try {
+          await service.register(INPUT);
+          throw new Error('l’inscription aurait dû être refusée');
+        } catch (error) {
+          return error as PlacementCheckRefusedError;
+        }
+      }),
+    );
+
+    const [first, ...rest] = responses;
+    for (const other of rest) {
+      expect(other.getStatus()).toBe(first.getStatus());
+      expect(other.getResponse()).toEqual(first.getResponse());
+    }
+  });
+
+  it('ne recopie AUCUN code saisi dans sa réponse', async () => {
+    // « La position gauche sous NP000964 » confirmait que le code avait été lu et trouvé.
+    const { service } = makeService({ occupant: { id: 7 } });
+    const error = await service
+      .register(INPUT)
+      .catch((caught: PlacementCheckRefusedError) => caught);
+    const body = JSON.stringify(
+      (error as PlacementCheckRefusedError).getResponse(),
+    );
+    expect(body).not.toContain(INPUT.sponsorCode);
+    expect(body).not.toContain(INPUT.uplineCode);
+  });
+
+  it('n’interroge pas la position quand le sponsor est déjà inconnu', async () => {
+    // Sans ce court-circuit, le temps de réponse distinguerait les causes que le message tait.
+    const { service, findUnique } = makeService({ sponsor: null });
+    await service.register(INPUT).catch(() => undefined);
+
+    const positionLookups = findUnique.mock.calls.filter(
+      (call) => 'uplineId_leg' in (call[0] as { where: object }).where,
+    );
+    expect(positionLookups).toHaveLength(0);
+  });
+});
+
+describe('MembersService.register — validations', () => {
   it('ni e-mail ni téléphone → refusé', async () => {
     const { service } = makeService();
     await expect(
@@ -181,7 +234,9 @@ describe('MembersService.register — validations', () => {
 
   it('e-mail déjà utilisé → ContactAlreadyUsedError', async () => {
     const { service } = makeService({ emailTaken: true });
-    await expect(service.register(INPUT)).rejects.toBeInstanceOf(ContactAlreadyUsedError);
+    await expect(service.register(INPUT)).rejects.toBeInstanceOf(
+      ContactAlreadyUsedError,
+    );
   });
 });
 
@@ -195,7 +250,7 @@ describe('MembersService.register — création', () => {
     expect(member.uplineCode).toBe('NP000964');
     expect(member.registrationPaidDt).toBe('100.000'); // l'acompte, renvoyé au portail
 
-    const data = create.mock.calls[0][0].data as Record<string, unknown>;
+    const data = create.mock.calls[0][0].data;
     expect(data.status).toBe('REGISTERED');
     expect(data.email).toBe('mohamed@example.tn'); // trim + minuscules
     expect(data.uplineId).toBe(UPLINE.id);
@@ -247,6 +302,32 @@ describe('MembersService.register — création', () => {
     expect([...messages][0]).not.toMatch(/90/); // ni la valeur des cartes fournies
   });
 
+  it('le refus de PAIEMENT reste DISTINCT du refus de PLACEMENT (D-061)', async () => {
+    // Les deux refus taisent leur cause exacte, mais ils ne disent pas la même chose : l'un
+    // renvoie l'affilié à ses codes d'E-CARD, l'autre à ses codes de PARRAINAGE. Les fondre
+    // en un seul message « indistinct » aurait été une fausse bonne idée — il ne saurait plus
+    // quelle étape reprendre, et devrait tout resaisir.
+    const refusalOf = async (scenario: Scenario): Promise<Error> => {
+      const { service } = makeService(scenario);
+      try {
+        await service.register(INPUT);
+        throw new Error('l’inscription aurait dû être refusée');
+      } catch (error) {
+        return error as Error;
+      }
+    };
+
+    const payment = await refusalOf({ paymentError: new EcardNotFoundError() });
+    const placement = await refusalOf({ occupant: { id: 7 } });
+
+    expect(payment).toBeInstanceOf(RegistrationPaymentRefusedError);
+    expect(placement).toBeInstanceOf(PlacementCheckRefusedError);
+    expect(payment.message).not.toBe(placement.message);
+    // Chacun oriente vers SA saisie.
+    expect(payment.message).toMatch(/e-card/i);
+    expect(placement.message).toMatch(/parrain/i);
+  });
+
   it('une panne technique n’est PAS masquée en « e-card invalide »', async () => {
     const boom = new Error('connexion Postgres perdue');
     const { service } = makeService({ paymentError: boom });
@@ -258,23 +339,32 @@ describe('MembersService.register — création', () => {
   it('alloue le code APRÈS toutes les validations (trous de numérotation minimisés)', async () => {
     const { service, allocate, placement } = makeService();
     await service.register(INPUT);
-    const checkOrder =
-      (placement.isSponsorOnPathOf as jest.Mock).mock.invocationCallOrder[0];
+    const checkOrder = (placement.isSponsorOnPathOf as jest.Mock).mock
+      .invocationCallOrder[0];
     expect(allocate.mock.invocationCallOrder[0]).toBeGreaterThan(checkOrder);
   });
 });
 
 describe('MembersService.register — course perdue (P2002)', () => {
-  it('collision sur (uplineId, leg) → PositionTakenError (la DB tranche)', async () => {
+  it('collision sur (uplineId, leg) → MÊME refus indistinct que le pré-contrôle (D-061)', async () => {
+    // C'est le chemin de la COURSE : deux inscriptions concurrentes sur la même position. S'il
+    // rendait un message distinct, il suffirait de provoquer la collision pour apprendre
+    // qu'une position est convoitée — ce que le contrôle applicatif refuse de dire.
     const { service } = makeService({
       createError: uniqueViolation(['uplineId', 'leg']),
     });
-    await expect(service.register(INPUT)).rejects.toBeInstanceOf(PositionTakenError);
+    await expect(service.register(INPUT)).rejects.toBeInstanceOf(
+      PlacementCheckRefusedError,
+    );
   });
 
   it('collision sur e-mail → ContactAlreadyUsedError, jamais « position occupée »', async () => {
-    const { service } = makeService({ createError: uniqueViolation(['email']) });
-    await expect(service.register(INPUT)).rejects.toBeInstanceOf(ContactAlreadyUsedError);
+    const { service } = makeService({
+      createError: uniqueViolation(['email']),
+    });
+    await expect(service.register(INPUT)).rejects.toBeInstanceOf(
+      ContactAlreadyUsedError,
+    );
   });
 
   it('collision sur memberCode (bug de séquence) → remonte telle quelle, pas une erreur utilisateur', async () => {
