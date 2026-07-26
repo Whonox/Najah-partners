@@ -1,5 +1,4 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
@@ -93,12 +92,13 @@ export class CreateProductDto {
   @Min(0)
   promoPriceDt?: number;
 
-  @ApiPropertyOptional({ type: [String] })
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  @Type(() => String)
-  images?: string[];
+  // ═══ `images` N'EST PLUS ACCEPTÉ ICI (D-054, D-059) ═══
+  // Le champ existait depuis la Tranche 6 mais aucun écran ne l'alimentait : il acceptait
+  // n'importe quelle CHAÎNE, donc n'importe quel chemin. Depuis qu'une route sert réellement
+  // ces fichiers, laisser cette porte ouverte reviendrait à laisser un administrateur
+  // désigner un chemin arbitraire à servir. Les photos se déposent désormais par
+  // `POST /admin/shop/products/:id/images`, qui valide les OCTETS et pose lui-même le nom du
+  // fichier — c'est le SEUL écrivain de cette colonne.
 
   @ApiPropertyOptional({ default: true, description: 'Achetable.' })
   @IsOptional()
@@ -115,3 +115,22 @@ export class CreateProductDto {
 }
 
 export class UpdateProductDto extends PartialType(CreateProductDto) {}
+
+/**
+ * Réordonnancement des photos d'un produit (D-059).
+ *
+ * Ne porte que des chemins DÉJÀ en base : le service refuse tout ce qui n'est pas une
+ * permutation exacte de la liste existante. C'est ce contrôle — et non le type du champ —
+ * qui empêche cette route de redevenir la porte par laquelle un chemin arbitraire s'écrit.
+ */
+export class ReorderProductImagesDto {
+  @ApiProperty({
+    type: [String],
+    description:
+      'Les chemins des images du produit, dans le nouvel ordre. La PREMIÈRE est celle que le ' +
+      'portail met en avant. Doit être une permutation exacte de la liste actuelle.',
+  })
+  @IsArray()
+  @IsString({ each: true })
+  order!: string[];
+}

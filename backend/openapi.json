@@ -268,6 +268,95 @@
         ]
       }
     },
+    "/members/me/step-up/challenge": {
+      "post": {
+        "description": "Le tirage est fait par le SERVEUR, avec un générateur cryptographique, et lié au jeton rendu : un tirage prédictible — ou un défi non lié — laisserait choisir la question dont on connaît la réponse plutôt que de subir celle qui tombe. Demander un défi ne consomme AUCUN essai : seule une vérification qui échoue compte.",
+        "operationId": "StepUpController_challenge",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepUpChallengeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Tirer au hasard UNE de mes trois questions secrètes (D-051).",
+        "tags": [
+          "portal"
+        ]
+      }
+    },
+    "/members/me/step-up/verify": {
+      "post": {
+        "description": "Les deux voies sont ÉQUIVALENTES et partagent UN SEUL compteur d’essais : épuiser l’une n’ouvre pas l’autre (D-058). Le refus est volontairement INDISTINCT — même code, même message pour un PIN faux, une réponse fausse, un défi expiré ou un compte bloqué. Rend un jeton à présenter en en-tête `X-Step-Up`.",
+        "operationId": "StepUpController_verify",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyStepUpDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepUpTokenDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Prouver mon identité par mon PIN OU par une question secrète (D-051).",
+        "tags": [
+          "portal"
+        ]
+      }
+    },
+    "/members/me/step-up/pin/reset": {
+      "post": {
+        "description": "DEUX bonnes réponses sur trois. C’est le SEUL recours possible : aucun canal e-mail ni SMS n’existe (D-011). Le lot compte pour UNE tentative sur le compteur COMMUN — sans quoi cette route serait le contournement du blocage : on épuiserait le PIN, puis on tâtonnerait ici sans limite.",
+        "operationId": "StepUpController_resetPin",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPinDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Réinitialiser un PIN oublié avec mes questions secrètes (D-058).",
+        "tags": [
+          "portal"
+        ]
+      }
+    },
     "/admin/ledger/balances": {
       "get": {
         "operationId": "LedgerAdminController_balances",
@@ -1750,6 +1839,159 @@
         ]
       }
     },
+    "/members/me/onboarding": {
+      "get": {
+        "description": "Lu à l’ouverture du parcours pour savoir où le reprendre. Rappelle le TYPE et le NUMÉRO de pièce saisis à l’inscription (D-039) — l’image, elle, se dépose ici (D-050).",
+        "operationId": "OnboardingController_status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingStatusDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Où en est ma première connexion : les trois étapes et leur état (D-050).",
+        "tags": [
+          "portal"
+        ]
+      }
+    },
+    "/members/me/onboarding/security-questions": {
+      "get": {
+        "description": "Les libellés français vivent dans l’interface (D-015/D-057) : les faire voyager par l’API disperserait les textes utilisateur entre deux dépôts et lierait la traduction AR/RTL à un redéploiement du backend.",
+        "operationId": "OnboardingController_catalog",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecurityQuestionsCatalogDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Catalogue des questions secrètes : les CLÉS, jamais les libellés.",
+        "tags": [
+          "portal"
+        ]
+      },
+      "post": {
+        "description": "Trois questions DIFFÉRENTES. Les réponses sont normalisées (accents dépliés, espaces réduits, minuscules) puis hachées : la vérification est insensible à la casse et aux espaces, et la valeur saisie n’est stockée nulle part. Ces réponses sont le SEUL recours pour réinitialiser un PIN oublié — aucun canal e-mail ni SMS n’existe (D-011).",
+        "operationId": "OnboardingController_setSecurityQuestions",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSecurityQuestionsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingStatusDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Étape 2 — enregistrer mes trois questions secrètes (D-050).",
+        "tags": [
+          "portal"
+        ]
+      }
+    },
+    "/members/me/onboarding/id-document": {
+      "post": {
+        "description": "Le TYPE et le NUMÉRO ont été saisis à l’inscription ; seule l’image se dépose ici (D-060 : elle a quitté le formulaire public, qui est anonyme et n’a pas à recevoir de binaire de 5 Mo d’un inconnu). Le format est reconnu par les OCTETS du fichier, jamais par le `Content-Type` annoncé par le client.",
+        "operationId": "OnboardingController_uploadIdDocument",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "idDocument"
+                ],
+                "properties": {
+                  "idDocument": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Image de la pièce (JPEG, PNG, WebP ou PDF, 5 Mo max)."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingStatusDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Étape 1 — déposer l’image de ma pièce d’identité (D-050).",
+        "tags": [
+          "portal"
+        ]
+      }
+    },
+    "/members/me/onboarding/pin": {
+      "post": {
+        "description": "Le PIN et les questions secrètes sont les DEUX voies, équivalentes, de la seconde authentification (D-051). Une fois le parcours terminé, cette route se ferme : changer son PIN passe par le profil, derrière une seconde authentification.",
+        "operationId": "OnboardingController_setPin",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPinDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingStatusDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Étape 3 — créer mon code PIN (D-050).",
+        "tags": [
+          "portal"
+        ]
+      }
+    },
     "/ecards": {
       "post": {
         "description": "La réponse porte le CODE EN CLAIR — c’est la seule et unique fois (D-048). Aucune autre route ne le restituera jamais : le membre doit le conserver comme un billet.",
@@ -2267,6 +2509,46 @@
         ]
       }
     },
+    "/shop/products/{id}/images/{index}": {
+      "get": {
+        "operationId": "CatalogController_productImage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "index",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Le fichier image (JPEG, PNG ou WebP).",
+            "content": {
+              "image/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Photo d’un produit, par sa position dans la liste.",
+        "tags": [
+          "shop"
+        ]
+      }
+    },
     "/admin/shop/categories": {
       "get": {
         "operationId": "CatalogAdminController_listCategories",
@@ -2516,6 +2798,140 @@
           }
         },
         "summary": "Modifier un produit (désactiver = retirer de la vente ; les commandes passées gardent leur snapshot).",
+        "tags": [
+          "shop-admin"
+        ]
+      }
+    },
+    "/admin/shop/products/{id}/images": {
+      "post": {
+        "description": "Le format est reconnu par les OCTETS du fichier, jamais par le `Content-Type` annoncé. Le chemin stocké est RELATIF : y mettre une URL absolue demanderait une migration au premier changement de domaine ou de stockage (D-059).",
+        "operationId": "CatalogAdminController_addProductImage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "image"
+                ],
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "JPEG, PNG ou WebP, 5 Mo max. Pas de PDF : une photo finit dans un <img>."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Déposer une photo de produit (D-054) — ajoutée en fin de liste.",
+        "tags": [
+          "shop-admin"
+        ]
+      }
+    },
+    "/admin/shop/products/{id}/images/{index}": {
+      "delete": {
+        "description": "Le fichier n’est supprimé qu’APRÈS le commit : l’ordre inverse laisserait la fiche pointant vers une image détruite en cas d’échec.",
+        "operationId": "CatalogAdminController_removeProductImage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "index",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Retirer une photo de produit.",
+        "tags": [
+          "shop-admin"
+        ]
+      }
+    },
+    "/admin/shop/products/{id}/images/order": {
+      "patch": {
+        "description": "N’accepte qu’une PERMUTATION des chemins déjà en base : sans ce contrôle, cette route redeviendrait la porte par laquelle un chemin arbitraire s’écrit en base, puis se sert.",
+        "operationId": "CatalogAdminController_reorderProductImages",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderProductImagesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Réordonner les photos — la première est celle que le portail met en avant.",
         "tags": [
           "shop-admin"
         ]
@@ -3704,6 +4120,148 @@
           "role"
         ]
       },
+      "StepUpChallengeDto": {
+        "type": "object",
+        "properties": {
+          "questionKey": {
+            "type": "string",
+            "enum": [
+              "CHILDHOOD_STREET",
+              "FIRST_SCHOOL",
+              "CHILDHOOD_NICKNAME",
+              "FIRST_PET_NAME",
+              "FAVORITE_TEACHER",
+              "CLOSEST_CHILDHOOD_FRIEND",
+              "GRANDMOTHER_FIRST_NAME",
+              "FIRST_EMPLOYER",
+              "CHILDHOOD_DISH",
+              "FIRST_CITY_VISITED"
+            ],
+            "description": "CLÉ de la question tirée — le libellé français vit dans l’interface (D-057)."
+          },
+          "challengeToken": {
+            "type": "string",
+            "description": "À renvoyer tel quel à `verify`. Il porte la question : on ne peut pas répondre à une autre que celle qui a été tirée."
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "questionKey",
+          "challengeToken",
+          "expiresAt"
+        ]
+      },
+      "VerifyStepUpDto": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "enum": [
+              "PIN",
+              "QUESTION"
+            ],
+            "type": "string",
+            "description": "Voie choisie par le membre. Les deux sont ÉQUIVALENTES (D-051) et partagent le même compteur d’essais : épuiser l’une n’ouvre pas l’autre."
+          },
+          "pin": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 6,
+            "example": "4827",
+            "description": "Requis si `method = PIN`."
+          },
+          "challengeToken": {
+            "type": "string",
+            "description": "Jeton rendu par `POST /step-up/challenge`, requis si `method = QUESTION`. Il PORTE la question tirée : sans ce lien, le tirage aléatoire serait décoratif — le client répondrait à celle de son choix."
+          },
+          "answer": {
+            "type": "string",
+            "maxLength": 120,
+            "example": "Ibn Khaldoun",
+            "description": "Réponse à la question du défi. Normalisée (accents, espaces, casse) avant comparaison."
+          }
+        },
+        "required": [
+          "method"
+        ]
+      },
+      "StepUpTokenDto": {
+        "type": "object",
+        "properties": {
+          "stepUpToken": {
+            "type": "string",
+            "description": "À présenter dans l’en-tête `X-Step-Up` des opérations sensibles. Valable 10 minutes (D-058) : assez pour composer un panier et payer, assez court pour qu’un poste laissé ouvert ne reste pas une session d’argent."
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stepUpToken",
+          "expiresAt"
+        ]
+      },
+      "SecurityAnswerDto": {
+        "type": "object",
+        "properties": {
+          "questionKey": {
+            "type": "string",
+            "enum": [
+              "CHILDHOOD_STREET",
+              "FIRST_SCHOOL",
+              "CHILDHOOD_NICKNAME",
+              "FIRST_PET_NAME",
+              "FAVORITE_TEACHER",
+              "CLOSEST_CHILDHOOD_FRIEND",
+              "GRANDMOTHER_FIRST_NAME",
+              "FIRST_EMPLOYER",
+              "CHILDHOOD_DISH",
+              "FIRST_CITY_VISITED"
+            ],
+            "example": "FIRST_SCHOOL",
+            "description": "Clé du catalogue (`GET /security-questions`). Le LIBELLÉ est porté par l’interface, jamais par l’API : les clés sont du code (D-015), les libellés du français."
+          },
+          "answer": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120,
+            "example": "École Ibn Khaldoun",
+            "description": "Réponse en clair. Elle est NORMALISÉE (accents dépliés, espaces réduits, minuscules) puis hachée : la comparaison est donc insensible à la casse et aux espaces, et la valeur saisie n’est stockée nulle part."
+          }
+        },
+        "required": [
+          "questionKey",
+          "answer"
+        ]
+      },
+      "ResetPinDto": {
+        "type": "object",
+        "properties": {
+          "answers": {
+            "minItems": 2,
+            "maxItems": 3,
+            "description": "Au moins 2 bonnes réponses sont exigées. C’est le SEUL recours : aucun canal e-mail ni SMS n’existe (D-011). Le lot compte pour UNE tentative sur le compteur commun — répondre à deux questions en un geste n’est pas deux essais.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SecurityAnswerDto"
+            }
+          },
+          "newPin": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 6,
+            "example": "5931",
+            "description": "Nouveau PIN. Sa FORME est contrôlée avant que la moindre tentative ne soit débitée : se voir refuser un PIN trop simple ne doit pas consommer un essai."
+          }
+        },
+        "required": [
+          "answers",
+          "newPin"
+        ]
+      },
       "BalanceRowDto": {
         "type": "object",
         "properties": {
@@ -4670,7 +5228,7 @@
           "idDocument": {
             "type": "string",
             "format": "binary",
-            "description": "Image de la pièce d’identité (JPEG, PNG, WebP ou PDF, 5 Mo max)."
+            "description": "Image de la pièce (JPEG, PNG, WebP ou PDF, 5 Mo max). **N’est plus attendue ici** (D-050/D-060) : elle se dépose à la PREMIÈRE CONNEXION, sous identité connue, via `POST /members/me/onboarding/id-document`. Cet endpoint est public et anonyme (D-021) — il n’a pas à recevoir un binaire de 5 Mo d’un inconnu. Le champ reste toléré pour les appelants internes (seed, tests) qui fournissent le dossier d’un bloc."
           }
         },
         "required": [
@@ -5105,6 +5663,10 @@
           },
           "renewal": {
             "$ref": "#/components/schemas/MemberRenewalStateDto"
+          },
+          "onboardingCompleted": {
+            "type": "boolean",
+            "description": "Parcours de première connexion terminé (D-050). C’est la SEULE information dont le portail a besoin au démarrage pour décider s’il ouvre l’espace membre ou le parcours d’accueil — d’où sa présence ici plutôt qu’un second appel. À `false`, toutes les autres routes membre répondent 403 `ONBOARDING_REQUIRED` (D-057). À NE PAS CONFONDRE avec `verification`, qui elle ne bloque RIEN (D-018)."
           }
         },
         "required": [
@@ -5116,7 +5678,8 @@
           "registeredAt",
           "registrationPaidDt",
           "verification",
-          "renewal"
+          "renewal",
+          "onboardingCompleted"
         ]
       },
       "UpdateMemberProfileDto": {
@@ -6023,6 +6586,137 @@
           "ecardIds"
         ]
       },
+      "OnboardingStatusDto": {
+        "type": "object",
+        "properties": {
+          "idDocumentUploaded": {
+            "type": "boolean",
+            "description": "Étape 1 — image de la pièce d’identité déposée."
+          },
+          "securityQuestionsSet": {
+            "type": "boolean",
+            "description": "Étape 2 — les trois questions secrètes sont enregistrées."
+          },
+          "pinSet": {
+            "type": "boolean",
+            "description": "Étape 3 — le code PIN est créé."
+          },
+          "completed": {
+            "type": "boolean",
+            "description": "Les trois étapes sont faites : le portail est ouvert. Valeur LUE en base (colonne `onboardingCompletedAt`), pas recalculée — c’est elle que le garde serveur applique."
+          },
+          "idDocumentType": {
+            "nullable": true,
+            "enum": [
+              "ID_CARD",
+              "DRIVING_LICENSE",
+              "PASSPORT"
+            ],
+            "type": "string",
+            "description": "Type SAISI à l’inscription (D-039), rappelé à l’écran au moment de déposer l’image."
+          },
+          "idDocumentNumber": {
+            "type": "string",
+            "nullable": true,
+            "example": "09876543",
+            "description": "Numéro SAISI à l’inscription (D-039), rappelé à l’écran."
+          },
+          "verificationStatus": {
+            "enum": [
+              "PENDING",
+              "VERIFIED",
+              "REJECTED"
+            ],
+            "type": "string",
+            "description": "Vérification par l’admin — INFORMATIVE, elle ne bloque RIEN (D-018). À ne pas confondre avec le parcours d’accueil, qui lui est bloquant."
+          }
+        },
+        "required": [
+          "idDocumentUploaded",
+          "securityQuestionsSet",
+          "pinSet",
+          "completed",
+          "idDocumentType",
+          "idDocumentNumber",
+          "verificationStatus"
+        ]
+      },
+      "SecurityQuestionsCatalogDto": {
+        "type": "object",
+        "properties": {
+          "keys": {
+            "type": "array",
+            "example": [
+              "CHILDHOOD_STREET",
+              "FIRST_SCHOOL",
+              "CHILDHOOD_NICKNAME",
+              "FIRST_PET_NAME",
+              "FAVORITE_TEACHER",
+              "CLOSEST_CHILDHOOD_FRIEND",
+              "GRANDMOTHER_FIRST_NAME",
+              "FIRST_EMPLOYER",
+              "CHILDHOOD_DISH",
+              "FIRST_CITY_VISITED"
+            ],
+            "items": {
+              "type": "string",
+              "enum": [
+                "CHILDHOOD_STREET",
+                "FIRST_SCHOOL",
+                "CHILDHOOD_NICKNAME",
+                "FIRST_PET_NAME",
+                "FAVORITE_TEACHER",
+                "CLOSEST_CHILDHOOD_FRIEND",
+                "GRANDMOTHER_FIRST_NAME",
+                "FIRST_EMPLOYER",
+                "CHILDHOOD_DISH",
+                "FIRST_CITY_VISITED"
+              ]
+            }
+          },
+          "required": {
+            "type": "number",
+            "example": 3,
+            "description": "Nombre de questions que le membre doit choisir."
+          }
+        },
+        "required": [
+          "keys",
+          "required"
+        ]
+      },
+      "SetSecurityQuestionsDto": {
+        "type": "object",
+        "properties": {
+          "answers": {
+            "minItems": 3,
+            "maxItems": 3,
+            "description": "Exactement 3 questions, toutes DIFFÉRENTES.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SecurityAnswerDto"
+            }
+          }
+        },
+        "required": [
+          "answers"
+        ]
+      },
+      "SetPinDto": {
+        "type": "object",
+        "properties": {
+          "pin": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 6,
+            "example": "4827",
+            "description": "De 4 à 6 chiffres. Les codes trop devinables (chiffres identiques ou qui se suivent) sont refusés : avec 5 essais avant blocage, ce sont exactement ceux qu’un attaquant essaie en premier."
+          }
+        },
+        "required": [
+          "pin"
+        ]
+      },
       "CreateEcardDto": {
         "type": "object",
         "properties": {
@@ -6867,12 +7561,6 @@
             "example": 39.9,
             "description": "Prix promotionnel en DT (≤ prix de référence). La valeur BV reste inchangée."
           },
-          "images": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
           "active": {
             "type": "boolean",
             "default": true,
@@ -6946,12 +7634,6 @@
             "example": 39.9,
             "description": "Prix promotionnel en DT (≤ prix de référence). La valeur BV reste inchangée."
           },
-          "images": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
           "active": {
             "type": "boolean",
             "default": true,
@@ -6963,6 +7645,21 @@
             "description": "Visible sur la vitrine publique."
           }
         }
+      },
+      "ReorderProductImagesDto": {
+        "type": "object",
+        "properties": {
+          "order": {
+            "description": "Les chemins des images du produit, dans le nouvel ordre. La PREMIÈRE est celle que le portail met en avant. Doit être une permutation exacte de la liste actuelle.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "order"
+        ]
       },
       "CartItemDto": {
         "type": "object",

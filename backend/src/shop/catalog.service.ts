@@ -4,10 +4,17 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
 import {
+  MAX_IMAGES_PER_PRODUCT,
+  ProductImageService,
+} from './product-image.service';
+import {
   CategoryNotEmptyError,
   CategoryNotFoundError,
+  InvalidProductImageError,
   InvalidProductStockError,
+  ProductImageNotFoundError,
   ProductNotFoundError,
+  TooManyProductImagesError,
 } from './shop.errors';
 
 /**
@@ -22,7 +29,10 @@ import {
  */
 @Injectable()
 export class CatalogService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly images: ProductImageService,
+  ) {}
 
   // ─────────────────────────── Catégories ───────────────────────────
 
@@ -113,7 +123,10 @@ export class CatalogService {
           dto.promoPriceDt === undefined
             ? null
             : new Prisma.Decimal(dto.promoPriceDt),
-        images: dto.images ?? [],
+        // Un produit naît SANS photo : elles se déposent ensuite par la route dédiée, qui
+        // valide les octets et pose elle-même le nom du fichier (D-059). Le portail affiche
+        // un placeholder soigné en attendant (D-054) — jamais une image cassée.
+        images: [],
         active: dto.active ?? true,
         visibleOnSite: dto.visibleOnSite ?? true,
       },
@@ -168,7 +181,8 @@ export class CatalogService {
       data.shippingFeeDt = new Prisma.Decimal(dto.shippingFeeDt);
     if (dto.promoPriceDt !== undefined)
       data.promoPriceDt = new Prisma.Decimal(dto.promoPriceDt);
-    if (dto.images !== undefined) data.images = dto.images;
+    // `images` n'est volontairement plus modifiable par ici (D-059) : la route de dépôt en
+    // est le seul écrivain. Voir `UpdateProductDto`.
     if (dto.active !== undefined) data.active = dto.active;
     if (dto.visibleOnSite !== undefined) data.visibleOnSite = dto.visibleOnSite;
     data.stock = stock;
@@ -241,6 +255,131 @@ export class CatalogService {
     if (!category) {
       throw new CategoryNotFoundError(categoryId);
     }
+  }
+
+  // ─────────────────── Images produit (D-054, D-059) ───────────────────
+
+  /**
+   * Ajoute une photo à la fin de la liste.
+   *
+   * Le fichier est écrit AVANT la mise à jour (la colonne a besoin de son chemin) et
+   * SUPPRIMÉ si celle-ci échoue : jamais de fichier sans référence, jamais de référence sans
+   * fichier. Le plafond est vérifié APRÈS l'écriture pour la même raison que partout
+   * ailleurs — on lit l'état sous la contrainte réelle, pas un état lu plus tôt.
+   */
+  async addProductImage(
+    adminId: number,
+    productId: number,
+    file: { buffer: Buffer; size: number; originalname?: string },
+  ): Promise<Product> {
+    const before = await this.getProductAdmin(productId);
+    if (before.images.length >= MAX_IMAGES_PER_PRODUCT) {
+      throw new TooManyProductImagesError(MAX_IMAGES_PER_PRODUCT);
+    }
+
+    const stored = await this.images.store(file);
+    try {
+      const product = await this.prisma.product.update({
+        where: { id: productId },
+        data: { images: { push: stored.relativePath } },
+      });
+      await this.audit(
+        adminId,
+        'PRODUCT_IMAGE_ADDED',
+        productId,
+        before,
+        product,
+      );
+      return product;
+    } catch (error) {
+      await this.images.discard(stored.relativePath);
+      throw error;
+    }
+  }
+
+  /**
+   * Retire la photo à la position donnée.
+   *
+   * Le fichier n'est supprimé qu'APRÈS le commit : dans l'autre sens, une transaction
+   * échouée laisserait la ligne pointant vers un fichier détruit — la fiche afficherait une
+   * image morte, et plus personne ne pourrait la réparer autrement qu'à la main.
+   */
+  async removeProductImage(
+    adminId: number,
+    productId: number,
+    index: number,
+  ): Promise<Product> {
+    const before = await this.getProductAdmin(productId);
+    const removed = before.images[index];
+    if (removed === undefined) {
+      throw new ProductImageNotFoundError(productId, index);
+    }
+
+    const product = await this.prisma.product.update({
+      where: { id: productId },
+      data: { images: before.images.filter((_, i) => i !== index) },
+    });
+    await this.audit(
+      adminId,
+      'PRODUCT_IMAGE_REMOVED',
+      productId,
+      before,
+      product,
+    );
+    await this.images.discard(removed);
+    return product;
+  }
+
+  /**
+   * Réordonne les photos — la première est celle que le portail met en avant.
+   *
+   * On n'accepte qu'une PERMUTATION des chemins déjà en base : la comparaison porte sur le
+   * multiensemble trié, pas sur la longueur. Sans ce contrôle, cette route deviendrait la
+   * porte dérobée que `UpdateProductDto` vient de perdre — un chemin arbitraire écrit en
+   * base, puis servi.
+   */
+  async reorderProductImages(
+    adminId: number,
+    productId: number,
+    order: string[],
+  ): Promise<Product> {
+    const before = await this.getProductAdmin(productId);
+    const same =
+      order.length === before.images.length &&
+      [...order].sort().join(' ') === [...before.images].sort().join(' ');
+    if (!same) {
+      throw new InvalidProductImageError(
+        'l’ordre proposé ne correspond pas aux images de ce produit.',
+      );
+    }
+
+    const product = await this.prisma.product.update({
+      where: { id: productId },
+      data: { images: order },
+    });
+    await this.audit(
+      adminId,
+      'PRODUCT_IMAGE_REORDERED',
+      productId,
+      before,
+      product,
+    );
+    return product;
+  }
+
+  /** Chemin RELATIF de l'image à la position donnée, pour la route qui la sert. */
+  async productImagePath(productId: number, index: number): Promise<string> {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { images: true },
+    });
+    if (!product) throw new ProductNotFoundError(productId);
+
+    const path = product.images[index];
+    if (path === undefined) {
+      throw new ProductImageNotFoundError(productId, index);
+    }
+    return path;
   }
 
   private async audit(

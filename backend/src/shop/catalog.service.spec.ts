@@ -1,6 +1,7 @@
 import { Prisma, ProductType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CatalogService } from './catalog.service';
+import { ProductImageService } from './product-image.service';
 import { CategoryNotEmptyError, InvalidProductStockError } from './shop.errors';
 
 /**
@@ -54,7 +55,20 @@ function makeService(product = PHYSICAL_PRODUCT) {
     auditLog: { create: jest.fn(async () => ({})) },
   } as unknown as PrismaService;
 
-  return { service: new CatalogService(prisma), productCreate, productUpdate };
+  // Le dépôt de fichiers (T9.5, D-059) n'intervient dans aucun de ces scénarios — ils ne
+  // portent que sur le couple type/stock. Un double vide suffit et garde ces tests hors du
+  // système de fichiers.
+  const images = {
+    store: jest.fn(),
+    read: jest.fn(),
+    discard: jest.fn(),
+  } as unknown as ProductImageService;
+
+  return {
+    service: new CatalogService(prisma, images),
+    productCreate,
+    productUpdate,
+  };
 }
 
 describe('CatalogService — stock et type sont indissociables', () => {

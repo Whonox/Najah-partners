@@ -2,7 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import { mkdir, readFile, unlink, writeFile } from 'fs/promises';
-import { dirname, extname, isAbsolute, join, resolve, sep } from 'path';
+import { dirname, extname, isAbsolute, join, resolve } from 'path';
+import {
+  DISPLAYABLE_IMAGE_MIMES,
+  detectSignature,
+  isInsideRoot,
+  signatureByExtension,
+} from '../common/file-signatures';
 import { InvalidIdDocumentError } from './members.errors';
 
 /** Taille maximale acceptée pour une image de pièce d'identité. */
@@ -11,32 +17,14 @@ export const MAX_ID_DOCUMENT_BYTES = 5 * 1024 * 1024;
 /**
  * Types réellement acceptés, reconnus par leurs OCTETS et non par le `Content-Type` du
  * client (trivialement usurpable : un script peut se déclarer `image/jpeg`).
+ *
+ * La TABLE de signatures est partagée (`common/file-signatures.ts`) depuis la Tranche 9.5,
+ * où les images produit ont eu besoin du même contrôle : la recopier aurait garanti qu'un
+ * durcissement futur n'atterrisse que dans l'un des deux dépôts. La LISTE des formats
+ * acceptés, elle, reste propre à chaque usage — une pièce d'identité peut être un PDF (un
+ * scan d'administration en est souvent un), une photo de produit non.
  */
-const SIGNATURES: Array<{ mime: string; ext: string; matches: (b: Buffer) => boolean }> = [
-  {
-    mime: 'image/jpeg',
-    ext: 'jpg',
-    matches: (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
-  },
-  {
-    mime: 'image/png',
-    ext: 'png',
-    matches: (b) =>
-      b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47,
-  },
-  {
-    mime: 'image/webp',
-    ext: 'webp',
-    matches: (b) =>
-      b.subarray(0, 4).toString('ascii') === 'RIFF' &&
-      b.subarray(8, 12).toString('ascii') === 'WEBP',
-  },
-  {
-    mime: 'application/pdf',
-    ext: 'pdf',
-    matches: (b) => b.subarray(0, 4).toString('ascii') === '%PDF',
-  },
-];
+const ACCEPTED_MIMES = [...DISPLAYABLE_IMAGE_MIMES, 'application/pdf'];
 
 /**
  * Stockage local des pièces d'identité (D-018, périmètre Tranche 4 : dépôt du fichier
@@ -59,7 +47,9 @@ export class IdentityDocumentService {
       'IDENTITY_UPLOAD_DIR',
       '../../najah-uploads',
     );
-    return isAbsolute(configured) ? configured : resolve(process.cwd(), configured);
+    return isAbsolute(configured)
+      ? configured
+      : resolve(process.cwd(), configured);
   }
 
   /** Chemin absolu d'un document, depuis le chemin relatif stocké en base. */
@@ -85,7 +75,7 @@ export class IdentityDocumentService {
       throw new InvalidIdDocumentError('fichier vide ou illisible.');
     }
 
-    const signature = SIGNATURES.find((s) => s.matches(file.buffer));
+    const signature = detectSignature(file.buffer, ACCEPTED_MIMES);
     if (!signature) {
       throw new InvalidIdDocumentError(
         'format non reconnu (formats acceptés : JPEG, PNG, WebP, PDF).',
@@ -119,8 +109,7 @@ export class IdentityDocumentService {
     relativePath: string,
   ): Promise<{ buffer: Buffer; mime: string } | null> {
     const absolute = resolve(this.absolutePath(relativePath));
-    const root = resolve(this.root());
-    if (absolute !== root && !absolute.startsWith(root + sep)) {
+    if (!isInsideRoot(absolute, this.root())) {
       this.logger.error(
         `Chemin de pièce d'identité hors du répertoire de stockage, lecture refusée : ${relativePath}`,
       );
@@ -128,7 +117,7 @@ export class IdentityDocumentService {
     }
 
     const ext = extname(absolute).slice(1).toLowerCase();
-    const signature = SIGNATURES.find((s) => s.ext === ext);
+    const signature = signatureByExtension(ext);
     if (!signature) {
       this.logger.error(
         `Extension de pièce d'identité inattendue, lecture refusée : ${relativePath}`,

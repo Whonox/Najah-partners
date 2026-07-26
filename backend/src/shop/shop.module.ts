@@ -9,6 +9,7 @@ import { CheckoutService } from './checkout.service';
 import { OrdersAdminController } from './orders-admin.controller';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
+import { ProductImageService } from './product-image.service';
 
 /**
  * Boutique & checkout (Tranche 6). C'est ici — et nulle part ailleurs — que l'arbre
@@ -29,7 +30,14 @@ import { OrdersService } from './orders.service';
     OrdersController,
     OrdersAdminController,
   ],
-  providers: [CatalogService, CheckoutService, OrdersService],
+  providers: [
+    CatalogService,
+    CheckoutService,
+    OrdersService,
+    // Dépôt et lecture des photos produit (T9.5, D-054/D-059). Aucun lien avec l'argent ni
+    // avec l'arbre : c'est du stockage de fichiers, calqué sur celui des pièces d'identité.
+    ProductImageService,
+  ],
   exports: [CatalogService, OrdersService],
 })
 export class ShopModule {}

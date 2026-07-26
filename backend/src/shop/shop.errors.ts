@@ -109,3 +109,31 @@ export class InvalidShipmentTransitionError extends ConflictException {
     super(`Transition d'expédition invalide : ${from} → ${to}.`);
   }
 }
+
+// ─────────────────────────── Images produit (D-054, D-059) ───────────────────────────
+
+/** Fichier refusé au dépôt : trop lourd, vide, ou d'un format qui n'est pas une image. */
+export class InvalidProductImageError extends BadRequestException {
+  constructor(reason: string) {
+    super(`Image produit refusée : ${reason}`);
+  }
+}
+
+/**
+ * Une fiche ne porte qu'un nombre borné de photos. Au-delà, elle devient illisible côté
+ * portail — et le stockage grossit sans que personne ne le décide.
+ */
+export class TooManyProductImagesError extends ConflictException {
+  constructor(max: number) {
+    super(
+      `Ce produit porte déjà le maximum de ${max} images. Supprimez-en une avant d'en ajouter.`,
+    );
+  }
+}
+
+/** L'index visé ne désigne aucune image de ce produit. */
+export class ProductImageNotFoundError extends NotFoundException {
+  constructor(productId: number, index: number) {
+    super(`Le produit ${productId} n'a pas d'image à la position ${index}.`);
+  }
+}
