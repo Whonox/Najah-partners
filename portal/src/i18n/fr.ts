@@ -271,6 +271,17 @@ export const fr = {
   "shop.shippingOptional": "Facultatif — utile si votre commande contient des produits à livrer.",
   "shop.shippingOutside":
     "Les frais de livraison sont réglés directement au livreur, en dehors de la plateforme : ils n’entrent pas dans le montant ci-dessous.",
+  "shop.categories": "Catégories",
+  "shop.allCategories": "Tout",
+  "shop.cartDescription": "Vous pouvez encore modifier les quantités avant de payer.",
+  "shop.cartItems": "Articles",
+  "shop.cartItemsCount": "{count} article(s)",
+  "shop.clearCart": "Vider le panier",
+  "shop.openCart": "Ouvrir mon panier, {count} article(s)",
+  // Le NOM du produit est dans le libellé : sur une grille, « Ajouter » répété douze fois ne
+  // dit à un lecteur d'écran ni quoi, ni lequel.
+  "shop.addOne": "Ajouter {name}",
+  "shop.removeOne": "Retirer un exemplaire de {name}",
   "shop.checkout": "Payer par e-card",
   "shop.checkingOut": "Paiement…",
 
@@ -302,6 +313,20 @@ export const fr = {
   "activation.success": "Votre compte est activé.",
   "activation.successBody":
     "Les points de votre palier viennent d’être ajoutés aux jambes de vos parrains, et vos premières commissions sont en route.",
+  "activation.step.pack": "Le pack",
+  "activation.step.cart": "Le panier",
+  "activation.step.payment": "Le paiement",
+  "activation.step.done": "C'est fait",
+  "activation.choosePackHint":
+    "Le palier est un nombre de POINTS : c'est lui qui montera dans l'arbre de vos parrains. Le montant en dinars, lui, est ce que vous réglez aujourd'hui.",
+  "activation.composeCartHint":
+    "Ajoutez des produits jusqu'à atteindre exactement le palier du pack {pack}. Les prix n'ont aucune importance à cette étape.",
+  "activation.payHint":
+    "Le montant à régler ne dépend pas des produits choisis : c'est le prix du pack, moins l'acompte déjà versé.",
+  "activation.toPayment": "Passer au paiement",
+  "activation.editCart": "Modifier mon panier",
+  "activation.toDashboard": "Voir mon espace",
+  "activation.toNetwork": "Voir mon réseau",
   "activation.alreadyActive": "Votre compte est déjà activé.",
 
   // ── Parcours ACHAT LIBRE ──
@@ -309,8 +334,11 @@ export const fr = {
   "free.dueTitle": "Montant à régler",
   "free.dueHint": "Somme des prix des produits de votre panier.",
   "free.success": "Votre commande est enregistrée.",
-  "free.requiresActive":
-    "L’achat libre est réservé aux comptes activés. Activez d’abord votre compte en choisissant un pack.",
+  "free.toPayment": "Passer au paiement",
+  "free.backToShop": "Retour à la boutique",
+  "free.successBody":
+    "Vos e-cards ont été consommées. Cet achat n'a ajouté aucun point à votre arbre et n'a fait progresser aucun équilibre.",
+  "free.pointsNoEffect": "Points du panier — sans effet ici",
 
   // ── Paiement par e-cards (commun) ──
   "payment.title": "Paiement par e-card",

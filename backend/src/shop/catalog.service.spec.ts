@@ -2,7 +2,11 @@ import { Prisma, ProductType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CatalogService } from './catalog.service';
 import { ProductImageService } from './product-image.service';
-import { CategoryNotEmptyError, InvalidProductStockError } from './shop.errors';
+import {
+  CategoryNotEmptyError,
+  InvalidProductImageError,
+  InvalidProductStockError,
+} from './shop.errors';
 
 /**
  * Catalogue — tests unitaires. Une seule règle structurante : **le stock n'existe que pour
@@ -24,7 +28,7 @@ const PHYSICAL_PRODUCT = {
   active: true,
   visibleOnSite: true,
   description: null,
-  images: [],
+  images: [] as string[],
 };
 
 function makeService(product = PHYSICAL_PRODUCT) {
@@ -143,5 +147,51 @@ describe('CatalogService — catégories', () => {
     await expect(service.deleteCategory(1, 1)).rejects.toBeInstanceOf(
       CategoryNotEmptyError,
     );
+  });
+});
+
+describe('CatalogService — réordonnancement des photos (D-059)', () => {
+  // La liste ne porte que des POSITIONS depuis la Tranche 9.5 : le client ne reçoit plus les
+  // chemins de stockage, il n’a donc plus rien à en renvoyer. Ce qui est vérifié ici, c’est
+  // que seule une PERMUTATION EXACTE passe — une liste plus courte effacerait des images en
+  // silence, un doublon en dupliquerait une et en perdrait une autre.
+  const THREE = { ...PHYSICAL_PRODUCT, images: ['a.jpg', 'b.jpg', 'c.jpg'] };
+
+  it('permutation valide → les chemins suivent les positions demandées', async () => {
+    const { service, productUpdate } = makeService(THREE);
+
+    await service.reorderProductImages(1, 10, [2, 0, 1]);
+
+    expect(productUpdate.mock.calls[0][0].data.images).toEqual([
+      'c.jpg',
+      'a.jpg',
+      'b.jpg',
+    ]);
+  });
+
+  it('liste incomplète → refusée, aucune image perdue', async () => {
+    const { service, productUpdate } = makeService(THREE);
+
+    await expect(service.reorderProductImages(1, 10, [0, 1])).rejects.toBeInstanceOf(
+      InvalidProductImageError,
+    );
+    expect(productUpdate).not.toHaveBeenCalled();
+  });
+
+  it('doublon → refusé (il dupliquerait une photo et en supprimerait une)', async () => {
+    const { service, productUpdate } = makeService(THREE);
+
+    await expect(
+      service.reorderProductImages(1, 10, [0, 0, 1]),
+    ).rejects.toBeInstanceOf(InvalidProductImageError);
+    expect(productUpdate).not.toHaveBeenCalled();
+  });
+
+  it('index hors bornes → refusé', async () => {
+    const { service } = makeService(THREE);
+
+    await expect(
+      service.reorderProductImages(1, 10, [0, 1, 3]),
+    ).rejects.toBeInstanceOf(InvalidProductImageError);
   });
 });

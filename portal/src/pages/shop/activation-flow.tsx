@@ -1,15 +1,18 @@
 import { useState } from "react"
+import { Link } from "react-router"
 import { useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { Check, PartyPopper } from "lucide-react"
+import { ArrowRight, Check, PartyPopper, Sparkles } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DataState } from "@/components/common/data-state"
 import { EcardPayment } from "@/components/common/ecard-payment"
 import { Explain, Notice } from "@/components/common/explain"
+import { PageHeader } from "@/components/common/page-header"
+import { Stepper } from "@/components/common/stepper"
+import { useStepper } from "@/components/common/use-stepper"
 import { MoneyDt, PointsBv } from "@/components/format/amount"
 import { errorMessage } from "@/api/error"
 import {
@@ -20,10 +23,13 @@ import {
 } from "@/api/queries/shop"
 import type { MemberProfile } from "@/api/queries/me"
 import { useAuth } from "@/auth/use-auth"
+import { formatDt, formatPoints } from "@/lib/format"
 import { fromMillimes, toMillimes } from "@/lib/money"
+import { cn } from "@/lib/utils"
 import { useT } from "@/i18n/use-t"
 import { cartTotals, type Cart } from "./cart"
-import { ProductPicker } from "./product-picker"
+import { CartPanel } from "./cart-panel"
+import { CatalogGrid } from "./catalog-grid"
 
 /**
  * ACTIVATION (spec §7.1.4a) — le parcours le plus exigeant du portail, et celui où un affilié
@@ -36,25 +42,33 @@ import { ProductPicker } from "./product-picker"
  *
  * Rien ne relie ces deux nombres : le prix payé ne dépend pas des produits choisis, et les
  * points du panier ne dépendent pas de ce qu'il coûte. C'est le point du modèle le plus
- * contre-intuitif pour un nouvel affilié — d'où un écran qui affiche EN PERMANENCE combien de
- * points il lui reste à atteindre, et le montant exact à couvrir, au lieu de le lui apprendre
- * par un refus.
+ * contre-intuitif pour un nouvel affilié.
  *
- * Le front ne calcule aucune règle : il additionne des valeurs affichées pour guider. Les deux
+ * ═══ POURQUOI UN PARCOURS EN ÉTAPES, ET NON UNE PAGE ═══
+ * La T9 empilait les trois blocs sur un seul écran. On y voyait donc en même temps un palier
+ * en POINTS et un montant en DINARS, deux compteurs qui ne se répondent pas, sans jamais
+ * savoir lequel bloquait. Les étapes séparent les deux contraintes DANS LE TEMPS : on compose
+ * en points, puis on paie en dinars. Une seule question à la fois, et le fil dit combien il en
+ * reste — ce qui, sur un parcours qui engage 2 100 DT, vaut mieux qu'un défilement.
+ *
+ * ═══ CE QUE LE FRONT NE FAIT PAS ═══
+ * Il ne calcule aucune règle : il additionne des valeurs affichées pour guider. Les deux
  * contrôles qui font foi sont côté backend, sous verrou, contre le SNAPSHOT d'activation.
  */
+const STEPS = ["pack", "cart", "payment", "done"] as const
+
 export function ActivationFlow({ profile }: { profile: MemberProfile }) {
   const t = useT()
   const { refreshProfile } = useAuth()
   const packs = useQuery(packsQueryOptions())
   const products = useQuery(productsQueryOptions())
   const checkout = useActivationCheckout()
+  const stepper = useStepper(STEPS.length)
 
   const [pack, setPack] = useState<PackOffer | null>(null)
   const [cart, setCart] = useState<Cart>({})
   const [codes, setCodes] = useState<string[]>([])
   const [address, setAddress] = useState("")
-  const [done, setDone] = useState(false)
 
   const totals = cartTotals(products.data ?? [], cart)
   const remaining = pack ? pack.tierBv - totals.totalPoints : 0
@@ -65,6 +79,8 @@ export function ActivationFlow({ profile }: { profile: MemberProfile }) {
     ? toMillimes(pack.priceDt) - toMillimes(profile.registrationPaidDt)
     : 0
   const dueDt = fromMillimes(dueMillimes)
+
+  const step = STEPS[stepper.current]
 
   async function submit() {
     if (!pack) return
@@ -79,35 +95,48 @@ export function ActivationFlow({ profile }: { profile: MemberProfile }) {
         shippingAddress: address.trim() === "" ? undefined : address.trim(),
       })
       await refreshProfile()
-      setDone(true)
+      stepper.goTo(STEPS.indexOf("done"))
       toast.success(t("activation.success"))
     } catch (cause) {
       toast.error(errorMessage(cause))
     }
   }
 
-  if (done) {
-    return (
-      <Card>
-        <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
-          <PartyPopper className="size-10 text-link" aria-hidden />
-          <h2 className="text-xl font-semibold">{t("activation.success")}</h2>
-          <p className="max-w-md text-sm text-muted-foreground">
-            {t("activation.successBody")}
-          </p>
-        </CardContent>
-      </Card>
-    )
-  }
+  const done = step === "done"
 
   return (
-    <div className="space-y-6">
-      {/* ── 1. Le pack ── */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("activation.choosePack")}</CardTitle>
-        </CardHeader>
-        <CardContent>
+    <div className="space-y-5">
+      {/* Sur la confirmation, plus d'en-tête : « choisissez un pack, composez votre panier »
+          au-dessus d'un compte déjà activé se lirait comme s'il restait quelque chose à faire. */}
+      {!done && (
+        <PageHeader title={t("activation.title")} description={t("activation.subtitle")} />
+      )}
+
+      {/* Le fil reste sur la confirmation, et c'est là qu'il sert le plus : les quatre
+          pastilles cochées referment le parcours. Le retour en arrière, lui, disparaît —
+          l'activation est faite, rejouer une étape ne mènerait nulle part. */}
+      <Stepper
+        current={stepper.current}
+        steps={[
+          { label: t("activation.step.pack") },
+          { label: t("activation.step.cart") },
+          { label: t("activation.step.payment") },
+          { label: t("activation.step.done") },
+        ]}
+        // Retour possible vers une étape DÉJÀ franchie seulement : on ne saute pas la
+        // composition du panier pour aller payer.
+        onStepClick={done ? undefined : (index) => stepper.goTo(index)}
+      />
+
+      {done && <ActivationDone />}
+
+      {step === "pack" && (
+        <section className="space-y-4">
+          <StepIntro
+            title={t("activation.choosePack")}
+            body={t("activation.choosePackHint")}
+          />
+
           <DataState
             isLoading={packs.isPending}
             error={packs.error}
@@ -122,138 +151,243 @@ export function ActivationFlow({ profile }: { profile: MemberProfile }) {
                     depositDt={profile.registrationPaidDt}
                     selected={pack?.id === offer.id}
                     onSelect={() => {
-                      setPack(offer)
                       // Changer de pack change le palier visé : garder un panier composé pour
                       // l'ancien laisserait un total faux à l'écran sans que rien ne le dise.
-                      setCart({})
+                      if (pack?.id !== offer.id) setCart({})
+                      setPack(offer)
+                      stepper.next()
                     }}
                   />
                 </li>
               ))}
             </ul>
           </DataState>
-        </CardContent>
-      </Card>
+        </section>
+      )}
 
-      {pack ? (
-        <>
-          {/* ── 2. Le panier, au palier EXACT ── */}
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("activation.composeCart")}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Notice>{t("activation.pointsRule")}</Notice>
+      {step === "cart" && pack && (
+        <section className="space-y-4">
+          <StepIntro
+            title={t("activation.composeCart")}
+            body={t("activation.composeCartHint", { pack: pack.name })}
+          />
 
-              {/* LE GUIDE PERMANENT : il est collant en haut du bloc, parce que la liste de
-                  produits est longue et qu'un compteur qu'il faut remonter chercher ne guide
-                  personne. */}
-              <div
-                className={
-                  tierExact
-                    ? "sticky top-16 z-10 rounded-lg border border-success/40 bg-success/10 p-3"
-                    : "sticky top-16 z-10 rounded-lg border border-highlight-border bg-highlight p-3"
-                }
-              >
-                <p className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+          {/* LE GUIDE PERMANENT. C'est la seule information qui doit rester sous les yeux
+              pendant toute la composition : sans elle, on ajoute des produits en espérant
+              tomber juste. Elle est en POINTS, jamais en dinars. */}
+          <CartPanel
+            lines={totals.lines}
+            tone={tierExact ? "success" : "default"}
+            onQuantityChange={(productId, quantity) =>
+              setCart((current) => {
+                const next = { ...current }
+                if (quantity <= 0) delete next[productId]
+                else next[productId] = quantity
+                return next
+              })
+            }
+            onClear={() => setCart({})}
+            summary={
+              <>
+                <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
                   <span className="font-medium">{t("activation.pointsProgress")}</span>
-                  <span className="text-base font-semibold">
+                  <span className="font-semibold tabular-nums">
                     <PointsBv value={totals.totalPoints} /> / <PointsBv value={pack.tierBv} />
                   </span>
                 </p>
-                <p className="mt-1 text-sm">
+                <p
+                  className={
+                    tierExact
+                      ? "mt-0.5 text-xs font-medium text-success"
+                      : "mt-0.5 text-xs text-muted-foreground"
+                  }
+                >
                   {tierExact
                     ? t("activation.pointsExact")
                     : remaining > 0
-                      ? t("activation.pointsRemaining", { count: remaining })
-                      : t("activation.pointsExceeded", { count: -remaining })}
+                      ? t("activation.pointsRemaining", { count: formatPoints(remaining) })
+                      : t("activation.pointsExceeded", { count: formatPoints(-remaining) })}
                 </p>
-              </div>
-
-              <DataState
-                isLoading={products.isPending}
-                error={products.error}
-                isEmpty={products.data?.length === 0}
-                emptyMessage={t("shop.empty")}
-                onRetry={() => void products.refetch()}
-              >
-                <ProductPicker
-                  products={products.data ?? []}
-                  cart={cart}
-                  onChange={setCart}
+              </>
+            }
+            detail={
+              <dl className="space-y-1.5 text-sm">
+                <Row
+                  label={t("shop.cartPoints")}
+                  value={<PointsBv value={totals.totalPoints} />}
                 />
-              </DataState>
-            </CardContent>
-          </Card>
-
-          {/* ── 3. Le paiement ── */}
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("activation.pay")}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-lg border border-highlight-border bg-highlight p-3">
-                <p className="text-sm font-medium">{t("activation.dueTitle")}</p>
-                <p className="mt-1 text-2xl font-semibold">
-                  <MoneyDt value={dueDt} />
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t("activation.dueBreakdown", {
-                    price: `${pack.priceDt} ${t("unit.dt")}`,
-                    deposit: `${profile.registrationPaidDt} ${t("unit.dt")}`,
-                  })}
-                </p>
-              </div>
-
-              <Explain
-                titleKey="explain.twoUnits.title"
-                bodyKey="explain.twoUnits.body"
-              />
-              <Notice>{t("activation.depositExplain")}</Notice>
-
-              <EcardPayment
-                dueDt={dueDt}
-                codes={codes}
-                onChange={setCodes}
-                disabled={checkout.isPending}
-              />
-
-              <div className="space-y-1.5">
-                <Label htmlFor="activation-address">{t("shop.shipping")}</Label>
-                <Input
-                  id="activation-address"
-                  value={address}
-                  onChange={(event) => setAddress(event.target.value)}
+                <Row
+                  label={t("activation.packTier")}
+                  value={<PointsBv value={pack.tierBv} />}
                 />
-                <p className="text-xs text-muted-foreground">{t("shop.shippingOptional")}</p>
-              </div>
-
-              <Notice>{t("shop.shippingOutside")}</Notice>
-
-              {checkout.error ? (
-                <Alert variant="destructive">
-                  <AlertDescription>{errorMessage(checkout.error)}</AlertDescription>
-                </Alert>
-              ) : null}
-
+              </dl>
+            }
+            footer={
               <Button
                 className="w-full"
-                disabled={!tierExact || codes.length === 0 || checkout.isPending}
-                onClick={() => void submit()}
+                disabled={!tierExact}
+                onClick={() => stepper.next()}
               >
-                {checkout.isPending ? t("shop.checkingOut") : t("shop.checkout")}
+                {t("activation.toPayment")}
+                <ArrowRight />
               </Button>
-              <p className="text-center text-xs text-muted-foreground">
-                {t("payment.noGateway")}
-              </p>
-            </CardContent>
-          </Card>
-        </>
-      ) : null}
+            }
+          />
+
+          <Notice>{t("activation.pointsRule")}</Notice>
+
+          <CatalogGrid cart={cart} onChange={setCart} />
+
+          {/* Le même passage à l'étape suivante, EN BAS de la grille : au terme d'un long
+              défilement, remonter chercher le bouton dans le panneau serait absurde. */}
+          <Button
+            className="w-full"
+            size="lg"
+            disabled={!tierExact}
+            onClick={() => stepper.next()}
+          >
+            {tierExact
+              ? t("activation.toPayment")
+              : remaining > 0
+                ? t("activation.pointsRemaining", { count: formatPoints(remaining) })
+                : t("activation.pointsExceeded", { count: formatPoints(-remaining) })}
+            {tierExact && <ArrowRight />}
+          </Button>
+        </section>
+      )}
+
+      {step === "payment" && pack && (
+        <section className="space-y-4">
+          <StepIntro title={t("activation.pay")} body={t("activation.payHint")} />
+
+          {/* Le montant dû et le panier composé, côte à côte : ce sont les deux dimensions du
+              parcours (D-028), et c'est le dernier écran où l'on peut encore les vérifier. */}
+          <div className="rounded-2xl bg-card p-5 ring-1 ring-border">
+            <p className="text-sm text-muted-foreground">{t("activation.dueTitle")}</p>
+            <p className="mt-1 text-3xl font-semibold">
+              <MoneyDt value={dueDt} />
+            </p>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              {t("activation.dueBreakdown", {
+                price: `${formatDt(pack.priceDt)} ${t("unit.dt")}`,
+                deposit: `${formatDt(profile.registrationPaidDt)} ${t("unit.dt")}`,
+              })}
+            </p>
+
+            <dl className="mt-4 space-y-1.5 border-t pt-4 text-sm">
+              <Row label={t("activation.packTier")} value={<span>{pack.name}</span>} />
+              <Row
+                label={t("shop.cartPoints")}
+                value={<PointsBv value={totals.totalPoints} />}
+              />
+              <Row
+                label={t("shop.cartItems")}
+                value={
+                  <span className="tabular-nums">
+                    {totals.lines.reduce((n, line) => n + line.quantity, 0)}
+                  </span>
+                }
+              />
+            </dl>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-2 -ms-2"
+              onClick={() => stepper.goTo(STEPS.indexOf("cart"))}
+            >
+              {t("activation.editCart")}
+            </Button>
+          </div>
+
+          <Explain titleKey="explain.twoUnits.title" bodyKey="explain.twoUnits.body" />
+          <Notice>{t("activation.depositExplain")}</Notice>
+
+          <div className="space-y-4 rounded-2xl bg-card p-5 ring-1 ring-border">
+            <EcardPayment
+              dueDt={dueDt}
+              codes={codes}
+              onChange={setCodes}
+              disabled={checkout.isPending}
+            />
+
+            <div className="space-y-1.5">
+              <Label htmlFor="activation-address">{t("shop.shipping")}</Label>
+              <Input
+                id="activation-address"
+                value={address}
+                onChange={(event) => setAddress(event.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">{t("shop.shippingOptional")}</p>
+            </div>
+
+            <Notice>{t("shop.shippingOutside")}</Notice>
+
+            {checkout.error && (
+              <Alert variant="destructive">
+                <AlertDescription>{errorMessage(checkout.error)}</AlertDescription>
+              </Alert>
+            )}
+
+            <Button
+              className="w-full"
+              size="lg"
+              disabled={!tierExact || codes.length === 0 || checkout.isPending}
+              onClick={() => void submit()}
+            >
+              {checkout.isPending ? t("shop.checkingOut") : t("shop.checkout")}
+            </Button>
+            <p className="text-center text-xs text-muted-foreground">
+              {t("payment.noGateway")}
+            </p>
+          </div>
+        </section>
+      )}
     </div>
   )
 }
 
+function StepIntro({ title, body }: { title: string; body: string }) {
+  return (
+    <div>
+      <h2 className="text-lg font-semibold">{title}</h2>
+      <p className="mt-1 text-sm text-muted-foreground">{body}</p>
+    </div>
+  )
+}
+
+/**
+ * Confirmation. Un compte qui vient d'être activé n'a rien de plus à faire ICI : ce qui a
+ * changé est dans son arbre et sur son accueil, où les points du palier viennent d'arriver.
+ * L'écran y renvoie plutôt que de laisser l'affilié sur une boutique dont le parcours n'a plus
+ * d'objet.
+ */
+function ActivationDone() {
+  const t = useT()
+  return (
+    <div className="rounded-2xl bg-card p-8 text-center ring-1 ring-border">
+      <PartyPopper className="mx-auto size-12 text-primary" aria-hidden />
+      <h2 className="mt-4 text-xl font-semibold">{t("activation.success")}</h2>
+      <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+        {t("activation.successBody")}
+      </p>
+      <div className="mt-5 flex flex-col justify-center gap-2 sm:flex-row">
+        <Button nativeButton={false} render={<Link to="/" />}>
+          {t("activation.toDashboard")}
+        </Button>
+        <Button variant="outline" nativeButton={false} render={<Link to="/reseau" />}>
+          {t("activation.toNetwork")}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Une offre de pack. Le chiffre mis en avant est le MONTANT À RÉGLER (prix − acompte), pas le
+ * prix : c'est celui que l'affilié devra couvrir en e-cards, et afficher le prix en gros
+ * ferait chercher 2 200 DT de cartes pour un dû de 2 100.
+ */
 function PackCard({
   offer,
   depositDt,
@@ -270,50 +404,58 @@ function PackCard({
 
   return (
     <div
-      className={
-        selected
-          ? "flex h-full flex-col gap-3 rounded-xl border-2 border-primary bg-highlight p-4"
-          : "flex h-full flex-col gap-3 rounded-xl border bg-card p-4"
-      }
+      className={cn(
+        "flex h-full flex-col gap-3 rounded-2xl bg-card p-4",
+        selected ? "ring-2 ring-primary" : "ring-1 ring-border",
+      )}
     >
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-lg font-semibold">{offer.name}</h3>
-        {selected ? <Check className="size-5 text-primary" aria-hidden /> : null}
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h3 className="text-lg font-semibold">{offer.name}</h3>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            <PointsBv value={offer.tierBv} />
+          </p>
+        </div>
+        {selected && <Check className="size-5 shrink-0 text-primary" aria-hidden />}
+      </div>
+
+      <div className="rounded-xl bg-muted/60 p-3">
+        <p className="text-xs text-muted-foreground">{t("activation.dueTitle")}</p>
+        <p className="mt-0.5 text-2xl font-semibold">
+          <MoneyDt value={dueDt} />
+        </p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {t("activation.dueBreakdown", {
+            price: `${formatDt(offer.priceDt)} ${t("unit.dt")}`,
+            deposit: `${formatDt(depositDt)} ${t("unit.dt")}`,
+          })}
+        </p>
       </div>
 
       <dl className="space-y-1.5 text-sm">
-        <Line label={t("activation.packTier")} value={<PointsBv value={offer.tierBv} />} />
-        <Line label={t("activation.packPrice")} value={<MoneyDt value={offer.priceDt} />} />
-        <Line
-          label={t("activation.dueTitle")}
-          value={<MoneyDt value={dueDt} className="font-semibold" />}
-        />
-        <Line
+        <Row
           label={t("activation.packDirect")}
           value={<MoneyDt value={offer.directCommissionDt} />}
         />
-        <Line
+        <Row
           label={t("activation.packIndirect")}
           value={<MoneyDt value={offer.indirectCommissionDt} />}
         />
-        <Line
+        <Row
           label={t("activation.packCap")}
           value={<MoneyDt value={offer.weeklyCapDt} />}
         />
       </dl>
 
-      <Button
-        variant={selected ? "secondary" : "default"}
-        className="mt-auto"
-        onClick={onSelect}
-      >
+      <Button className="mt-auto" onClick={onSelect}>
+        <Sparkles />
         {t(selected ? "activation.selectedPack" : "activation.selectPack")}
       </Button>
     </div>
   )
 }
 
-function Line({ label, value }: { label: string; value: React.ReactNode }) {
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
       <dt className="text-muted-foreground">{label}</dt>

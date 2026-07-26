@@ -333,21 +333,27 @@ export class CatalogService {
   /**
    * Réordonne les photos — la première est celle que le portail met en avant.
    *
-   * On n'accepte qu'une PERMUTATION des chemins déjà en base : la comparaison porte sur le
-   * multiensemble trié, pas sur la longueur. Sans ce contrôle, cette route deviendrait la
-   * porte dérobée que `UpdateProductDto` vient de perdre — un chemin arbitraire écrit en
-   * base, puis servi.
+   * L'appelant désigne des POSITIONS, jamais des chemins (D-059, revu en Tranche 9.5) :
+   * `order[i]` est la photo qui occupera la position i. On n'accepte qu'une PERMUTATION
+   * EXACTE de 0…n-1 — même longueur, aucun doublon, aucun index hors bornes. Un `order` plus
+   * court effacerait silencieusement des images ; un doublon en dupliquerait une et en
+   * perdrait une autre.
+   *
+   * Aucun chemin ne traverse plus cette route. Ce que le contrôle précédent rendait
+   * improbable — écrire un chemin arbitraire en base, puis le servir —, le type le rend
+   * désormais inexprimable.
    */
   async reorderProductImages(
     adminId: number,
     productId: number,
-    order: string[],
+    order: number[],
   ): Promise<Product> {
     const before = await this.getProductAdmin(productId);
-    const same =
+    const isPermutation =
       order.length === before.images.length &&
-      [...order].sort().join(' ') === [...before.images].sort().join(' ');
-    if (!same) {
+      new Set(order).size === order.length &&
+      order.every((index) => index >= 0 && index < before.images.length);
+    if (!isPermutation) {
       throw new InvalidProductImageError(
         'l’ordre proposé ne correspond pas aux images de ce produit.',
       );
@@ -355,7 +361,7 @@ export class CatalogService {
 
     const product = await this.prisma.product.update({
       where: { id: productId },
-      data: { images: order },
+      data: { images: order.map((index) => before.images[index]) },
     });
     await this.audit(
       adminId,

@@ -3,6 +3,12 @@ import type { Product } from "@/api/queries/shop"
 /** Le panier : combien d'exemplaires de chaque produit. */
 export type Cart = Record<number, number>
 
+/** Une ligne de panier — un produit et sa quantité, tels que les écrans les manipulent. */
+export interface CartLine {
+  product: Product
+  quantity: number
+}
+
 /**
  * Les DEUX totaux d'un panier (D-028), qui ne se déduisent JAMAIS l'un de l'autre :
  *  — `totalPoints` : la somme des valeurs BV, qui sert au contrôle du palier en activation ;
@@ -17,7 +23,7 @@ export type Cart = Record<number, number>
 export function cartTotals(products: Product[], cart: Cart) {
   let totalPoints = 0
   const prices: string[] = []
-  const lines: Array<{ product: Product; quantity: number }> = []
+  const lines: CartLine[] = []
 
   for (const product of products) {
     const quantity = cart[product.id] ?? 0

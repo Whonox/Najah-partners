@@ -1,4 +1,3 @@
-import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { apiClient } from "@/api/client"
 import { unwrap } from "@/api/error"
@@ -152,14 +151,10 @@ export async function checkPlacement(form: RegistrationForm): Promise<void> {
   )
 }
 
-/** Petit état de navigation entre étapes, sans dépendance au routeur. */
-export function useStepper(total: number) {
-  const [current, setCurrent] = useState(0)
-  return {
-    current,
-    isLast: current === total - 1,
-    next: () => setCurrent((c) => Math.min(total - 1, c + 1)),
-    back: () => setCurrent((c) => Math.max(0, c - 1)),
-    goTo: (index: number) => setCurrent(Math.max(0, Math.min(total - 1, index))),
-  }
-}
+/**
+ * `useStepper` a déménagé dans `components/common/stepper.tsx`, auprès du composant qu'il
+ * pilote : la boutique en a besoin elle aussi, et l'importer d'ici aurait fait dépendre le
+ * parcours d'achat du module d'inscription. Réexporté pour que les écrans de ce dossier
+ * gardent un seul point d'entrée.
+ */
+export { useStepper } from "@/components/common/use-stepper"

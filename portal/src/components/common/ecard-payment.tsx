@@ -7,6 +7,7 @@ import { Notice } from "@/components/common/explain"
 import { MoneyDt } from "@/components/format/amount"
 import { apiClient } from "@/api/client"
 import { unwrap } from "@/api/error"
+import { formatDt } from "@/lib/format"
 import { fromMillimes, sumMillimes, toMillimes } from "@/lib/money"
 import { useT } from "@/i18n/use-t"
 
@@ -205,10 +206,10 @@ export function EcardPayment({
             ? t("payment.exact")
             : gap > 0
               ? t("payment.missing", {
-                  amount: `${fromMillimes(gap)} ${t("unit.dt")}`,
+                  amount: `${formatDt(fromMillimes(gap))} ${t("unit.dt")}`,
                 })
               : t("payment.excess", {
-                  amount: `${fromMillimes(-gap)} ${t("unit.dt")}`,
+                  amount: `${formatDt(fromMillimes(-gap))} ${t("unit.dt")}`,
                 })}
         </p>
       </div>

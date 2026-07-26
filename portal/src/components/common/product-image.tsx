@@ -63,6 +63,13 @@ interface ProductImageProps {
   imageCount: number
   /** Position de l'image à afficher. La première est celle que l'admin a mise en tête. */
   index?: number
+  /**
+   * Écrire le nom DANS le placeholder. Utile quand la vignette est seule (une miniature de
+   * commande, une ligne de récapitulatif) ; à couper quand le nom est déjà écrit juste à côté,
+   * comme sur une carte de boutique — sinon il apparaît deux fois de suite, et le lecteur y
+   * cherche une différence qui n'existe pas.
+   */
+  showName?: boolean
   className?: string
 }
 
@@ -72,6 +79,7 @@ export function ProductImage({
   categoryName,
   imageCount,
   index = 0,
+  showName = true,
   className,
 }: ProductImageProps) {
   const [failed, setFailed] = useState(false)
@@ -104,9 +112,11 @@ export function ProductImage({
           )}
         >
           <style.Icon className="size-8 text-foreground/40" />
-          <span className="line-clamp-2 text-xs font-medium text-foreground/60">
-            {name}
-          </span>
+          {showName && (
+            <span className="line-clamp-2 text-xs font-medium text-foreground/60">
+              {name}
+            </span>
+          )}
         </div>
       )}
     </div>

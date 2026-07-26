@@ -8,13 +8,14 @@ import {
   Res,
 } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Category, Product } from '@prisma/client';
+import { Category } from '@prisma/client';
 import type { Response } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
 import { CatalogService } from './catalog.service';
 import {
   CategoryResponseDto,
   ProductResponseDto,
+  toProductResponse,
 } from './dto/catalog-response.dto';
 import { ProductsQueryDto } from './dto/orders-query.dto';
 import { ProductImageService } from './product-image.service';
@@ -40,6 +41,12 @@ export class CatalogController {
     return this.catalog.listCategories();
   }
 
+  /**
+   * Les produits passent tous par `toProductResponse` : les CHEMINS de stockage des photos
+   * n'existent pas sur le fil, seul leur nombre en sort. Cette route est publique — y publier
+   * l'arborescence du répertoire d'uploads n'aurait servi aucun client (les images se
+   * demandent par position, ci-dessous) et aurait renseigné qui ne devait pas l'être.
+   */
   @Get('products')
   @Public()
   @ApiOperation({
@@ -47,16 +54,17 @@ export class CatalogController {
       'Produits visibles et actifs, éventuellement filtrés par catégorie.',
   })
   @ApiOkResponse({ type: ProductResponseDto, isArray: true })
-  products(@Query() query: ProductsQueryDto): Promise<Product[]> {
-    return this.catalog.listPublicProducts(query.categoryId);
+  async products(@Query() query: ProductsQueryDto) {
+    const products = await this.catalog.listPublicProducts(query.categoryId);
+    return products.map(toProductResponse);
   }
 
   @Get('products/:id')
   @Public()
   @ApiOperation({ summary: 'Détail d’un produit visible et actif.' })
   @ApiOkResponse({ type: ProductResponseDto })
-  product(@Param('id', ParseIntPipe) id: number): Promise<Product> {
-    return this.catalog.getPublicProduct(id);
+  async product(@Param('id', ParseIntPipe) id: number) {
+    return toProductResponse(await this.catalog.getPublicProduct(id));
   }
 
   /**

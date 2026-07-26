@@ -7691,11 +7691,10 @@
             "example": "39.900",
             "description": "DINARS — prix promo s’il existe, sérialisé en string."
           },
-          "images": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
+          "imageCount": {
+            "type": "number",
+            "example": 3,
+            "description": "Nombre de photos disponibles."
           },
           "active": {
             "type": "boolean"
@@ -7712,7 +7711,7 @@
           "valueBv",
           "type",
           "shippingFeeDt",
-          "images",
+          "imageCount",
           "active",
           "visibleOnSite"
         ]
@@ -7905,10 +7904,16 @@
         "type": "object",
         "properties": {
           "order": {
-            "description": "Les chemins des images du produit, dans le nouvel ordre. La PREMIÈRE est celle que le portail met en avant. Doit être une permutation exacte de la liste actuelle.",
+            "example": [
+              2,
+              0,
+              1
+            ],
+            "description": "Les positions actuelles des images, dans le nouvel ordre : `order[i]` est l’image qui occupera la position i. La PREMIÈRE est celle que le portail met en avant. Doit être une permutation exacte de 0…n-1.",
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "number",
+              "minimum": 0
             }
           }
         },

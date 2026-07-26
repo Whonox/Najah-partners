@@ -117,20 +117,30 @@ export class CreateProductDto {
 export class UpdateProductDto extends PartialType(CreateProductDto) {}
 
 /**
- * Réordonnancement des photos d'un produit (D-059).
+ * Réordonnancement des photos d'un produit (D-059, revu en Tranche 9.5).
  *
- * Ne porte que des chemins DÉJÀ en base : le service refuse tout ce qui n'est pas une
- * permutation exacte de la liste existante. C'est ce contrôle — et non le type du champ —
- * qui empêche cette route de redevenir la porte par laquelle un chemin arbitraire s'écrit.
+ * ═══ DES POSITIONS, PLUS DES CHEMINS ═══
+ * Cette route acceptait la liste des chemins réordonnée. Elle obligeait donc à PUBLIER ces
+ * chemins pour que quelqu'un puisse les renvoyer — c'est-à-dire à exposer l'arborescence
+ * d'uploads sur une route publique pour servir un besoin d'administration. On désigne
+ * désormais les images par leur POSITION, la même que celle par laquelle elles se demandent
+ * (`/shop/products/:id/images/:index`) : le client n'a plus jamais besoin d'un chemin.
+ *
+ * Le contrôle de sécurité est inchangé dans son esprit et renforcé dans les faits : une
+ * permutation d'entiers ne peut désigner que des images déjà en base. Un chemin arbitraire
+ * n'est plus seulement refusé — il n'est plus exprimable.
  */
 export class ReorderProductImagesDto {
   @ApiProperty({
-    type: [String],
+    type: [Number],
+    example: [2, 0, 1],
     description:
-      'Les chemins des images du produit, dans le nouvel ordre. La PREMIÈRE est celle que le ' +
-      'portail met en avant. Doit être une permutation exacte de la liste actuelle.',
+      'Les positions actuelles des images, dans le nouvel ordre : `order[i]` est l’image qui ' +
+      'occupera la position i. La PREMIÈRE est celle que le portail met en avant. Doit être ' +
+      'une permutation exacte de 0…n-1.',
   })
   @IsArray()
-  @IsString({ each: true })
-  order!: string[];
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  order!: number[];
 }

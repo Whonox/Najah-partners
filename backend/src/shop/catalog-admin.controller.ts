@@ -32,6 +32,7 @@ import { CatalogService } from './catalog.service';
 import {
   CategoryResponseDto,
   ProductResponseDto,
+  toProductResponse,
 } from './dto/catalog-response.dto';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 import { ProductsQueryDto } from './dto/orders-query.dto';
@@ -110,16 +111,17 @@ export class CatalogAdminController {
     summary: 'Lister TOUS les produits (y compris inactifs et masqués).',
   })
   @ApiOkResponse({ type: ProductResponseDto, isArray: true })
-  listProducts(@Query() query: ProductsQueryDto) {
-    return this.catalog.listProductsAdmin(query.categoryId);
+  async listProducts(@Query() query: ProductsQueryDto) {
+    const products = await this.catalog.listProductsAdmin(query.categoryId);
+    return products.map(toProductResponse);
   }
 
   @Get('products/:id')
   @Roles(AdminRole.SUPER_ADMIN, AdminRole.MANAGER, AdminRole.SUPPORT)
   @ApiOperation({ summary: 'Détail d’un produit (vue admin).' })
   @ApiOkResponse({ type: ProductResponseDto })
-  getProduct(@Param('id', ParseIntPipe) id: number) {
-    return this.catalog.getProductAdmin(id);
+  async getProduct(@Param('id', ParseIntPipe) id: number) {
+    return toProductResponse(await this.catalog.getProductAdmin(id));
   }
 
   @Post('products')
@@ -129,11 +131,11 @@ export class CatalogAdminController {
       'Créer un produit (valeur BV > 0 ; stock obligatoire si PHYSIQUE, interdit si VIRTUEL).',
   })
   @ApiOkResponse({ type: ProductResponseDto })
-  createProduct(
+  async createProduct(
     @Body() dto: CreateProductDto,
     @CurrentUser() admin: AuthenticatedActor,
   ) {
-    return this.catalog.createProduct(admin.id, dto);
+    return toProductResponse(await this.catalog.createProduct(admin.id, dto));
   }
 
   @Patch('products/:id')
@@ -143,12 +145,14 @@ export class CatalogAdminController {
       'Modifier un produit (désactiver = retirer de la vente ; les commandes passées gardent leur snapshot).',
   })
   @ApiOkResponse({ type: ProductResponseDto })
-  updateProduct(
+  async updateProduct(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateProductDto,
     @CurrentUser() admin: AuthenticatedActor,
   ) {
-    return this.catalog.updateProduct(admin.id, id, dto);
+    return toProductResponse(
+      await this.catalog.updateProduct(admin.id, id, dto),
+    );
   }
 
   // ── Images produit (D-054, D-059) ──
@@ -193,13 +197,15 @@ export class CatalogAdminController {
       limits: { fileSize: MAX_PRODUCT_IMAGE_BYTES, files: 1 },
     }),
   )
-  addProductImage(
+  async addProductImage(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() admin: AuthenticatedActor,
     @UploadedFile() image?: Express.Multer.File,
   ) {
     if (!image) throw new InvalidProductImageError('aucun fichier reçu.');
-    return this.catalog.addProductImage(admin.id, id, image);
+    return toProductResponse(
+      await this.catalog.addProductImage(admin.id, id, image),
+    );
   }
 
   @Delete('products/:id/images/:index')
@@ -211,12 +217,14 @@ export class CatalogAdminController {
       'pointant vers une image détruite en cas d’échec.',
   })
   @ApiOkResponse({ type: ProductResponseDto })
-  removeProductImage(
+  async removeProductImage(
     @Param('id', ParseIntPipe) id: number,
     @Param('index', ParseIntPipe) index: number,
     @CurrentUser() admin: AuthenticatedActor,
   ) {
-    return this.catalog.removeProductImage(admin.id, id, index);
+    return toProductResponse(
+      await this.catalog.removeProductImage(admin.id, id, index),
+    );
   }
 
   @Patch('products/:id/images/order')
@@ -229,11 +237,13 @@ export class CatalogAdminController {
       'redeviendrait la porte par laquelle un chemin arbitraire s’écrit en base, puis se sert.',
   })
   @ApiOkResponse({ type: ProductResponseDto })
-  reorderProductImages(
+  async reorderProductImages(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: ReorderProductImagesDto,
     @CurrentUser() admin: AuthenticatedActor,
   ) {
-    return this.catalog.reorderProductImages(admin.id, id, dto.order);
+    return toProductResponse(
+      await this.catalog.reorderProductImages(admin.id, id, dto.order),
+    );
   }
 }
