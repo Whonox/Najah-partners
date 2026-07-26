@@ -1,7 +1,5 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { ArrowLeft } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DataState } from "@/components/common/data-state"
@@ -11,6 +9,8 @@ import { myTreeQueryOptions, type TreeNode } from "@/api/queries/network"
 import { profileQueryOptions } from "@/api/queries/me"
 import { useT } from "@/i18n/use-t"
 import { DownlinesTab } from "./downlines-tab"
+import { TreeBreadcrumb, type TreeCrumb } from "./tree-breadcrumb"
+import { VISIBLE_LEVELS } from "./tree-layout"
 import { TreeView } from "./tree-view"
 
 /**
@@ -26,11 +26,16 @@ export function NetworkPage() {
   const t = useT()
   const profile = useQuery(profileQueryOptions())
 
-  // Recentrage : `null` = moi. Chaque descente est une NOUVELLE requête bornée (le backend
-  // vérifie que la cible appartient bien à mon sous-arbre), jamais un dépliage cumulatif.
-  const [focus, setFocus] = useState<{ id: number; label: string } | null>(null)
+  // Recentrage : le CHEMIN parcouru depuis moi. Vide = je regarde ma propre position. Chaque
+  // descente est une NOUVELLE requête bornée (le backend vérifie que la cible appartient bien
+  // à mon sous-arbre — 403 sinon, D-055), jamais un dépliage cumulatif.
+  //
+  // On garde le chemin ENTIER et non le seul nœud courant : c'est lui qui alimente le fil
+  // d'Ariane, et le contrat ne rend pas les ancêtres d'un nœud (il ne sait que descendre).
+  const [path, setPath] = useState<TreeCrumb[]>([])
+  const current = path.at(-1) ?? null
   const tree = useQuery(
-    myTreeQueryOptions(focus ? { rootMemberId: focus.id } : {}),
+    myTreeQueryOptions(current ? { rootMemberId: current.id, depth: VISIBLE_LEVELS - 1 } : { depth: VISIBLE_LEVELS - 1 }),
   )
 
   return (
@@ -94,12 +99,12 @@ export function NetworkPage() {
 
           <Notice>{t("network.boundedNotice")}</Notice>
 
-          {focus ? (
-            <Button variant="outline" size="sm" onClick={() => setFocus(null)}>
-              <ArrowLeft />
-              {t("network.backToMe")}
-            </Button>
-          ) : null}
+          <TreeBreadcrumb
+            path={path}
+            onNavigate={(index) =>
+              setPath((crumbs) => (index === null ? [] : crumbs.slice(0, index + 1)))
+            }
+          />
 
           <DataState
             isLoading={tree.isPending}
@@ -110,9 +115,21 @@ export function NetworkPage() {
             {tree.data ? (
               <TreeView
                 root={tree.data as TreeNode}
-                isSelf={focus === null}
+                isSelf={current === null}
                 onFocus={(node) =>
-                  setFocus({ id: node.id, label: `${node.firstName} ${node.lastName}` })
+                  setPath((crumbs) =>
+                    // Recentrer sur le nœud DÉJÀ affiché en racine ne mène nulle part : on
+                    // empilerait un cran identique et le fil se remplirait de doublons.
+                    crumbs.at(-1)?.id === node.id
+                      ? crumbs
+                      : [
+                          ...crumbs,
+                          {
+                            id: node.id,
+                            label: `${node.firstName} ${node.lastName}`,
+                          },
+                        ],
+                  )
                 }
               />
             ) : null}

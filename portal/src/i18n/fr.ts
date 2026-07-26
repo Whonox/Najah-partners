@@ -369,8 +369,12 @@ export const fr = {
   "network.emptyLeg": "Position libre",
   "network.focus": "Recentrer sur ce membre",
   "network.backToMe": "Revenir à ma position",
+  // Le NOMBRE de niveaux n'est pas écrit ici : il l'est une seule fois, sous l'arbre
+  // (`tree.levelsNotice`), à partir de la constante qui pilote réellement l'affichage. Deux
+  // phrases qui l'annoncent chacune de leur côté finissent par se contredire — c'est
+  // exactement ce qui est arrivé quand l'arbre est passé de deux à trois niveaux.
   "network.boundedNotice":
-    "L’arbre est affiché sur deux niveaux à la fois. Descendez de proche en proche : c’est plus rapide que de charger un réseau entier.",
+    "L’arbre se parcourt de proche en proche plutôt qu’en chargeant le réseau entier : c’est plus rapide, et lisible même avec des milliers de membres.",
   "network.legLeft": "Jambe gauche",
   "network.legRight": "Jambe droite",
   "network.pointsLeft": "Points reçus à gauche",
@@ -791,6 +795,16 @@ export const fr = {
   "home.recent.all": "Tout voir",
   "home.recent.empty":
     "Personne n’a encore rejoint votre réseau. Partagez votre code pour commencer.",
+
+  // ── Arbre binaire (§7.1.5) ──
+  "tree.you": "Vous",
+  "tree.freeSlot": "Place libre",
+  "tree.more": "Suite…",
+  "tree.focusHint": "voir son réseau",
+  "tree.breadcrumb": "Chemin parcouru dans l’arbre",
+  "tree.me": "Moi",
+  "tree.levelsNotice":
+    "{levels} niveaux à la fois. Touchez un membre pour voir SON réseau — le fil au-dessus vous ramène en arrière.",
 } as const
 
 export type Dictionary = typeof fr
