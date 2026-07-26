@@ -3,12 +3,12 @@ import { Link } from "react-router"
 import { useQuery } from "@tanstack/react-query"
 import { AlertTriangle, ChevronRight } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { DataState } from "@/components/common/data-state"
 import { Explain } from "@/components/common/explain"
 import { PageHeader } from "@/components/common/page-header"
+import { Pager } from "@/components/common/pager"
 import { StatCard } from "@/components/common/stat-card"
+import { Surface } from "@/components/common/surface"
 import { MoneyDt, RewardPoints } from "@/components/format/amount"
 import {
   myCommissionsQueryOptions,
@@ -76,29 +76,7 @@ export function CommissionsPage() {
           ))}
         </ul>
 
-        {pages > 1 ? (
-          <nav className="flex items-center justify-between gap-3 pt-4">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage((current) => current - 1)}
-            >
-              {t("action.previous")}
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              {t("action.page", { page, pages })}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= pages}
-              onClick={() => setPage((current) => current + 1)}
-            >
-              {t("action.next")}
-            </Button>
-          </nav>
-        ) : null}
+        <Pager page={page} pages={pages} onChange={setPage} />
       </DataState>
     </div>
   )
@@ -113,70 +91,65 @@ function WeekCard({ row }: { row: MyCommissionRow }) {
 
   return (
     <Link to={`/gains/${row.runId}`} className="block">
-      <Card className="transition-colors hover:bg-accent/50">
-        <CardContent className="space-y-3 p-4">
-          <div className="flex items-start gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="font-medium">
-                {t("commissions.week", { date: formatDateTime(row.periodEnd) })}
-              </p>
-              <p className="mt-1 text-2xl font-semibold">
-                <MoneyDt value={row.paidDt} />
-              </p>
-            </div>
-            <ChevronRight className="mt-1 size-5 shrink-0 text-muted-foreground" aria-hidden />
+      <Surface variant="card" className="space-y-3 transition-colors hover:bg-muted">
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">
+              {t("commissions.week", { date: formatDateTime(row.periodEnd) })}
+            </p>
+            <p className="mt-1 text-2xl font-semibold">
+              <MoneyDt value={row.paidDt} />
+            </p>
           </div>
+          <ChevronRight className="mt-1 size-5 shrink-0 text-muted-foreground" aria-hidden />
+        </div>
 
-          {/* La ventilation : d'OÙ vient ce montant. */}
-          <div className="flex flex-wrap gap-2">
-            {row.directCount > 0 ? (
-              <Badge variant="outline">
-                {t("commissions.direct", { count: row.directCount })}
-              </Badge>
-            ) : null}
-            {row.balanceCount > 0 ? (
-              <Badge variant="outline">
-                {t("commissions.balance", { count: row.balanceCount })}
-              </Badge>
-            ) : null}
-            {row.startupBonusCount > 0 ? (
-              <Badge variant="outline">{t("commissions.startup")}</Badge>
-            ) : null}
-            {row.rewardPointsGranted > 0 ? (
-              <Badge variant="secondary">
-                <RewardPoints value={row.rewardPointsGranted} />
-              </Badge>
-            ) : null}
-          </div>
-
-          {capped ? (
-            <div className="rounded-lg border border-warning/40 bg-warning/10 p-2.5">
-              <p className="flex items-center gap-2 text-sm font-medium">
-                <AlertTriangle className="size-4 shrink-0" aria-hidden />
-                {t("commissions.capped")}
-              </p>
-              <p className="mt-1 flex items-baseline justify-between gap-3 text-sm">
-                <span className="text-muted-foreground">{t("commissions.lost")}</span>
-                <MoneyDt value={row.lostDt} />
-              </p>
-              {row.rewardPointsLost > 0 ? (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t("commissions.rewardLost", { count: row.rewardPointsLost })}
-                </p>
-              ) : null}
-            </div>
+        {/* La ventilation : d'OÙ vient ce montant. */}
+        <div className="flex flex-wrap gap-2">
+          {row.directCount > 0 ? (
+            <Badge variant="outline">
+              {t("commissions.direct", { count: row.directCount })}
+            </Badge>
           ) : null}
+          {row.balanceCount > 0 ? (
+            <Badge variant="outline">
+              {t("commissions.balance", { count: row.balanceCount })}
+            </Badge>
+          ) : null}
+          {row.startupBonusCount > 0 ? (
+            <Badge variant="outline">{t("commissions.startup")}</Badge>
+          ) : null}
+          {row.rewardPointsGranted > 0 ? (
+            <Badge variant="secondary">
+              <RewardPoints value={row.rewardPointsGranted} />
+            </Badge>
+          ) : null}
+        </div>
 
-          <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-            <Pair label={t("commissions.gross")} value={<MoneyDt value={row.grossDt} />} />
-            <Pair label={t("commissions.cap")} value={<MoneyDt value={row.appliedCapDt} />} />
-            <Pair
-              label={t("commissions.events", { count: row.eventCount })}
-              value={null}
-            />
-          </dl>
-        </CardContent>
-      </Card>
+        {capped ? (
+          <div className="rounded-xl bg-warning/10 p-3 ring-1 ring-warning/40">
+            <p className="flex items-center gap-2 text-sm font-medium">
+              <AlertTriangle className="size-4 shrink-0" aria-hidden />
+              {t("commissions.capped")}
+            </p>
+            <p className="mt-1 flex items-baseline justify-between gap-3 text-sm">
+              <span className="text-muted-foreground">{t("commissions.lost")}</span>
+              <MoneyDt value={row.lostDt} />
+            </p>
+            {row.rewardPointsLost > 0 ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t("commissions.rewardLost", { count: row.rewardPointsLost })}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+          <Pair label={t("commissions.gross")} value={<MoneyDt value={row.grossDt} />} />
+          <Pair label={t("commissions.cap")} value={<MoneyDt value={row.appliedCapDt} />} />
+          <Pair label={t("commissions.events", { count: row.eventCount })} value={null} />
+        </dl>
+      </Surface>
     </Link>
   )
 }

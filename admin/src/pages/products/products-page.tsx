@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { Info, Pencil, Plus } from "lucide-react"
+import { Images, Info, Pencil, Plus } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
@@ -34,6 +34,7 @@ import { useAuth } from "@/auth/use-auth"
 import { useT } from "@/i18n/use-t"
 import { CategoriesTab } from "./categories-tab"
 import { ProductDialog } from "./product-dialog"
+import { ProductImagesDialog } from "./product-images-dialog"
 
 const ANY = "__any__"
 
@@ -54,6 +55,7 @@ export function ProductsPage() {
 
   const [categoryId, setCategoryId] = useState<number | undefined>()
   const [editing, setEditing] = useState<Product | null>(null)
+  const [managingImages, setManagingImages] = useState<Product | null>(null)
   const [creating, setCreating] = useState(false)
 
   const products = useQuery(productsQueryOptions(categoryId))
@@ -168,7 +170,10 @@ export function ProductsPage() {
                     <TableHead className="w-24">
                       {t("products.column.visible")}
                     </TableHead>
-                    <TableHead className="w-24" />
+                    <TableHead className="w-24">
+                      {t("products.column.images")}
+                    </TableHead>
+                    <TableHead className="w-40" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -216,9 +221,31 @@ export function ProductsPage() {
                       <TableCell className="text-muted-foreground">
                         {t(product.visibleOnSite ? "common.yes" : "common.no")}
                       </TableCell>
+                      {/* Un produit SANS photo n'est pas une anomalie de données : le portail
+                          rend un placeholder par catégorie (D-054). On l'écrit donc en clair,
+                          plutôt que de laisser un « 0 » qui se lirait comme un défaut. */}
+                      <TableCell className="tabular-nums">
+                        {product.imageCount > 0 ? (
+                          product.imageCount
+                        ) : (
+                          <span className="text-muted-foreground italic">
+                            {t("productImages.none")}
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {canEdit ? (
-                          <div className="flex justify-end">
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              aria-label={t("productImages.manageFor", {
+                                name: product.name,
+                              })}
+                              onClick={() => setManagingImages(product)}
+                            >
+                              <Images />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="sm"
@@ -258,6 +285,18 @@ export function ProductsPage() {
           product={editing}
           categories={categories.data ?? []}
           onClose={() => setEditing(null)}
+        />
+      ) : null}
+      {/* Le produit passé au dialogue est RELU dans la liste à chaque rendu, et non figé dans
+          l'état : chaque dépôt ou retrait renvoie le produit à jour et invalide la liste, donc
+          le compteur d'images doit suivre sans refermer la fenêtre. Garder l'objet capturé au
+          clic laisserait l'écran afficher l'ancien nombre de photos. */}
+      {managingImages ? (
+        <ProductImagesDialog
+          product={
+            products.data?.find((item) => item.id === managingImages.id) ?? managingImages
+          }
+          onClose={() => setManagingImages(null)}
         />
       ) : null}
     </div>

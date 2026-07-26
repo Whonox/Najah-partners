@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { CalendarPlus, Eye, Plus, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -18,6 +17,7 @@ import { DataState } from "@/components/common/data-state"
 import { Explain, Notice } from "@/components/common/explain"
 import { PageHeader } from "@/components/common/page-header"
 import { StatCard } from "@/components/common/stat-card"
+import { Surface } from "@/components/common/surface"
 import { EcardStatusBadge } from "@/components/common/status-badge"
 import { MoneyDt } from "@/components/format/amount"
 import { errorMessage } from "@/api/error"
@@ -133,43 +133,39 @@ function EcardCard({ ecard, onExtend }: { ecard: Ecard; onExtend: () => void }) 
   const t = useT()
 
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-3 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <span className="text-xl font-semibold">
-            <MoneyDt value={ecard.valueDt} />
-          </span>
-          <EcardStatusBadge status={ecard.status} />
-        </div>
+    <Surface variant="card" className="flex flex-col gap-3">
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-xl font-semibold">
+          <MoneyDt value={ecard.valueDt} />
+        </span>
+        <EcardStatusBadge status={ecard.status} />
+      </div>
 
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-          <Row label={t("ecards.createdAt")} value={formatDateTime(ecard.createdAt)} />
-          {ecard.usedAt ? (
-            <Row label={t("ecards.usedAt")} value={formatDateTime(ecard.usedAt)} />
-          ) : null}
-          <Row
-            label={t("ecards.expiresAt")}
-            value={
-              ecard.expiresAt ? formatDateTime(ecard.expiresAt) : t("ecards.neverExpires")
-            }
-          />
-          {ecard.closedAt ? (
-            <Row label={t("ecards.closedAt")} value={formatDateTime(ecard.closedAt)} />
-          ) : null}
-        </dl>
-
-        {/* Prolonger n'a de sens que sur une carte ACTIVE et datée : ressusciter une carte
-            expirée, déjà remboursée, créerait de l'argent (D-026). */}
-        {ecard.status === "ACTIVE" && ecard.expiresAt ? (
-          <div>
-            <Button variant="outline" size="sm" onClick={onExtend}>
-              <CalendarPlus />
-              {t("ecards.extend")}
-            </Button>
-          </div>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+        <Row label={t("ecards.createdAt")} value={formatDateTime(ecard.createdAt)} />
+        {ecard.usedAt ? (
+          <Row label={t("ecards.usedAt")} value={formatDateTime(ecard.usedAt)} />
         ) : null}
-      </CardContent>
-    </Card>
+        <Row
+          label={t("ecards.expiresAt")}
+          value={ecard.expiresAt ? formatDateTime(ecard.expiresAt) : t("ecards.neverExpires")}
+        />
+        {ecard.closedAt ? (
+          <Row label={t("ecards.closedAt")} value={formatDateTime(ecard.closedAt)} />
+        ) : null}
+      </dl>
+
+      {/* Prolonger n'a de sens que sur une carte ACTIVE et datée : ressusciter une carte
+          expirée, déjà remboursée, créerait de l'argent (D-026). */}
+      {ecard.status === "ACTIVE" && ecard.expiresAt ? (
+        <div>
+          <Button variant="outline" size="sm" onClick={onExtend}>
+            <CalendarPlus />
+            {t("ecards.extend")}
+          </Button>
+        </div>
+      ) : null}
+    </Surface>
   )
 }
 

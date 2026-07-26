@@ -2,11 +2,11 @@ import { Link } from "react-router"
 import { useQuery } from "@tanstack/react-query"
 import { CreditCard, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CopyButton } from "@/components/common/copy-button"
 import { DataState } from "@/components/common/data-state"
 import { Explain, Notice } from "@/components/common/explain"
 import { PageHeader } from "@/components/common/page-header"
+import { Surface, SurfaceHeader } from "@/components/common/surface"
 import { profileQueryOptions } from "@/api/queries/me"
 import { useT } from "@/i18n/use-t"
 
@@ -43,23 +43,24 @@ export function SponsorPage() {
         rows={2}
       >
         {profile.data ? (
-          <div className="space-y-6">
-            <Card>
-              <CardContent className="space-y-4 p-6 text-center">
-                <p className="text-sm font-medium text-muted-foreground">
-                  {t("sponsor.myCode")}
-                </p>
-                <p className="rounded-lg border border-highlight-border bg-highlight px-4 py-4 font-mono text-2xl font-semibold tracking-widest text-highlight-foreground select-all">
-                  {profile.data.memberCode}
-                </p>
+          <div className="space-y-5">
+            {/* LE CODE, en pleine surface dorée. C'est la seule chose que le parrain a
+                réellement à transmettre : il mérite d'être la première et la plus grande. */}
+            <Surface variant="highlight" padding="roomy" className="text-center">
+              <p className="text-sm font-medium text-highlight-foreground/70">
+                {t("sponsor.myCode")}
+              </p>
+              <p className="mt-3 font-mono text-3xl font-semibold tracking-widest select-all">
+                {profile.data.memberCode}
+              </p>
+              <div className="mt-4 flex justify-center">
                 <CopyButton
                   value={profile.data.memberCode}
                   label={t("sponsor.copy")}
                   successMessage={t("sponsor.copied")}
-                  className="w-full sm:w-auto"
                 />
-              </CardContent>
-            </Card>
+              </div>
+            </Surface>
 
             <Notice
               title={t("sponsor.noLinkTitle")}
@@ -68,39 +69,43 @@ export function SponsorPage() {
               {t("sponsor.noLink")}
             </Notice>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>{t("sponsor.howTitle")}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ol className="space-y-3">
-                  {(
-                    [
-                      "sponsor.step1",
-                      "sponsor.step2",
-                      "sponsor.step3",
-                      "sponsor.step4",
-                      "sponsor.step5",
-                    ] as const
-                  ).map((key, index) => (
-                    <li key={key} className="flex gap-3">
-                      <span
-                        aria-hidden
-                        className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground"
-                      >
-                        {index + 1}
-                      </span>
-                      <span className="text-sm leading-relaxed">{t(key)}</span>
-                    </li>
-                  ))}
-                </ol>
-              </CardContent>
-            </Card>
+            <Surface as="section">
+              <SurfaceHeader title={t("sponsor.howTitle")} />
+              <ol className="space-y-3">
+                {(
+                  [
+                    "sponsor.step1",
+                    "sponsor.step2",
+                    "sponsor.step3",
+                    "sponsor.step4",
+                    "sponsor.step5",
+                  ] as const
+                ).map((key, index) => (
+                  <li key={key} className="flex gap-3">
+                    <span
+                      aria-hidden
+                      className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground"
+                    >
+                      {index + 1}
+                    </span>
+                    <span className="text-sm leading-relaxed">{t(key)}</span>
+                  </li>
+                ))}
+              </ol>
 
-            <Button variant="outline" nativeButton={false} render={<Link to="/e-cards" />}>
-              <CreditCard />
-              {t("sponsor.createEcard")}
-            </Button>
+              {/* Le SEUL geste concret que le parrain peut faire pour son filleul : lui créer
+                  l'e-card des frais d'inscription (D-036). Il est donc dans le mode d'emploi,
+                  à l'étape où il sert, et non relégué en bas de page. */}
+              <Button
+                variant="outline"
+                className="mt-4"
+                nativeButton={false}
+                render={<Link to="/e-cards" />}
+              >
+                <CreditCard />
+                {t("sponsor.createEcard")}
+              </Button>
+            </Surface>
 
             <Explain
               titleKey="explain.sponsorVsUpline.title"

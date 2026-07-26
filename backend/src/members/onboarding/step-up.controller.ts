@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post } from '@nestjs/common';
 import {
   ApiCreatedResponse,
   ApiOkResponse,
@@ -12,6 +12,7 @@ import { RequireActor } from '../../auth/decorators/actor-type.decorator';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { SuccessResponseDto } from '../../auth/dto/auth-response.dto';
 import {
+  MySecurityQuestionsDto,
   ResetPinDto,
   StepUpChallengeDto,
   StepUpTokenDto,
@@ -95,6 +96,21 @@ export class StepUpController {
       challengeToken: dto.challengeToken,
       answer: dto.answer,
     });
+  }
+
+  @Get('questions')
+  @ApiOperation({
+    summary: 'Les clés de MES trois questions secrètes (sans les réponses).',
+    description:
+      'Nécessaire à l’écran de réinitialisation du PIN : sans elle, il faudrait faire deviner ' +
+      'lesquelles des dix questions du catalogue sont les siennes, chaque essai raté débitant ' +
+      'une tentative sur le compteur commun. Ce n’est pas une fuite : ces questions sont celles ' +
+      'que le membre a lui-même choisies, et la protection du step-up tient au TIRAGE côté ' +
+      'serveur, pas au secret de la liste.',
+  })
+  @ApiOkResponse({ type: MySecurityQuestionsDto })
+  myQuestions(@CurrentUser() actor: AuthenticatedActor) {
+    return this.stepUp.myQuestionKeys(actor.id);
   }
 
   @Post('pin/reset')

@@ -3,9 +3,10 @@ import { Link } from "react-router"
 import { useQuery } from "@tanstack/react-query"
 import { ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { DataState } from "@/components/common/data-state"
 import { PageHeader } from "@/components/common/page-header"
+import { Pager } from "@/components/common/pager"
+import { Surface } from "@/components/common/surface"
 import { OrderContextBadge, ShipmentBadge } from "@/components/common/status-badge"
 import { MoneyDt, PointsBv } from "@/components/format/amount"
 import { myOrdersQueryOptions } from "@/api/queries/shop"
@@ -46,58 +47,41 @@ export function OrdersPage() {
           {(orders.data?.items ?? []).map((order) => (
             <li key={order.id}>
               <Link to={`/commandes/${order.id}`} className="block">
-                <Card className="transition-colors hover:bg-accent/50">
-                  <CardContent className="flex items-center gap-3 p-4">
-                    <div className="min-w-0 flex-1 space-y-1.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium">
-                          {t("orders.number", { id: order.id })}
-                        </span>
-                        <OrderContextBadge context={order.context} />
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {formatDateTime(order.createdAt)}
-                      </p>
-                      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
-                        <MoneyDt value={order.totalDt} className="font-semibold" />
-                        <PointsBv value={order.totalPoints} className="text-muted-foreground" />
-                        <ShipmentBadge status={order.shipmentStatus} />
-                      </div>
+                <Surface
+                  variant="card"
+                  className="flex items-center gap-3 transition-colors hover:bg-muted"
+                >
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">
+                        {t("orders.number", { id: order.id })}
+                      </span>
+                      <OrderContextBadge context={order.context} />
                     </div>
-                    <ChevronRight
-                      className="size-5 shrink-0 text-muted-foreground"
-                      aria-hidden
-                    />
-                  </CardContent>
-                </Card>
+                    <p className="text-sm text-muted-foreground">
+                      {formatDateTime(order.createdAt)}
+                    </p>
+                    {/* Les deux dimensions de la commande (D-028) : ce qu'elle a COÛTÉ en
+                        dinars, ce qu'elle valait en points. Un achat libre affiche des points
+                        qui ne sont jamais montés dans l'arbre — le badge de contexte, juste
+                        au-dessus, est ce qui permet de le savoir. */}
+                    <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
+                      <MoneyDt value={order.totalDt} className="font-semibold" />
+                      <PointsBv value={order.totalPoints} className="text-muted-foreground" />
+                      <ShipmentBadge status={order.shipmentStatus} />
+                    </div>
+                  </div>
+                  <ChevronRight
+                    className="size-5 shrink-0 text-muted-foreground"
+                    aria-hidden
+                  />
+                </Surface>
               </Link>
             </li>
           ))}
         </ul>
 
-        {pages > 1 ? (
-          <nav className="flex items-center justify-between gap-3 pt-4">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage((current) => current - 1)}
-            >
-              {t("action.previous")}
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              {t("action.page", { page, pages })}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= pages}
-              onClick={() => setPage((current) => current + 1)}
-            >
-              {t("action.next")}
-            </Button>
-          </nav>
-        ) : null}
+        <Pager page={page} pages={pages} onChange={setPage} />
       </DataState>
     </div>
   )

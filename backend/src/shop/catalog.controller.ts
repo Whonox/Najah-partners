@@ -5,11 +5,13 @@ import {
   Param,
   ParseIntPipe,
   Query,
+  Req,
   Res,
 } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Category } from '@prisma/client';
-import type { Response } from 'express';
+import { createHash } from 'crypto';
+import type { Request, Response } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
 import { CatalogService } from './catalog.service';
 import {
@@ -83,6 +85,21 @@ export class CatalogController {
    * structurelle, pas déclarative. Le service revérifie tout de même que le chemin lu reste
    * sous la racine de stockage : une donnée corrompue ne doit pas produire une lecture de
    * fichier hors du répertoire d'uploads.
+   *
+   * ═══ UNE POSITION N'EST PAS IMMUABLE — LE CACHE NE PEUT DONC PAS L'ÊTRE ═══
+   * Cette route répondait `Cache-Control: immutable, max-age=1 an`, au motif que le nom du
+   * fichier est un UUID posé au dépôt. Le raisonnement portait sur le FICHIER ; l'URL, elle,
+   * désigne une POSITION. Depuis qu'on peut réordonner (D-062), la position 0 change de
+   * contenu sans changer d'URL — et la promesse `immutable` devient un mensonge : le
+   * navigateur garde l'ancienne vignette de couverture, pendant un an, sans jamais revérifier.
+   * Défaut constaté au navigateur : le réordonnancement s'écrivait bien en base et l'écran
+   * continuait d'afficher l'ordre précédent.
+   *
+   * On sert donc un **ETag** dérivé du chemin stocké — un UUID, donc unique par fichier — avec
+   * une revalidation obligatoire. Le coût est une requête conditionnelle par vignette, à
+   * laquelle on répond **sans toucher au disque** : la comparaison porte sur la ligne de base
+   * qu'on lit de toute façon. On garde donc l'essentiel de ce que le cache long apportait, et
+   * l'on cesse de mentir sur ce qui est immuable.
    */
   @Get('products/:id/images/:index')
   @Public()
@@ -96,9 +113,23 @@ export class CatalogController {
   async productImage(
     @Param('id', ParseIntPipe) id: number,
     @Param('index', ParseIntPipe) index: number,
+    @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
     const relativePath = await this.catalog.productImagePath(id, index);
+
+    // L'ETag identifie le FICHIER qui occupe cette position aujourd'hui. Le chemin lui-même
+    // ne sort jamais (D-062) : on n'en publie qu'une empreinte.
+    const etag = `"${createHash('sha256').update(relativePath).digest('base64url').slice(0, 22)}"`;
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+
+    if (req.headers['if-none-match'] === etag) {
+      // 304 sans lecture disque : la position tient toujours le même fichier.
+      res.status(304).end();
+      return;
+    }
+
     const file = await this.images.read(relativePath);
     if (!file) {
       // La ligne existe mais le fichier est absent ou illisible : 404, jamais 500 — la fiche
@@ -106,11 +137,7 @@ export class CatalogController {
       throw new NotFoundException('Image introuvable.');
     }
 
-    // Immuable : le nom du fichier est un UUID posé au dépôt, remplacer une photo crée un
-    // nouveau chemin. Le cache long est donc sans risque et évite de relire le disque à
-    // chaque vignette de la boutique.
     res.setHeader('Content-Type', file.mime);
-    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     res.send(file.buffer);
   }
 }

@@ -340,6 +340,22 @@ export const fr = {
     "Vos e-cards ont été consommées. Cet achat n'a ajouté aucun point à votre arbre et n'a fait progresser aucun équilibre.",
   "free.pointsNoEffect": "Points du panier — sans effet ici",
 
+  // ── Code PIN : réinitialisation par questions secrètes (D-051) ──
+  "pin.resetTitle": "Mon code PIN",
+  "pin.resetSubtitle":
+    "Vous l'avez oublié ? Répondez à deux de vos questions secrètes pour en définir un nouveau.",
+  "pin.resetOnlyRecourse":
+    "C'est le SEUL recours : aucun e-mail ni SMS ne peut vous être envoyé. Si vous ne vous souvenez d'aucune de vos réponses, contactez l'administration.",
+  "pin.resetAnswerHint":
+    "Répondez à au moins {count} de vos trois questions. Laissez vide celles dont vous n'êtes pas sûr — l'ensemble ne compte que pour UN seul essai.",
+  "pin.resetCaseHint": "Les majuscules, les accents et les espaces n'ont pas d'importance.",
+  "pin.resetNew": "Nouveau code PIN",
+  "pin.resetConfirm": "Confirmez le nouveau code",
+  "pin.resetMismatch": "Les deux codes ne correspondent pas.",
+  "pin.resetSubmit": "Définir mon nouveau code",
+  "pin.resetting": "Enregistrement…",
+  "pin.resetDone": "Votre code PIN a été remplacé.",
+
   // ── Paiement par e-cards (commun) ──
   "payment.title": "Paiement par e-card",
   "payment.addCode": "Ajouter un code",
@@ -606,6 +622,7 @@ export const fr = {
   "action.confirm": "Confirmer",
   "action.previous": "Précédent",
   "action.next": "Suivant",
+  "action.pagination": "Pagination",
   "action.page": "Page {page} sur {pages}",
   "action.copy": "Copier",
   "action.copied": "Copié.",

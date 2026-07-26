@@ -1,13 +1,18 @@
 import type { ReactNode } from "react"
 import { cn } from "@/lib/utils"
+import { Surface } from "./surface"
 
 /**
  * Un chiffre et ce qu'il signifie.
  *
- * Brique de base du tableau de bord. `tone` porte l'IMPORTANCE, pas une couleur :
- *  — `plain` : la majorité des chiffres, sur fond de carte ;
+ * `tone` porte l'IMPORTANCE, pas une couleur :
+ *  — `plain` : la majorité des chiffres ;
  *  — `highlight` : le solde et les gains, sur la surface dorée du portail. C'est là que
  *    l'identité entre dans l'interface (portal/CLAUDE.md : usage plus généreux de l'accent).
+ *
+ * Ces cartes vivent presque toujours en GRILLE, côte à côte : elles s'appuient donc sur la
+ * variante `card` de `Surface`, qui porte un filet. Deux chiffres adjacents sans limite se
+ * lisent comme un seul bloc, et l'on ne sait plus quelle phrase explique quel nombre.
  *
  * `hint` n'est pas décoratif : c'est la phrase qui évite un ticket au support. Un chiffre du
  * modèle MLM sans sa phrase (« en réserve », « perdu au plafond ») se lit de travers.
@@ -33,14 +38,9 @@ export function StatCard({
   const highlight = tone === "highlight"
 
   return (
-    <div
-      className={cn(
-        "flex flex-col gap-2 rounded-xl border p-4",
-        highlight
-          ? "border-highlight-border bg-highlight text-highlight-foreground"
-          : "border-border bg-card text-card-foreground",
-        className,
-      )}
+    <Surface
+      variant={highlight ? "highlight" : "card"}
+      className={cn("flex flex-col gap-2", className)}
     >
       <div className="flex items-start justify-between gap-3">
         <p
@@ -72,6 +72,6 @@ export function StatCard({
       ) : null}
 
       {action ? <div className="pt-1">{action}</div> : null}
-    </div>
+    </Surface>
   )
 }

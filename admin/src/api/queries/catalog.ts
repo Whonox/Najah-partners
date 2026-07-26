@@ -109,3 +109,68 @@ export function useDeleteCategory() {
     onSuccess: invalidate,
   })
 }
+
+/**
+ * PHOTOS D'UN PRODUIT (D-054, D-059, précisé par D-062).
+ *
+ * ═══ ON NE MANIPULE QUE DES POSITIONS ═══
+ * Le contrat ne rend plus les chemins de stockage, seulement `imageCount` : une photo se
+ * désigne par sa POSITION, aussi bien pour l'afficher (`/shop/products/:id/images/:index`) que
+ * pour la retirer ou la réordonner. Il n'y a donc aucun chemin à transporter, à stocker en
+ * état local, ni à concaténer dans une URL — ce qui rend la faute impossible plutôt
+ * qu'improbable.
+ *
+ * ═══ CHAQUE APPEL REND LE PRODUIT ENTIER ═══
+ * Dépôt, retrait et réordonnancement renvoient le produit à jour : l'écran n'a jamais à
+ * recomposer l'état après coup, il réinvalide et relit. Un compteur d'images reconstruit
+ * localement finirait par mentir dès qu'un dépôt échoue à moitié.
+ */
+export function useAddProductImage() {
+  const invalidate = useInvalidateProducts()
+  return useMutation({
+    mutationFn: async (variables: { id: number; file: File }) =>
+      unwrap(
+        await apiClient.POST("/admin/shop/products/{id}/images", {
+          params: { path: { id: variables.id } },
+          // `Content-Type: null` est nécessaire : c'est au navigateur de poser l'en-tête avec
+          // sa frontière multipart. L'écrire nous-mêmes produirait un corps illisible.
+          body: { image: variables.file as unknown as string },
+          bodySerializer: (body: { image: unknown }) => {
+            const data = new FormData()
+            data.append("image", body.image as File)
+            return data
+          },
+          headers: { "Content-Type": null },
+        }),
+      ),
+    onSuccess: invalidate,
+  })
+}
+
+export function useRemoveProductImage() {
+  const invalidate = useInvalidateProducts()
+  return useMutation({
+    mutationFn: async (variables: { id: number; index: number }) =>
+      unwrap(
+        await apiClient.DELETE("/admin/shop/products/{id}/images/{index}", {
+          params: { path: { id: variables.id, index: variables.index } },
+        }),
+      ),
+    onSuccess: invalidate,
+  })
+}
+
+/** `order[i]` = la photo qui occupera la position i. Permutation exacte de 0…n-1 (D-062). */
+export function useReorderProductImages() {
+  const invalidate = useInvalidateProducts()
+  return useMutation({
+    mutationFn: async (variables: { id: number; order: number[] }) =>
+      unwrap(
+        await apiClient.PATCH("/admin/shop/products/{id}/images/order", {
+          params: { path: { id: variables.id } },
+          body: { order: variables.order },
+        }),
+      ),
+    onSuccess: invalidate,
+  })
+}

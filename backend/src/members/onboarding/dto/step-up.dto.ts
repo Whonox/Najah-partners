@@ -134,3 +134,17 @@ export class StepUpTokenDto {
   @ApiProperty()
   expiresAt!: Date;
 }
+
+/**
+ * Les CLÉS de mes trois questions secrètes — jamais les réponses, ni leurs empreintes.
+ * Sert à l'écran de réinitialisation du PIN, qui doit demander DEUX de MES questions et non
+ * faire deviner lesquelles, parmi les dix du catalogue, sont les miennes.
+ */
+export class MySecurityQuestionsDto {
+  @ApiProperty({
+    type: [String],
+    enum: SECURITY_QUESTION_KEYS,
+    description: 'Les trois clés que j’ai choisies à ma première connexion.',
+  })
+  questionKeys!: string[];
+}

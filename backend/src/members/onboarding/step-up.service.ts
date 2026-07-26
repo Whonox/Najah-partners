@@ -205,6 +205,34 @@ export class StepUpService {
   }
 
   /**
+   * MES trois questions secrètes — les CLÉS seules, jamais les réponses ni leurs empreintes.
+   *
+   * ═══ POURQUOI CE N'EST PAS UNE FUITE ═══
+   * Le membre est authentifié et ces questions sont CELLES QU'IL A CHOISIES : les lui rendre ne
+   * lui apprend rien. La protection du step-up ne tient pas au secret de la LISTE — elle tient
+   * au fait que le serveur TIRE la question et la lie au jeton (`challenge`), de sorte qu'on
+   * subit celle qui tombe au lieu de choisir celle qu'on sait. Connaître les trois intitulés ne
+   * permet toujours pas d'en choisir un.
+   *
+   * ═══ POURQUOI C'EST NÉCESSAIRE ═══
+   * La réinitialisation du PIN exige deux bonnes réponses sur trois. Sans cette route, l'écran
+   * devrait faire deviner au membre lesquelles des dix questions du catalogue sont les siennes
+   * — chaque essai raté débitant une tentative sur le compteur commun. Le recours censé le
+   * sauver deviendrait le moyen de se bloquer.
+   *
+   * Elle n'est PAS derrière `@RequireStepUp()` : on y vient précisément parce qu'on ne peut
+   * plus la franchir.
+   */
+  async myQuestionKeys(memberId: number): Promise<{ questionKeys: string[] }> {
+    const rows = await this.prisma.memberSecurityAnswer.findMany({
+      where: { memberId },
+      select: { questionKey: true },
+      orderBy: { questionKey: 'asc' },
+    });
+    return { questionKeys: rows.map((row) => row.questionKey) };
+  }
+
+  /**
    * Réinitialisation d'un PIN oublié — le SEUL recours possible : aucun canal e-mail ni SMS
    * n'existe (D-011).
    *

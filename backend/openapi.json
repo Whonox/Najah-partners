@@ -324,6 +324,29 @@
         ]
       }
     },
+    "/members/me/step-up/questions": {
+      "get": {
+        "description": "Nécessaire à l’écran de réinitialisation du PIN : sans elle, il faudrait faire deviner lesquelles des dix questions du catalogue sont les siennes, chaque essai raté débitant une tentative sur le compteur commun. Ce n’est pas une fuite : ces questions sont celles que le membre a lui-même choisies, et la protection du step-up tient au TIRAGE côté serveur, pas au secret de la liste.",
+        "operationId": "StepUpController_myQuestions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MySecurityQuestionsDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Les clés de MES trois questions secrètes (sans les réponses).",
+        "tags": [
+          "portal"
+        ]
+      }
+    },
     "/members/me/step-up/pin/reset": {
       "post": {
         "description": "DEUX bonnes réponses sur trois. C’est le SEUL recours possible : aucun canal e-mail ni SMS n’existe (D-011). Le lot compte pour UNE tentative sur le compteur COMMUN — sans quoi cette route serait le contournement du blocage : on épuiserait le PIN, puis on tâtonnerait ici sans limite.",
@@ -4290,6 +4313,33 @@
         "required": [
           "stepUpToken",
           "expiresAt"
+        ]
+      },
+      "MySecurityQuestionsDto": {
+        "type": "object",
+        "properties": {
+          "questionKeys": {
+            "type": "array",
+            "description": "Les trois clés que j’ai choisies à ma première connexion.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "CHILDHOOD_STREET",
+                "FIRST_SCHOOL",
+                "CHILDHOOD_NICKNAME",
+                "FIRST_PET_NAME",
+                "FAVORITE_TEACHER",
+                "CLOSEST_CHILDHOOD_FRIEND",
+                "GRANDMOTHER_FIRST_NAME",
+                "FIRST_EMPLOYER",
+                "CHILDHOOD_DISH",
+                "FIRST_CITY_VISITED"
+              ]
+            }
+          }
+        },
+        "required": [
+          "questionKeys"
         ]
       },
       "SecurityAnswerDto": {

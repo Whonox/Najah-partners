@@ -4,13 +4,13 @@ import { toast } from "sonner"
 import { Lock, ShieldCheck } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DataState } from "@/components/common/data-state"
 import { Notice } from "@/components/common/explain"
 import { PageHeader } from "@/components/common/page-header"
+import { Surface, SurfaceHeader } from "@/components/common/surface"
 import {
   MemberStatusBadge,
   VerificationBadge,
@@ -26,6 +26,7 @@ import {
 import { useAuth } from "@/auth/use-auth"
 import { formatDateTime } from "@/lib/format"
 import { useT } from "@/i18n/use-t"
+import { PinSection } from "./pin-section"
 import { RenewalTab } from "./renewal-tab"
 
 /**
@@ -70,8 +71,13 @@ export function ProfilePage() {
               <PositionSection profile={profile.data} />
             </TabsContent>
 
-            <TabsContent value="security" className="pt-4">
+            {/* Les DEUX secrets du compte vivent ici : le mot de passe (accès) et le code
+                PIN (opérations sensibles). Les séparer sur deux écrans ferait chercher le
+                second là où il n'est pas — d'autant que le dialogue de step-up renvoie
+                explicitement « depuis votre profil ». */}
+            <TabsContent value="security" className="space-y-4 pt-4">
               <PasswordSection />
+              <PinSection />
             </TabsContent>
 
             <TabsContent value="renewal" className="pt-4">
@@ -115,11 +121,9 @@ function IdentitySection({ profile }: { profile: MemberProfile }) {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("profile.identity")}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <Surface as="section">
+      <SurfaceHeader title={t("profile.identity")} />
+      <div className="space-y-4">
         <form className="space-y-4" onSubmit={(event) => void submit(event)}>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -173,8 +177,8 @@ function IdentitySection({ profile }: { profile: MemberProfile }) {
         </div>
 
         <Notice>{t("profile.noBankData")}</Notice>
-      </CardContent>
-    </Card>
+      </div>
+    </Surface>
   )
 }
 
@@ -184,17 +188,19 @@ function VerificationSection({ profile }: { profile: MemberProfile }) {
   const { verification } = profile
 
   return (
-    <Card>
-      <CardHeader>
-        {/* Le titre nomme la SECTION, pas l'état : mettre « En cours de vérification » en
-            titre ferait lire un statut là où l'on attend un intitulé, et l'affilié verrait
-            deux fois la même phrase (le badge le dit déjà, juste en dessous). */}
-        <CardTitle className="flex items-center gap-2">
-          <ShieldCheck className="size-5" aria-hidden />
-          {t("verification.title")}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <Surface as="section">
+      {/* Le titre nomme la SECTION, pas l'état : mettre « En cours de vérification » en titre
+          ferait lire un statut là où l'on attend un intitulé, et l'affilié verrait deux fois
+          la même phrase (le badge le dit déjà, juste en dessous). */}
+      <SurfaceHeader
+        title={
+          <span className="flex items-center gap-2">
+            <ShieldCheck className="size-5" aria-hidden />
+            {t("verification.title")}
+          </span>
+        }
+      />
+      <div className="space-y-3">
         <VerificationBadge status={verification.status} />
 
         <dl className="grid gap-3 sm:grid-cols-2">
@@ -223,8 +229,8 @@ function VerificationSection({ profile }: { profile: MemberProfile }) {
         ) : null}
 
         <Notice>{t("verification.nonBlocking")}</Notice>
-      </CardContent>
-    </Card>
+      </div>
+    </Surface>
   )
 }
 
@@ -233,11 +239,9 @@ function PositionSection({ profile }: { profile: MemberProfile }) {
   const t = useT()
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("profile.position")}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <Surface as="section">
+      <SurfaceHeader title={t("profile.position")} />
+      <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
           <MemberStatusBadge status={profile.status} />
           <span className="text-sm text-muted-foreground">
@@ -266,7 +270,7 @@ function PositionSection({ profile }: { profile: MemberProfile }) {
         </dl>
 
         {profile.pack ? (
-          <div className="rounded-lg border bg-muted/30 p-3">
+          <div className="rounded-xl bg-muted/50 p-3">
             <p className="font-medium">{profile.pack.packName}</p>
             <dl className="mt-2 grid grid-cols-2 gap-3 text-sm">
               <Pair
@@ -288,8 +292,8 @@ function PositionSection({ profile }: { profile: MemberProfile }) {
             </dl>
           </div>
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </Surface>
   )
 }
 
@@ -323,11 +327,9 @@ function PasswordSection() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("password.title")}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <Surface as="section">
+      <SurfaceHeader title={t("password.title")} />
+      <div className="space-y-4">
         <Notice tone="warning">{t("password.logoutNotice")}</Notice>
 
         <form className="space-y-4" onSubmit={(event) => void submit(event)}>
@@ -380,8 +382,8 @@ function PasswordSection() {
             {change.isPending ? t("password.submitting") : t("password.submit")}
           </Button>
         </form>
-      </CardContent>
-    </Card>
+      </div>
+    </Surface>
   )
 }
 
