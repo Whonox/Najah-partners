@@ -18,6 +18,40 @@ Back-office administrateur. Voir `../docs/spec.md` §7.2 (12 modules).
 - i18n dès le départ (FR ; préparer AR/RTL — shadcn init supporte --rtl).
 - Composants shadcn/ui, cohérence visuelle avec portal/.
 
+### Le typecheck qui fait foi est `npm run build`, PAS `npx tsc --noEmit`
+
+Les deux ne lisent **pas la même configuration**. `npm run build` lance `tsc -b`, qui suit les
+**références de projets** de `tsconfig.json` (`tsconfig.app.json` + `tsconfig.node.json`) et
+applique donc les options strictes du code applicatif. `npx tsc --noEmit` sans argument lit le
+`tsconfig.json` racine, qui ne contient que des références et aucun fichier : il **ne vérifie
+presque rien** et rend un succès trompeur.
+
+Constaté en Tranche 9.5 : une prop obligatoire manquante et un import inutilisé passaient
+`tsc --noEmit` et n'étaient rattrapés qu'au build. Après toute modification de ce projet, la
+commande à lancer est `npm run build` (ou `npx tsc -b`), jamais `tsc --noEmit` seul.
+
+### Tests — `npm test` (Vitest)
+
+Périmètre **volontairement étroit** : les fonctions PURES, et rien d'autre. Pas de rendu de
+composant, pas de DOM simulé, pas de requête interceptée. Ce n'est pas une limite d'ambition
+mais un choix de rendement — la logique métier vit dans `backend/`, les parcours se vérifient
+au navigateur. Ce qui reste ici est ce qu'aucun des deux ne couvre : une fonction qui se trompe
+**silencieusement**, sans planter ni s'afficher de travers.
+
+Conséquence : pas de `globals`, `environment: 'node'`, aucune dépendance de test au-delà de
+Vitest. Le jour où un composant devra être testé, il faudra jsdom **et**
+`@testing-library/react` — décision à prendre à ce moment-là, pas d'avance.
+
+Les fichiers `*.test.ts` vivent **à côté** du module testé et sont couverts par `tsc -b` comme
+par ESLint : un test qui ne compile pas casse le build.
+
+**Piège des caractères invisibles.** Le formatage français utilise l'espace fine insécable
+(U+202F) et l'export CSV un BOM (U+FEFF). Dans un test, on les écrit **en échappement**
+(`"\u202f"`), jamais collés tels quels : à l'œil, ils sont indiscernables d'une espace
+ordinaire, et une assertion qui vise le mauvais des deux passe sans rien vérifier — ou échoue
+sans qu'on comprenne pourquoi. Les deux cas se sont produits en Tranche 9.5, et ESLint
+(`no-irregular-whitespace`) n'en attrape qu'une partie.
+
 ## Direction visuelle
 
 Le back-office est un OUTIL DE TRAVAIL : dense, utilisé des heures, les données priment

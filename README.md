@@ -34,6 +34,24 @@ génération du client depuis `backend/openapi.json` fonctionne. Sans le flag, `
 écartée : on ne rétrograde pas un compilateur pour satisfaire la borne d'un générateur de types.
 À réévaluer quand `openapi-typescript` élargira son intervalle.
 
+### Tests
+
+| Projet | Commande | Périmètre |
+|---|---|---|
+| `backend/` | `npm test` | Unitaire (Prisma mocké, sans base) |
+| `backend/` | `npm run test:int` | Intégration (vrai PostgreSQL sur le port 5433) |
+| `portal/` · `admin/` | `npm test` | Vitest — **fonctions pures uniquement** |
+
+Le périmètre des fronts est volontairement étroit : on y teste ce qui se trompe **en silence**
+(arithmétique en millimes, formatage des deux unités, composition de panier, mise en page de
+l'arbre, échappement CSV). La logique métier vit dans `backend/`, les parcours se vérifient au
+navigateur. Il n'y a **ni jsdom, ni rendu de composant** — les ajouter est une décision à
+prendre le jour où un composant devra être testé, pas d'avance.
+
+**Le typecheck qui fait foi sur les fronts est `npm run build`** (`tsc -b`, avec références de
+projets), jamais `npx tsc --noEmit` : ce dernier lit le `tsconfig.json` racine, qui ne contient
+que des références, et ne vérifie donc presque rien. Voir `portal/CLAUDE.md`.
+
 ### Base de données locale
 `backend/docker-compose.yml` fournit un PostgreSQL 16 sur le port **5433**. Docker n'est pas
 obligatoire : n'importe quel PostgreSQL 16 écoutant sur ce port convient (aucune extension
