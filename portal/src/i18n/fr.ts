@@ -580,6 +580,39 @@ export const fr = {
   "action.copyFailed": "La copie a échoué : sélectionnez le texte manuellement.",
   "action.showMore": "Afficher plus",
   "action.showLess": "Afficher moins",
+
+  // ── Seconde authentification (D-051) ──
+  // Un seul message de refus, et il vient du SERVEUR : rien ici ne dit quelle méthode a
+  // échoué, ni combien d'essais restent. Reconstruire cette information côté écran
+  // rebâtirait l'oracle que le backend refuse délibérément de fournir.
+  "stepUp.title": "Confirmez votre identité",
+  "stepUp.description":
+    "Cette opération touche à votre argent. Choisissez votre code PIN ou l’une de vos questions secrètes — les deux conviennent.",
+  "stepUp.methodLabel": "Méthode de vérification",
+  "stepUp.methodPin": "Code PIN",
+  "stepUp.methodQuestion": "Question secrète",
+  "stepUp.pinLabel": "Votre code PIN",
+  "stepUp.questionLoading": "Tirage d’une de vos questions…",
+  "stepUp.questionFallback": "Répondez à votre question secrète",
+  "stepUp.answerPlaceholder": "Votre réponse",
+  "stepUp.answerHint": "Les majuscules, les accents et les espaces n’ont pas d’importance.",
+  "stepUp.confirm": "Confirmer",
+  "stepUp.verifying": "Vérification…",
+  "stepUp.refused": "Vérification impossible.",
+  "stepUp.challengeFailed":
+    "Impossible de charger une question pour le moment. Utilisez votre code PIN, ou réessayez.",
+  "stepUp.forgotPin":
+    "Code PIN oublié ? Réinitialisez-le depuis votre profil avec vos questions secrètes — c’est le seul recours, aucun message ne peut vous être envoyé.",
+
+  // ── Les deux jambes, en POINTS (D-053) ──
+  "legs.left": "Jambe gauche",
+  "legs.right": "Jambe droite",
+  "legs.lifetime": "Depuis le début :",
+  "legs.missing": "Il vous manque",
+  "legs.onLeft": "à gauche pour votre prochain équilibre.",
+  "legs.onRight": "à droite pour votre prochain équilibre.",
+  "legs.balanceReady":
+    "Vos deux jambes atteignent le palier : votre prochain équilibre est acquis.",
 } as const
 
 export type Dictionary = typeof fr

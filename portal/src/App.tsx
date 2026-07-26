@@ -3,6 +3,7 @@ import { QueryClientProvider } from "@tanstack/react-query"
 import { BrowserRouter } from "react-router"
 import { createQueryClient } from "@/api/query-client"
 import { AuthProvider } from "@/auth/auth-provider"
+import { StepUpProvider } from "@/components/common/step-up-dialog"
 import { Toaster } from "@/components/ui/sonner"
 import { I18nProvider } from "@/i18n/i18n-provider"
 import { AppRoutes } from "@/routes/app-routes"
@@ -14,7 +15,11 @@ import { ThemeProvider } from "@/theme/theme-provider"
  *   Theme        → le Toaster et toute l'interface lisent le mode courant ;
  *   I18n         → pose `lang`/`dir` sur <html> (prêt pour l'arabe/RTL) ;
  *   BrowserRouter→ AuthProvider et les gardes de route naviguent ;
- *   Auth         → dernière barrière avant les écrans.
+ *   Auth         → dernière barrière avant les écrans ;
+ *   StepUp       → DEDANS, et c'est nécessaire : la boîte de seconde authentification (D-051)
+ *                  ne s'ouvre que pour un membre déjà connecté, et elle doit survivre au
+ *                  changement d'écran — une requête d'argent partie depuis « Mes gains » ne
+ *                  doit pas voir son dialogue disparaître parce que l'affilié a navigué.
  */
 export default function App() {
   // Instance unique, créée au premier rendu (et pas à chaque rendu, ce qui viderait le cache).
@@ -26,11 +31,13 @@ export default function App() {
         <I18nProvider locale="fr">
           <BrowserRouter>
             <AuthProvider>
-              <AppRoutes />
-              {/* En HAUT sur le portail : la barre d'onglets occupe le bas de l'écran sur
-                  téléphone, et un toast posé dessous serait masqué par elle au moment précis
-                  où il compte (« code copié », « paiement enregistré »). */}
-              <Toaster position="top-center" />
+              <StepUpProvider>
+                <AppRoutes />
+                {/* En HAUT sur le portail : la barre d'onglets occupe le bas de l'écran sur
+                    téléphone, et un toast posé dessous serait masqué par elle au moment précis
+                    où il compte (« code copié », « paiement enregistré »). */}
+                <Toaster position="top-center" />
+              </StepUpProvider>
             </AuthProvider>
           </BrowserRouter>
         </I18nProvider>

@@ -109,6 +109,17 @@
   --leg-left: #5a6e3a;
   --leg-right: #7b6a9a;
 
+  /* SURFACE D'ACCUEIL PERSONNELLE (Tranche 9.5) — le bandeau qui porte la salutation, le nom,
+     le code membre et le statut, en tête de l'espace membre.
+     Elle existe parce que ni `--card` ni `--highlight` ne conviennent : une carte blanche ne
+     se distingue pas du reste de la page, et l'or de `--highlight` est réservé à ce qui porte
+     de la VALEUR (soldes, gains) — l'employer pour une salutation le banaliserait, et la
+     page d'accueil ne montre justement AUCUN montant (D-053).
+     Teinte chaude très basse, à mi-chemin entre le fond de page et la carte. */
+  --surface-soft: #f4f1ec;
+  /* Texte posé sur la surface d'accueil. */
+  --surface-soft-foreground: #1c1917;
+
   /* Voile posé sous une surface flottante (menu mobile, boîte de dialogue). */
   --overlay: #1c1917;
 
@@ -217,6 +228,12 @@
   --leg-left: #9ab472;
   --leg-right: #b3a3d1;
 
+  /* Surface d'accueil personnelle — même rôle qu'en clair, sens inverse : en sombre, une
+     surface se distingue en s'ÉCLAIRCISSANT. Posée entre le fond de page (#0E0E0C) et la
+     carte (#1C1917), légèrement plus chaude que la carte pour rester reconnaissable. */
+  --surface-soft: #221f1c;
+  --surface-soft-foreground: #fafaf9;
+
   /* Voile posé sous une surface flottante : noir pur, seul à assombrir un fond déjà sombre. */
   --overlay: #000000;
 
@@ -294,6 +311,8 @@
   --color-highlight-border: var(--highlight-border);
   --color-leg-left: var(--leg-left);
   --color-leg-right: var(--leg-right);
+  --color-surface-soft: var(--surface-soft);
+  --color-surface-soft-foreground: var(--surface-soft-foreground);
   --color-overlay: var(--overlay);
   --color-border: var(--border);
   --color-input: var(--input);

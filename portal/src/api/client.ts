@@ -1,6 +1,12 @@
 import createClient from "openapi-fetch"
+import { STEP_UP_REQUIRED } from "./error"
 import type { paths } from "./generated/schema"
+import { requestStepUp } from "./step-up-gate"
+import { stepUpStore } from "./step-up-store"
 import { tokenStore } from "./token-store"
+
+/** En-tête portant la preuve de seconde authentification (D-058). */
+export const STEP_UP_HEADER = "X-Step-Up"
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000"
 
@@ -60,21 +66,57 @@ export function refreshAccessToken(): Promise<string | null> {
   return refreshInFlight
 }
 
-function withBearer(request: Request, token: string | null): Request {
-  if (!token) return request
+/**
+ * Pose le Bearer et, s'il en existe un de valide, le jeton de seconde authentification.
+ *
+ * Le jeton `X-Step-Up` accompagne TOUTES les requêtes tant qu'il est valable, et pas
+ * seulement celles qui l'exigent : la couche transport ne sait pas quelles routes sont
+ * gardées — cette liste vit côté serveur, et l'y dupliquer garantirait qu'elle divergera.
+ * L'envoyer partout coûte quelques octets d'en-tête et évite un aller-retour de refus sur
+ * chaque écran d'argent.
+ */
+function withCredentials(request: Request, token: string | null): Request {
   const headers = new Headers(request.headers)
-  headers.set("Authorization", `Bearer ${token}`)
+  if (token) headers.set("Authorization", `Bearer ${token}`)
+  const stepUp = stepUpStore.get()
+  if (stepUp) headers.set(STEP_UP_HEADER, stepUp)
   return new Request(request, { headers })
 }
 
 /**
- * `fetch` de transport : pose le Bearer, et sur un 401 tente UN rafraîchissement puis rejoue
- * la requête UNE fois. Un échec de rafraîchissement purge l'état en mémoire — le provider
- * d'auth, abonné au store, bascule alors l'application vers l'écran de connexion.
+ * Le corps d'un refus, lu SANS le consommer.
  *
- * La requête est clonée AVANT le premier envoi : son corps est un flux, consommé une seule
- * fois ; sans clone, le rejeu partirait sans corps — et un rejeu de checkout sans corps
- * serait un paiement vide.
+ * Une réponse ne se lit qu'une fois : la lire ici priverait l'appelant de son message
+ * d'erreur. On travaille donc sur un clone, et on rend `null` au moindre problème — un corps
+ * illisible n'est pas une raison de faire échouer le traitement de l'erreur elle-même.
+ */
+async function peekErrorCode(response: Response): Promise<string | null> {
+  try {
+    const body: unknown = await response.clone().json()
+    if (typeof body !== "object" || body === null) return null
+    const { code } = body as { code?: unknown }
+    return typeof code === "string" ? code : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * `fetch` de transport. Il gère DEUX rejeux, de natures différentes :
+ *
+ *  1. **401 → rafraîchissement** (D-016). L'access token a expiré ; on le renouvelle
+ *     silencieusement et on rejoue. L'affilié ne voit rien, et c'est le but.
+ *
+ *  2. **403 `STEP_UP_REQUIRED` → seconde authentification** (D-051/D-058). Là, on ne peut
+ *     RIEN faire silencieusement : la preuve demandée n'existe que dans la tête du membre. On
+ *     ouvre donc la boîte de dialogue (via `requestStepUp`), et on rejoue s'il a répondu.
+ *
+ * Un rejeu au plus par cause : le second refus est rendu tel quel. Boucler serait pire que
+ * d'échouer — un membre bloqué (5 essais, D-058) verrait le dialogue se rouvrir indéfiniment.
+ *
+ * La requête est clonée AVANT chaque envoi : son corps est un flux, consommé une seule fois ;
+ * sans clone, le rejeu partirait sans corps — et un rejeu de checkout sans corps serait un
+ * paiement vide.
  */
 const authFetch: typeof fetch = async (input, init) => {
   const request = input instanceof Request ? input : new Request(input, init)
@@ -83,18 +125,36 @@ const authFetch: typeof fetch = async (input, init) => {
     return fetch(request)
   }
 
-  const replay = request.clone()
-  const response = await fetch(withBearer(request, tokenStore.get()))
-  if (response.status !== 401) {
-    return response
+  const afterRefresh = request.clone()
+  const afterStepUp = request.clone()
+
+  let response = await fetch(withCredentials(request, tokenStore.get()))
+
+  if (response.status === 401) {
+    const token = await refreshAccessToken()
+    if (!token) {
+      tokenStore.clear()
+      return response // 401 d'origine : l'appelant voit l'échec, la session est déjà tombée.
+    }
+    response = await fetch(withCredentials(afterRefresh, token))
   }
 
-  const token = await refreshAccessToken()
-  if (!token) {
-    tokenStore.clear()
-    return response // 401 d'origine : l'appelant voit l'échec, la session est déjà tombée.
+  if (response.status === 403) {
+    const code = await peekErrorCode(response)
+    if (code === STEP_UP_REQUIRED) {
+      // Le jeton en mémoire, s'il en restait un, n'a pas convaincu le serveur : il est
+      // périmé de son point de vue. On l'oublie AVANT de demander, sinon le rejeu repartirait
+      // avec le même jeton refusé.
+      stepUpStore.clear()
+      const stepUpToken = await requestStepUp()
+      if (!stepUpToken) {
+        return response // le membre a renoncé : le refus est la bonne réponse.
+      }
+      response = await fetch(withCredentials(afterStepUp, tokenStore.get()))
+    }
   }
-  return fetch(withBearer(replay, token))
+
+  return response
 }
 
 export const apiClient = createClient<paths>({

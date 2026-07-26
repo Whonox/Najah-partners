@@ -41,3 +41,8 @@ MEMORY.md
 # n'est qu'un garde-fou si on le reconfigure à l'intérieur.
 najah-uploads/
 
+
+# Artefacts de vérification au navigateur (Playwright MCP) : instantanés et journaux de
+# console écrits pendant une session de QA. Ce sont des traces de diagnostic, pas des
+# fixtures — elles portent un horodatage et ne se relisent jamais deux fois.
+.playwright-mcp/
