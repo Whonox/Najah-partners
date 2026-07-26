@@ -613,6 +613,152 @@ export const fr = {
   "legs.onRight": "à droite pour votre prochain équilibre.",
   "legs.balanceReady":
     "Vos deux jambes atteignent le palier : votre prochain équilibre est acquis.",
+
+  // ── Connexion — panneau de marque (T9.5) ──
+  "login.brandTitle": "Votre réseau, vos gains, au même endroit.",
+  "login.brandBody":
+    "Suivez la progression de vos deux jambes, composez vos e-cards et retrouvez le détail de chaque commission versée.",
+  "login.brandPointNetwork": "Votre arbre binaire, à jour en permanence",
+  "login.brandPointEarnings": "Le détail de chaque versement, semaine par semaine",
+  "login.brandPointSecurity": "Vos écrans d’argent protégés par un code personnel",
+  "login.brandFooter": "Najah Partners — produits à base d’olive et produits naturels.",
+  "login.noAccountTitle": "Vous avez un code de parrainage ?",
+  "login.noAccountBody":
+    "Créez votre compte en quelques minutes. Il vous faudra le code de votre parrain et vos e-cards d’inscription.",
+  "login.register": "Créer mon compte",
+
+  // ── Inscription (D-052) ──
+  // AUCUN de ces libellés ne commente un code d'e-card saisi : le formulaire est public, et
+  // tout retour sur un code en ferait un oracle d'énumération.
+  "register.title": "Créer mon compte",
+  "register.subtitle": "Quatre étapes. Comptez cinq minutes.",
+  "register.step.sponsor": "Parrain",
+  "register.step.identity": "Vos informations",
+  "register.step.placement": "Placement",
+  "register.step.payment": "Paiement",
+  "register.review": "Vérifier",
+  "register.submit": "Créer mon compte",
+  "register.submitting": "Création en cours…",
+  "register.haveAccount": "Vous avez déjà un compte ?",
+  "register.signIn": "Se connecter",
+
+  "register.sponsor.intro":
+    "Commencez par le code de la personne qui vous a parrainé. Il figure sur l’invitation qu’elle vous a transmise.",
+  "register.sponsor.label": "Code de votre parrain",
+  "register.sponsor.hint": "Format : NP suivi de six chiffres.",
+  "register.sponsor.error": "Renseignez un code au format NP000963.",
+
+  "register.identity.firstName": "Prénom",
+  "register.identity.lastName": "Nom",
+  "register.identity.email": "E-mail",
+  "register.identity.phone": "Téléphone",
+  "register.identity.required": "Ce champ est obligatoire.",
+  "register.identity.contactNotice":
+    "Renseignez au moins un e-mail ou un téléphone. Ils vous serviront à vous connecter et ne pourront plus être modifiés ensuite : vérifiez-les.",
+  "register.identity.docType": "Type de pièce d’identité",
+  "register.identity.docNumber": "Numéro de la pièce",
+  "register.identity.doc.idCard": "Carte d’identité (CIN)",
+  "register.identity.doc.passport": "Passeport",
+  "register.identity.doc.license": "Permis de conduire",
+  "register.identity.photoLater":
+    "La photo de votre pièce vous sera demandée à votre première connexion, une fois votre compte créé.",
+  "register.identity.password": "Mot de passe",
+  "register.identity.passwordConfirm": "Confirmer le mot de passe",
+  "register.identity.passwordHint": "Huit caractères au minimum.",
+  "register.identity.passwordTooShort": "Huit caractères au minimum.",
+  "register.identity.passwordMismatch": "Les deux mots de passe ne correspondent pas.",
+
+  "register.placement.helpTitle": "Parrain et upline : deux choses différentes",
+  "register.placement.helpBody":
+    "Votre PARRAIN est celui qui vous a invité — c’est lui qui perçoit la commission directe. Votre UPLINE DE PLACEMENT est celui sous qui vous êtes rattaché dans l’arbre, à gauche ou à droite. Ce sont souvent la même personne, mais pas toujours : votre parrain peut vous placer sous l’un de ses filleuls. Votre position est DÉFINITIVE.",
+  "register.placement.uplineLabel": "Code de votre upline de placement",
+  "register.placement.uplineHint":
+    "Si vous ne savez pas quoi mettre, indiquez le code de votre parrain.",
+  "register.placement.uplineError": "Renseignez un code au format NP000964.",
+  "register.placement.legLabel": "De quel côté ?",
+  "register.placement.left": "Jambe gauche",
+  "register.placement.right": "Jambe droite",
+  "register.placement.legError": "Choisissez une jambe.",
+  "register.placement.legHint":
+    "Chaque membre n’a qu’une place à gauche et une à droite. Si celle que vous demandez est déjà prise, il faudra en choisir une autre.",
+
+  "register.payment.due": "Frais d’inscription à régler :",
+  "register.payment.cardLabel": "Code e-card",
+  "register.payment.addCard": "Ajouter une e-card",
+  "register.payment.removeCard": "Retirer l’e-card",
+  "register.payment.hint":
+    "Le total de vos e-cards doit couvrir exactement ce montant. Vous pouvez en cumuler plusieurs. Les codes seront vérifiés au moment de la création de votre compte.",
+  "register.payment.required": "Saisissez au moins un code d’e-card.",
+  "register.payment.terms":
+    "J’accepte les conditions d’adhésion et je confirme que les informations saisies sont exactes.",
+  "register.payment.termsRequired": "Vous devez accepter les conditions pour continuer.",
+
+  "register.summary.title": "Vérifiez avant d’envoyer",
+  "register.summary.intro":
+    "Relisez vos informations. Une fois le compte créé, votre position dans l’arbre ne pourra plus être changée.",
+  "register.summary.sponsor": "Parrain",
+  "register.summary.name": "Nom",
+  "register.summary.contact": "Contact",
+  "register.summary.docNumber": "Numéro de pièce",
+  "register.summary.placement": "Placement",
+  "register.summary.cards": "E-cards",
+  "register.summary.cardCount": "{count} code(s) saisi(s)",
+  "register.summary.edit": "Modifier",
+  "register.summary.total": "Montant qui sera prélevé sur vos e-cards :",
+
+  "register.done.title": "Bienvenue chez Najah Partners",
+  "register.done.body": "Votre compte est créé et votre place dans l’arbre est réservée.",
+  "register.done.codeLabel": "Votre code membre",
+  "register.done.next":
+    "Notez-le : c’est avec lui — ou avec votre e-mail — que vous vous connecterez. Aucun message ne vous sera envoyé.",
+  "register.done.signIn": "Me connecter",
+
+  // ── Première connexion (D-050) ──
+  "onboarding.title": "Bienvenue",
+  "onboarding.subtitle":
+    "Trois étapes rapides pour sécuriser votre compte, et vous entrez.",
+  "onboarding.step.document": "Pièce d’identité",
+  "onboarding.step.questions": "Questions secrètes",
+  "onboarding.step.pin": "Code PIN",
+
+  "onboarding.document.intro":
+    "Déposez une photo ou un scan de la pièce dont vous avez indiqué le numéro à l’inscription.",
+  "onboarding.document.declaredType": "Type déclaré",
+  "onboarding.document.declaredNumber": "Numéro déclaré",
+  "onboarding.document.choose": "Choisir un fichier",
+  "onboarding.document.formats": "JPEG, PNG, WebP ou PDF — 5 Mo maximum.",
+  "onboarding.document.tooLarge": "Ce fichier dépasse 5 Mo. Choisissez-en un plus léger.",
+  "onboarding.document.submit": "Déposer ma pièce",
+  "onboarding.document.uploading": "Envoi en cours…",
+
+  "onboarding.questions.intro":
+    "Choisissez trois questions différentes et donnez vos réponses.",
+  "onboarding.questions.recourseNotice":
+    "Ces réponses sont votre SEUL recours si vous oubliez votre code PIN : aucun message ne peut vous être envoyé. Choisissez des souvenirs stables, que vous retrouverez dans un an.",
+  "onboarding.questions.questionLabel": "Question",
+  "onboarding.questions.answerLabel": "Votre réponse",
+  "onboarding.questions.choose": "Choisir une question…",
+  "onboarding.questions.caseHint":
+    "Les majuscules, les accents et les espaces n’ont pas d’importance.",
+  "onboarding.questions.submit": "Enregistrer mes questions",
+  "onboarding.questions.saving": "Enregistrement…",
+
+  "onboarding.pin.intro":
+    "Ce code protégera vos opérations d’argent : création d’e-cards, paiements, consultation de vos gains.",
+  "onboarding.pin.choose": "Votre code PIN",
+  "onboarding.pin.confirm": "Confirmez votre code PIN",
+  "onboarding.pin.mismatch": "Les deux codes ne correspondent pas.",
+  "onboarding.pin.rules":
+    "Quatre chiffres. Évitez les codes trop simples : chiffres identiques ou qui se suivent seront refusés.",
+  "onboarding.pin.submit": "Créer mon code PIN",
+  "onboarding.pin.saving": "Enregistrement…",
+
+  "onboarding.done.title": "Tout est prêt",
+  "onboarding.done.body": "Votre compte est sécurisé. Vous pouvez entrer dans votre espace.",
+  "onboarding.done.verificationNotice":
+    "Votre pièce sera vérifiée par notre équipe. Cela ne bloque rien : vous pouvez dès maintenant acheter, activer votre pack et percevoir vos commissions.",
+  "onboarding.done.enter": "Entrer dans mon espace",
+  "onboarding.done.entering": "Ouverture…",
 } as const
 
 export type Dictionary = typeof fr

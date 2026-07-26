@@ -29,8 +29,15 @@ import { PayRenewalDto } from './dto/pay-renewal.dto';
 import { TreeNodeDto } from './dto/tree-response.dto';
 import { RegisterMemberDto } from './dto/register-member.dto';
 import { TreeQueryDto } from './dto/tree-query.dto';
+import { moneyToApi } from '../common/money';
 import { MAX_ID_DOCUMENT_BYTES } from './identity-document.service';
 import { MembersFacade } from './members.facade';
+import {
+  MembershipFeeService,
+  REGISTRATION_FEE_SETTING,
+} from './membership-fee.service';
+import { RegisteredMemberDto } from './dto/registered-member.dto';
+import { RegistrationFeeDto } from './dto/registration-fee.dto';
 import { RenewalService } from './renewal.service';
 
 /**
@@ -65,6 +72,7 @@ export class MembersController {
   constructor(
     private readonly facade: MembersFacade,
     private readonly renewals: RenewalService,
+    private readonly fees: MembershipFeeService,
   ) {}
 
   @Post('register')
@@ -84,6 +92,7 @@ export class MembersController {
       '(D-036). Ce montant vaut ACOMPTE : il sera déduit du prix du pack à l’activation ' +
       '(D-037). Aucun point n’est injecté dans l’arbre à ce stade (D-005).',
   })
+  @ApiCreatedResponse({ type: RegisteredMemberDto })
   @UseInterceptors(
     FileInterceptor('idDocument', {
       storage: memoryStorage(), // le fichier n'atteint le disque qu'une fois validé
@@ -95,6 +104,23 @@ export class MembersController {
     @UploadedFile() idDocument?: Express.Multer.File,
   ) {
     return this.facade.register(dto, idDocument);
+  }
+
+  @Get('registration-fee')
+  @Public()
+  @ApiOperation({
+    summary: 'Montant des frais d’inscription, en DT (D-036).',
+    description:
+      'PUBLIC, parce que le formulaire d’inscription l’est (D-021/D-052) et qu’il doit ' +
+      'annoncer la somme d’e-cards à composer. Un TARIF n’est pas un secret : il ne dépend ' +
+      'd’aucun code, d’aucun compte, et ne révèle donc rien — contrairement à la valeur ' +
+      'd’une e-card, qui n’est jamais exposée publiquement. Sans cette route, le portail ' +
+      'écrirait « 100 DT » en dur, et une règle métier vivrait dans le front.',
+  })
+  @ApiOkResponse({ type: RegistrationFeeDto })
+  async registrationFee(): Promise<RegistrationFeeDto> {
+    const amount = await this.fees.read(REGISTRATION_FEE_SETTING);
+    return { amountDt: moneyToApi(amount) };
   }
 
   @Get('me/tree')

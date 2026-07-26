@@ -1103,13 +1103,36 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/RegisteredMemberDto"
                 }
               }
             }
           }
         },
         "summary": "Inscription : frais réglés par e-card(s), membre INSCRIT, code attribué, place définitive.",
+        "tags": [
+          "members"
+        ]
+      }
+    },
+    "/members/registration-fee": {
+      "get": {
+        "description": "PUBLIC, parce que le formulaire d’inscription l’est (D-021/D-052) et qu’il doit annoncer la somme d’e-cards à composer. Un TARIF n’est pas un secret : il ne dépend d’aucun code, d’aucun compte, et ne révèle donc rien — contrairement à la valeur d’une e-card, qui n’est jamais exposée publiquement. Sans cette route, le portail écrirait « 100 DT » en dur, et une règle métier vivrait dans le front.",
+        "operationId": "MembersController_registrationFee",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationFeeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Montant des frais d’inscription, en DT (D-036).",
         "tags": [
           "members"
         ]
@@ -5241,6 +5264,93 @@
           "ecardCodes",
           "idDocumentType",
           "idDocumentNumber"
+        ]
+      },
+      "RegisteredMemberDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "memberCode": {
+            "type": "string",
+            "example": "NP001463",
+            "description": "Code membre attribué immédiatement (D-013). C’est un IDENTIFIANT DE CONNEXION : il n’est envoyé par aucun canal, l’écran doit donc le montrer et permettre de le copier."
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "REGISTERED",
+              "ACTIVE",
+              "INACTIVE"
+            ],
+            "type": "string",
+            "description": "REGISTERED à ce stade : la place dans l’arbre est définitive, mais aucun point n’a été injecté — seule l’activation en injecte (D-005)."
+          },
+          "sponsorCode": {
+            "type": "string",
+            "description": "Code du parrain — déclenche SA commission directe."
+          },
+          "uplineCode": {
+            "type": "string",
+            "description": "Code de l’upline de PLACEMENT — position dans l’arbre. Distinct du sponsor (D-003)."
+          },
+          "leg": {
+            "enum": [
+              "LEFT",
+              "RIGHT"
+            ],
+            "type": "string"
+          },
+          "verificationStatus": {
+            "enum": [
+              "PENDING",
+              "VERIFIED",
+              "REJECTED"
+            ],
+            "type": "string",
+            "description": "PENDING à l’inscription. NON BLOQUANT (D-018) : n’empêche rien."
+          },
+          "registeredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "registrationPaidDt": {
+            "type": "string",
+            "example": "100.000",
+            "description": "DINARS réellement versés, FIGÉS (D-036). C’est l’ACOMPTE déduit du prix du pack à l’activation (D-037) — jamais relu depuis le paramètre courant."
+          }
+        },
+        "required": [
+          "id",
+          "memberCode",
+          "lastName",
+          "firstName",
+          "status",
+          "sponsorCode",
+          "uplineCode",
+          "leg",
+          "verificationStatus",
+          "registeredAt",
+          "registrationPaidDt"
+        ]
+      },
+      "RegistrationFeeDto": {
+        "type": "object",
+        "properties": {
+          "amountDt": {
+            "type": "string",
+            "example": "100.000",
+            "description": "DINARS — montant à couvrir EXACTEMENT par une ou plusieurs e-cards (D-030). Ce montant vaut ACOMPTE : il sera déduit du prix du pack à l’activation (D-037). Il est figé sur le membre au paiement — le changer demain ne réécrit aucun acompte versé."
+          }
+        },
+        "required": [
+          "amountDt"
         ]
       },
       "TreeNodeDto": {
