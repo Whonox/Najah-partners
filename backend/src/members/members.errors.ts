@@ -108,11 +108,35 @@ export class InvalidRenewalTransitionError extends ConflictException {
  * précises des e-cards : le tâtonnement y est nominatif, traçable et attribuable.
  */
 export class RegistrationPaymentRefusedError extends ConflictException {
-  constructor(feeDt: string) {
-    super(
-      `Les e-cards fournies sont invalides ou ne couvrent pas exactement les frais ` +
-        `d'inscription (${feeDt} DT).`,
-    );
+  constructor() {
+    super({
+      statusCode: 409,
+      // Le portail s'en sert pour ramener l'affilié à l'ÉTAPE DES E-CARDS plutôt que de lui
+      // afficher une erreur générique en bas d'un récapitulatif. Le code dit QUELLE étape
+      // reprendre — jamais quel code est en cause.
+      code: 'REGISTRATION_PAYMENT_REFUSED',
+      // ═══ DIRE QUOI REPRENDRE, SANS DIRE POURQUOI ═══
+      // Ce message est lu par un affilié qui vient de saisir quatre écrans : lui répondre
+      // « une erreur est survenue » l'obligerait à tout revérifier. On nomme donc l'étape
+      // concernée, et on le rassure sur le sort de ses cartes — c'est sa première inquiétude.
+      //
+      // Ce qu'on ne dit toujours PAS, et c'est l'essentiel : LEQUEL des codes pose problème,
+      // s'il existe, s'il est déjà utilisé, s'il est expiré, ni ce qu'il vaut. Sept causes
+      // distinctes rendent ce message unique (voir `PAYMENT_REFUSAL_ERRORS`). Distinguer,
+      // fût-ce d'un mot, ferait de l'inscription un oracle sur de la valeur au porteur — et
+      // c'est précisément ce que D-052 refuse pour un formulaire public et anonyme.
+      //
+      // ═══ LE MONTANT N'EST PAS DANS LE MESSAGE, ET C'EST DÉLIBÉRÉ ═══
+      // Il y figurait ; l'écran affichait alors « les frais d'inscription (100.000 DT) ». En
+      // français, « 100.000 » se lit CENT MILLE — le point sépare les milliers, la virgule les
+      // décimales. Un affilié pouvait croire devoir cent mille dinars. Le montant est de toute
+      // façon affiché à l'écran, formaté selon la locale ; le serveur, lui, n'en connaît
+      // aucune et n'a donc pas à mettre en forme des chiffres destinés à être lus.
+      message:
+        `Vérifiez vos codes d'e-card : leur total doit couvrir exactement les frais ` +
+        `d'inscription, et chaque carte doit être encore utilisable. ` +
+        `Aucune de vos cartes n'a été consommée.`,
+    });
   }
 }
 
@@ -190,5 +214,37 @@ export class TreeTruncatedError extends InternalServerErrorException {
     super(
       `Remontée d'arbre incohérente pour le membre ${memberId} (${detail}) : activation annulée.`,
     );
+  }
+}
+
+/**
+ * Refus de la vérification PRÉALABLE de parrainage et de placement (D-052, précisée par D-061).
+ *
+ * ═══ UN SEUL MESSAGE POUR QUATRE CAUSES, ET C'EST TOUT L'OBJET ═══
+ * Sponsor inconnu, upline inconnu, upline hors du réseau du sponsor (D-022), position déjà
+ * occupée : la réponse est IDENTIQUE. Cette route est publique et anonyme (D-021) ; distinguer
+ * les causes en ferait un annuaire interrogeable — « ce code existe-t-il ? », « cette place
+ * est-elle libre ? » — alors qu'elle n'a qu'une question légitime à traiter : « ce parrainage
+ * est-il utilisable ? »
+ *
+ * ═══ CE QU'ELLE APPORTE MALGRÉ TOUT ═══
+ * Le futur affilié apprend à l'ÉTAPE 3 que son parrainage ne passe pas, et non à l'étape 4
+ * après avoir saisi ses codes d'e-card. C'était le défaut relevé à la validation : on ne
+ * découvre pas une erreur de code après avoir composé un paiement.
+ *
+ * ═══ CE QU'ELLE NE FAIT PAS ═══
+ * Elle ne réserve rien. La position peut être prise entre cette vérification et l'inscription
+ * — c'est la transaction d'inscription qui tranche, sous contrainte de base (D-036).
+ */
+export class PlacementCheckRefusedError extends BadRequestException {
+  constructor() {
+    super({
+      statusCode: 400,
+      code: 'PLACEMENT_REFUSED',
+      message:
+        'Ces informations de parrainage sont incorrectes. Vérifiez le code de votre parrain, ' +
+        'celui de votre upline de placement et la jambe choisie auprès de la personne qui ' +
+        'vous a invité.',
+    });
   }
 }

@@ -2,7 +2,12 @@ import { useState } from "react"
 import { Link, Navigate } from "react-router"
 import { CheckCircle2 } from "lucide-react"
 import { apiClient } from "@/api/client"
-import { errorMessage, unwrap } from "@/api/error"
+import {
+  ApiError,
+  errorMessage,
+  REGISTRATION_PAYMENT_REFUSED,
+  unwrap,
+} from "@/api/error"
 import { useAuth } from "@/auth/use-auth"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -20,6 +25,7 @@ import {
   SponsorStep,
 } from "./register-steps"
 import {
+  checkPlacement,
   EMPTY_FORM,
   REGISTER_STEPS,
   stepErrors,
@@ -40,14 +46,21 @@ import {
  * endpoint public de vérification, message d'erreur d'inscription volontairement INDISTINCT).
  * Voir `EcardCodesInput`, écrit spécialement muet pour cet écran.
  *
- * La même retenue vaut pour le code SPONSOR et l'UPLINE : on ne dit pas s'ils existent, ni si
- * la position est libre. Ce serait d'ailleurs faux — une position peut se prendre entre la
- * vérification et l'envoi. Le backend tranche, en une seule transaction (D-036).
+ * ═══ LES CODES MEMBRES, EUX, SONT VÉRIFIÉS — MAIS SANS RIEN RÉVÉLER (D-061) ═══
+ * La sortie de l'étape 3 interroge le serveur sur le TRIPLET parrain + upline + jambe, et
+ * n'obtient qu'un oui ou un non. Sponsor inconnu, upline inconnu, upline hors du réseau du
+ * sponsor, position occupée : réponse identique. C'est le compromis de D-061 — un code membre
+ * n'est pas une valeur au porteur, et découvrir à l'étape du PAIEMENT que son code de parrain
+ * était faux est une épreuve qu'on peut éviter sans rien concéder.
+ *
+ * La distinction avec les e-cards est nette et doit le rester : un code membre se transmet et
+ * se partage, un code d'e-card EST de l'argent.
  *
  * ═══ LA VALIDATION LOCALE EST UNE VALIDATION DE FORME ═══
- * Champs obligatoires, mots de passe identiques, format `NP…`. Rien de métier : ni palier, ni
- * montant calculé, ni règle de placement (D-022 est vérifiée par le serveur, qui seul connaît
- * l'arbre).
+ * Champs obligatoires, mots de passe identiques, `NP` suivi de six chiffres. Rien de métier :
+ * ni palier, ni montant calculé, ni règle de placement (D-022 est vérifiée par le serveur, qui
+ * seul connaît l'arbre). Une contrainte SYNTAXIQUE ne révèle rien — elle dit qu'un code ne peut
+ * pas avoir cette forme, jamais qu'un code existe.
  *
  * ═══ ÉTAT EN MÉMOIRE UNIQUEMENT ═══
  * Un brouillon porte un mot de passe en clair et des codes d'e-card. Rien ne va dans
@@ -65,6 +78,7 @@ export function RegisterPage() {
   const [submitting, setSubmitting] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
   const [created, setCreated] = useState<{ memberCode: string } | null>(null)
+  const [checkingPlacement, setCheckingPlacement] = useState(false)
 
   const stepper = useStepper(REGISTER_STEPS.length)
 
@@ -81,12 +95,38 @@ export function RegisterPage() {
     setShowErrors(false)
   }
 
-  function goNext() {
+  /**
+   * Passage à l'étape suivante.
+   *
+   * La sortie de l'étape PLACEMENT est la seule à interroger le serveur (D-061) : elle
+   * vérifie parrain + upline + jambe ENSEMBLE, pour que l'affilié n'apprenne pas à l'étape du
+   * paiement que son code de parrain était faux. Le refus est indistinct — on affiche le
+   * message du serveur tel quel, sans chercher à désigner le champ fautif, ce que le serveur
+   * refuse délibérément de nous dire.
+   *
+   * Les autres étapes ne déclenchent AUCUN appel : la sortie de l'étape des e-cards passe
+   * directement au récapitulatif (D-052).
+   */
+  async function goNext() {
     if (errors.length > 0) {
       setShowErrors(true)
       return
     }
     setShowErrors(false)
+    setServerError(null)
+
+    if (step === "placement") {
+      setCheckingPlacement(true)
+      try {
+        await checkPlacement(form)
+      } catch (cause) {
+        setServerError(errorMessage(cause))
+        return
+      } finally {
+        setCheckingPlacement(false)
+      }
+    }
+
     if (stepper.isLast) {
       setReviewing(true)
       return
@@ -141,6 +181,13 @@ export function RegisterPage() {
       // indistinct (D-036) : ne pas chercher à l'interpréter ni à le préciser.
       setServerError(errorMessage(cause))
       setReviewing(false)
+
+      // Un paiement refusé ramène à l'ÉTAPE DES E-CARDS, pas au récapitulatif. Le serveur
+      // nomme l'étape (`REGISTRATION_PAYMENT_REFUSED`) sans jamais nommer le code fautif : on
+      // sait donc QUOI reprendre, et l'affilié n'a pas à relire quatre écrans pour le deviner.
+      if (cause instanceof ApiError && cause.code === REGISTRATION_PAYMENT_REFUSED) {
+        stepper.goTo(REGISTER_STEPS.indexOf("payment"))
+      }
     } finally {
       setSubmitting(false)
     }
@@ -232,8 +279,16 @@ export function RegisterPage() {
                   {submitting ? t("register.submitting") : t("register.submit")}
                 </Button>
               ) : (
-                <Button type="button" disabled={submitting} onClick={goNext}>
-                  {stepper.isLast ? t("register.review") : t("action.next")}
+                <Button
+                  type="button"
+                  disabled={submitting || checkingPlacement}
+                  onClick={() => void goNext()}
+                >
+                  {checkingPlacement
+                    ? t("register.checking")
+                    : stepper.isLast
+                      ? t("register.review")
+                      : t("action.next")}
                 </Button>
               )}
             </div>

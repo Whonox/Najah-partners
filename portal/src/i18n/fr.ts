@@ -637,6 +637,7 @@ export const fr = {
   "register.step.placement": "Placement",
   "register.step.payment": "Paiement",
   "register.review": "Vérifier",
+  "register.checking": "Vérification…",
   "register.submit": "Créer mon compte",
   "register.submitting": "Création en cours…",
   "register.haveAccount": "Vous avez déjà un compte ?",
@@ -646,7 +647,7 @@ export const fr = {
     "Commencez par le code de la personne qui vous a parrainé. Il figure sur l’invitation qu’elle vous a transmise.",
   "register.sponsor.label": "Code de votre parrain",
   "register.sponsor.hint": "Format : NP suivi de six chiffres.",
-  "register.sponsor.error": "Renseignez un code au format NP000963.",
+  "register.sponsor.error": "Un code membre s’écrit NP suivi de six chiffres (ex. NP000963).",
 
   "register.identity.firstName": "Prénom",
   "register.identity.lastName": "Nom",
@@ -674,7 +675,7 @@ export const fr = {
   "register.placement.uplineLabel": "Code de votre upline de placement",
   "register.placement.uplineHint":
     "Si vous ne savez pas quoi mettre, indiquez le code de votre parrain.",
-  "register.placement.uplineError": "Renseignez un code au format NP000964.",
+  "register.placement.uplineError": "Un code membre s’écrit NP suivi de six chiffres (ex. NP000964).",
   "register.placement.legLabel": "De quel côté ?",
   "register.placement.left": "Jambe gauche",
   "register.placement.right": "Jambe droite",

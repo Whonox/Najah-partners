@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
+import { Leg } from '@prisma/client';
 import { RegisterMemberDto } from './dto/register-member.dto';
 import { IdentityDocumentService } from './identity-document.service';
 import { MembersService } from './members.service';
@@ -18,6 +19,18 @@ export class MembersFacade {
     private readonly placement: PlacementService,
     private readonly documents: IdentityDocumentService,
   ) {}
+
+  /**
+   * Vérification PRÉALABLE du parrainage (D-061). Simple passe-plat : la règle vit dans le
+   * service de domaine, qui applique EXACTEMENT les contrôles que l'inscription refera.
+   */
+  checkPlacement(input: {
+    sponsorCode: string;
+    uplineCode: string;
+    leg: Leg;
+  }): Promise<{ ok: true }> {
+    return this.members.checkPlacement(input);
+  }
 
   /**
    * ═══ L'IMAGE DE LA PIÈCE N'EST PLUS EXIGÉE ICI (D-050, D-060) ═══

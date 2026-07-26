@@ -81,3 +81,11 @@ export function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message
   return "Erreur inattendue"
 }
+
+/**
+ * Refus du paiement d'inscription (D-036). Le serveur ne dit JAMAIS quel code est en cause —
+ * ni s'il existe, ni s'il est utilisé, ni ce qu'il vaut. Ce qu'il dit, en revanche, c'est
+ * QUELLE ÉTAPE reprendre : l'écran peut ramener l'affilié à la saisie des e-cards plutôt que
+ * de le laisser devant un récapitulatif et une erreur générique.
+ */
+export const REGISTRATION_PAYMENT_REFUSED = "REGISTRATION_PAYMENT_REFUSED"

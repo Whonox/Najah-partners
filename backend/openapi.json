@@ -1115,6 +1115,39 @@
         ]
       }
     },
+    "/members/register/check-placement": {
+      "post": {
+        "description": "Répond OUI ou NON, jamais POURQUOI (D-061). Sponsor inconnu, upline inconnu, upline hors du réseau du sponsor (D-022) et position occupée (D-004) rendent le MÊME refus : cette route est publique et anonyme (D-021), distinguer les causes en ferait un annuaire interrogeable. Les trois valeurs doivent voyager ENSEMBLE — accepter un code seul reviendrait à répondre « ce membre existe-t-il ? ». ELLE NE RÉSERVE RIEN : la position peut être prise entre cette vérification et l’inscription, qui reste seule juge (D-036). AUCUN code d’e-card n’est accepté ici, et c’est délibéré (D-052) : la valeur au porteur ne se vérifie jamais avant la soumission finale.",
+        "operationId": "MembersController_checkPlacement",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckPlacementDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlacementCheckResultDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Vérifier un parrainage AVANT de payer : parrain + upline + jambe, en une seule requête.",
+        "tags": [
+          "members"
+        ]
+      }
+    },
     "/members/registration-fee": {
       "get": {
         "description": "PUBLIC, parce que le formulaire d’inscription l’est (D-021/D-052) et qu’il doit annoncer la somme d’e-cards à composer. Un TARIF n’est pas un secret : il ne dépend d’aucun code, d’aucun compte, et ne révèle donc rien — contrairement à la valeur d’une e-card, qui n’est jamais exposée publiquement. Sans cette route, le portail écrirait « 100 DT » en dur, et une règle métier vivrait dans le front.",
@@ -5370,6 +5403,48 @@
           "verificationStatus",
           "registeredAt",
           "registrationPaidDt"
+        ]
+      },
+      "CheckPlacementDto": {
+        "type": "object",
+        "properties": {
+          "sponsorCode": {
+            "type": "string",
+            "pattern": "^NP\\d+$",
+            "example": "NP000963",
+            "description": "Code du parrain."
+          },
+          "uplineCode": {
+            "type": "string",
+            "pattern": "^NP\\d+$",
+            "example": "NP000999",
+            "description": "Code de l’upline de placement."
+          },
+          "leg": {
+            "enum": [
+              "LEFT",
+              "RIGHT"
+            ],
+            "type": "string",
+            "description": "Jambe visée sous l’upline."
+          }
+        },
+        "required": [
+          "sponsorCode",
+          "uplineCode",
+          "leg"
+        ]
+      },
+      "PlacementCheckResultDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "Le placement est possible EN L’ÉTAT. Ce n’est pas une réservation : la position peut être prise entre cette vérification et l’inscription, et c’est la transaction d’inscription qui tranche (D-036)."
+          }
+        },
+        "required": [
+          "ok"
         ]
       },
       "RegistrationFeeDto": {

@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Post,
   Query,
   UploadedFile,
@@ -36,6 +38,10 @@ import {
   MembershipFeeService,
   REGISTRATION_FEE_SETTING,
 } from './membership-fee.service';
+import {
+  CheckPlacementDto,
+  PlacementCheckResultDto,
+} from './dto/check-placement.dto';
 import { RegisteredMemberDto } from './dto/registered-member.dto';
 import { RegistrationFeeDto } from './dto/registration-fee.dto';
 import { RenewalService } from './renewal.service';
@@ -104,6 +110,40 @@ export class MembersController {
     @UploadedFile() idDocument?: Express.Multer.File,
   ) {
     return this.facade.register(dto, idDocument);
+  }
+
+  @Post('register/check-placement')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  // Quota PLUS SERRÉ que l'inscription elle-même, et pour une raison différente. L'inscription
+  // est limitée parce qu'elle consomme de la VALEUR ; celle-ci l'est parce qu'elle répond par
+  // OUI ou NON sur une combinaison de codes membres. Le refus est indistinct — on ne peut pas
+  // savoir LEQUEL des trois termes pose problème — mais un « oui » reste une information, et
+  // sans quota on pourrait balayer l'espace des combinaisons pour cartographier les places
+  // libres de l'arbre. À 10/min et 40/h par IP, ce balayage n'a plus de sens.
+  @Throttle({
+    default: { limit: 10, ttl: 60_000 },
+    hourly: { limit: 40, ttl: 3_600_000 },
+  })
+  @ApiOperation({
+    summary:
+      'Vérifier un parrainage AVANT de payer : parrain + upline + jambe, en une seule requête.',
+    description:
+      'Répond OUI ou NON, jamais POURQUOI (D-061). Sponsor inconnu, upline inconnu, upline ' +
+      'hors du réseau du sponsor (D-022) et position occupée (D-004) rendent le MÊME refus : ' +
+      'cette route est publique et anonyme (D-021), distinguer les causes en ferait un ' +
+      'annuaire interrogeable. Les trois valeurs doivent voyager ENSEMBLE — accepter un code ' +
+      'seul reviendrait à répondre « ce membre existe-t-il ? ». ' +
+      'ELLE NE RÉSERVE RIEN : la position peut être prise entre cette vérification et ' +
+      'l’inscription, qui reste seule juge (D-036). ' +
+      'AUCUN code d’e-card n’est accepté ici, et c’est délibéré (D-052) : la valeur au ' +
+      'porteur ne se vérifie jamais avant la soumission finale.',
+  })
+  @ApiOkResponse({ type: PlacementCheckResultDto })
+  checkPlacement(
+    @Body() dto: CheckPlacementDto,
+  ): Promise<PlacementCheckResultDto> {
+    return this.facade.checkPlacement(dto);
   }
 
   @Get('registration-fee')

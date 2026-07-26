@@ -60,14 +60,29 @@ export function useRegistrationFee() {
 }
 
 /**
+ * Forme d'un code membre : `NP` suivi d'EXACTEMENT six chiffres.
+ *
+ * ═══ POURQUOI SIX, ET POURQUOI C'EST SANS RISQUE DE FUITE ═══
+ * C'est le format réellement attribué (`NP` + compteur cadré à six). Le contrôler ici évite
+ * qu'une saisie manifestement tronquée — `NP0003` — traverse trois étapes avant d'être
+ * refusée à la fin. Une contrainte SYNTAXIQUE ne révèle rien : elle dit qu'un code ne peut
+ * pas avoir cette forme, jamais qu'un code existe ou non.
+ *
+ * ═══ LE PLAFOND, ASSUMÉ ET SIGNALÉ ═══
+ * Au-delà de `NP999999`, les codes attribués porteront SEPT chiffres et ce motif les
+ * refuserait — un million de membres après le premier. Le jour venu, c'est ici qu'il faudra
+ * relâcher la borne (et non l'oublier : le formulaire deviendrait infranchissable).
+ */
+export const MEMBER_CODE_PATTERN = /^NP\d{6}$/
+
+/**
  * Validation de FORME, étape par étape. Elle ne décide AUCUNE règle métier : elle vérifie ce
  * qu'un formulaire vérifie — un champ obligatoire est rempli, deux mots de passe se
- * ressemblent, un code a la forme `NP…`.
+ * ressemblent, un code a la bonne forme.
  *
  * Ce qu'elle ne fait PAS, délibérément :
- *  - dire si un code sponsor EXISTE (le backend seul le sait) ;
- *  - dire si une position est libre (idem, et c'est une course : elle peut se prendre entre
- *    la vérification et l'envoi) ;
+ *  - dire si un code sponsor EXISTE. C'est le rôle de la vérification de placement (étape 3),
+ *    qui interroge le serveur et répond de façon INDISTINCTE ;
  *  - toucher aux codes d'e-card autrement que pour compter les champs non vides — vérifier
  *    un code ici ferait de ce formulaire public l'oracle que D-052 interdit.
  */
@@ -75,7 +90,7 @@ export function stepErrors(step: RegisterStep, form: RegistrationForm): string[]
   const errors: string[] = []
 
   if (step === "sponsor") {
-    if (!/^NP\d+$/.test(form.sponsorCode.trim())) errors.push("sponsorCode")
+    if (!MEMBER_CODE_PATTERN.test(form.sponsorCode.trim())) errors.push("sponsorCode")
   }
 
   if (step === "identity") {
@@ -92,7 +107,7 @@ export function stepErrors(step: RegisterStep, form: RegistrationForm): string[]
   }
 
   if (step === "placement") {
-    if (!/^NP\d+$/.test(form.uplineCode.trim())) errors.push("uplineCode")
+    if (!MEMBER_CODE_PATTERN.test(form.uplineCode.trim())) errors.push("uplineCode")
     if (form.leg === "") errors.push("leg")
   }
 
@@ -102,6 +117,39 @@ export function stepErrors(step: RegisterStep, form: RegistrationForm): string[]
   }
 
   return errors
+}
+
+/**
+ * Vérification PRÉALABLE du parrainage, à la sortie de l'étape 3 (D-061).
+ *
+ * ═══ CE QU'ELLE ÉVITE ═══
+ * Sans elle, un code sponsor erroné ne se découvrait qu'à l'étape 4, après avoir saisi ses
+ * codes d'e-card et relu un récapitulatif. C'est le pire moment : l'affilié a l'impression
+ * d'avoir tout perdu et ne sait pas par où reprendre.
+ *
+ * ═══ CE QU'ELLE NE DIT PAS ═══
+ * Le serveur répond OUI ou NON, jamais POURQUOI. On affiche donc SON message, sans chercher à
+ * l'interpréter : sponsor inconnu, upline inconnu, upline hors réseau ou position occupée
+ * sont indistinguables, et c'est délibéré — cette route est publique.
+ *
+ * ═══ CE QU'ELLE NE FAIT PAS ═══
+ * Elle ne RÉSERVE rien. La position peut être prise entre cette vérification et la
+ * soumission, qui reste seule juge. Un « oui » ici ne promet donc pas un « oui » à la fin.
+ *
+ * ═══ ET SURTOUT : AUCUN CODE D'E-CARD N'Y PASSE ═══
+ * Le corps n'accepte que les trois valeurs de placement. Étendre cette route aux e-cards
+ * ferait exactement l'oracle sur la valeur au porteur que D-052 interdit.
+ */
+export async function checkPlacement(form: RegistrationForm): Promise<void> {
+  await unwrap(
+    await apiClient.POST("/members/register/check-placement", {
+      body: {
+        sponsorCode: form.sponsorCode.trim(),
+        uplineCode: form.uplineCode.trim(),
+        leg: form.leg as "LEFT" | "RIGHT",
+      },
+    }),
+  )
 }
 
 /** Petit état de navigation entre étapes, sans dépendance au routeur. */

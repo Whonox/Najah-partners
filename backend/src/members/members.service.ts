@@ -28,6 +28,7 @@ import {
 import {
   ContactAlreadyUsedError,
   MissingContactError,
+  PlacementCheckRefusedError,
   PositionTakenError,
   RegistrationPaymentRefusedError,
   SponsorNotFoundError,
@@ -83,6 +84,57 @@ export class MembersService {
     private readonly ecards: EcardsService,
   ) {}
 
+  /**
+   * Vérification PRÉALABLE du triplet parrain / upline / jambe (D-052, précisée par D-061).
+   *
+   * ═══ LES QUATRE MÊMES CONTRÔLES QUE L'INSCRIPTION, DANS LE MÊME ORDRE ═══
+   * Sponsor connu, upline connu, upline dans le réseau du sponsor (D-022), position libre
+   * (D-004 : aucun spillover). Ce sont EXACTEMENT ceux que `register` refait ensuite — et
+   * c'est voulu : une pré-vérification plus laxiste laisserait passer ce que l'inscription
+   * refusera, une plus stricte refuserait ce qu'elle accepterait. Les deux trahiraient
+   * l'affilié au pire moment.
+   *
+   * ═══ ELLE NE RÉSERVE RIEN ═══
+   * Entre cette vérification et l'inscription, la position peut être prise par quelqu'un
+   * d'autre. Le juge reste la transaction d'inscription, sous contrainte de base
+   * (`@@unique([uplineId, leg])`). Cette route AIDE, elle ne garantit pas.
+   *
+   * ═══ ELLE NE DIT PAS CE QUI A ÉCHOUÉ ═══
+   * Un seul refus pour les quatre causes (`PlacementCheckRefusedError`). Le retour est un
+   * booléen : le type de réponse lui-même empêche d'en dire plus.
+   */
+  async checkPlacement(input: {
+    sponsorCode: string;
+    uplineCode: string;
+    leg: Leg;
+  }): Promise<{ ok: true }> {
+    const sponsor = await this.prisma.member.findUnique({
+      where: { memberCode: input.sponsorCode.trim() },
+      select: { id: true },
+    });
+    if (!sponsor) throw new PlacementCheckRefusedError();
+
+    const upline = await this.prisma.member.findUnique({
+      where: { memberCode: input.uplineCode.trim() },
+      select: { id: true },
+    });
+    if (!upline) throw new PlacementCheckRefusedError();
+
+    const insideNetwork = await this.placement.isSponsorOnPathOf(
+      sponsor.id,
+      upline.id,
+    );
+    if (!insideNetwork) throw new PlacementCheckRefusedError();
+
+    const occupant = await this.prisma.member.findUnique({
+      where: { uplineId_leg: { uplineId: upline.id, leg: input.leg } },
+      select: { id: true },
+    });
+    if (occupant) throw new PlacementCheckRefusedError();
+
+    return { ok: true };
+  }
+
   async register(input: RegisterMemberInput): Promise<RegisteredMember> {
     const email = input.email?.trim().toLowerCase() || null;
     const phone = input.phone?.trim() || null;
@@ -117,7 +169,10 @@ export class MembersService {
       upline.id,
     );
     if (!insideNetwork) {
-      throw new UplineOutsideSponsorTreeError(upline.memberCode, sponsor.memberCode);
+      throw new UplineOutsideSponsorTreeError(
+        upline.memberCode,
+        sponsor.memberCode,
+      );
     }
 
     // Pas de spillover (D-004) : une position occupée n'est pas contournée, elle est refusée.
@@ -252,7 +307,7 @@ export class MembersService {
         (type) => error instanceof type,
       );
       if (isRefusal) {
-        throw new RegistrationPaymentRefusedError(moneyToApi(input.dueDt));
+        throw new RegistrationPaymentRefusedError();
       }
       throw error;
     }
