@@ -43,10 +43,18 @@ function SheetContent({
   children,
   side = "right",
   showCloseButton = true,
+  closeLabel,
   ...props
 }: SheetPrimitive.Popup.Props & {
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
+  /**
+   * Libellé du bouton de fermeture, lu par les lecteurs d'écran (il n'affiche qu'une croix).
+   * shadcn le pose en dur, en anglais : dans une interface française, c'est le seul mot que
+   * l'utilisateur non-voyant entendrait dans une autre langue. Chaque appelant fournit donc sa
+   * traduction — `i18n/` n'a pas sa place dans une primitive `ui/`.
+   */
+  closeLabel?: string
 }) {
   return (
     <SheetPortal>
@@ -74,7 +82,7 @@ function SheetContent({
           >
             <XIcon
             />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">{closeLabel ?? "Close"}</span>
           </SheetPrimitive.Close>
         )}
       </SheetPrimitive.Popup>

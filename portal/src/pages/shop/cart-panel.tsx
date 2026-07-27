@@ -101,7 +101,11 @@ export function CartPanel({
         {/* `side` n'accepte que des directions PHYSIQUES : le panneau s'ouvrira à droite même
             en arabe, où il devrait venir de la gauche. La limite est celle du composant
             partagé, pas de cet écran — c'est là qu'il faudra la lever au passage RTL. */}
-        <SheetContent side="right" className="flex flex-col gap-0">
+        <SheetContent
+          side="right"
+          closeLabel={t("action.close")}
+          className="flex flex-col gap-0"
+        >
           <SheetHeader className="border-b">
             <SheetTitle>{t("shop.cart")}</SheetTitle>
             <SheetDescription>{t("shop.cartDescription")}</SheetDescription>

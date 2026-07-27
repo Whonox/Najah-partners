@@ -138,8 +138,10 @@
   --chart-4: #a8a29e;
   --chart-5: #57534e;
 
-  /* Navigation. Sur mobile c'est la barre d'onglets BASSE, sur grand écran la colonne
-     latérale : mêmes rôles, mêmes variables, deux dispositions. */
+  /* Navigation du TÉLÉPHONE : la barre d'onglets basse et la feuille « Plus ». Depuis la
+     Tranche 9.6, la navigation de grand écran est une barre HORIZONTALE qui vit sur les
+     surfaces communes (`card`, `primary`) — ces jetons ne la concernent plus. Le préfixe
+     `sidebar` est celui de shadcn : on le garde pour ne pas diverger de la convention. */
   --sidebar: #ffffff;
   /* Texte des entrées de navigation. */
   --sidebar-foreground: #57534e;
@@ -257,7 +259,7 @@
   --chart-4: #5a6e3a;
   --chart-5: #78716c;
 
-  /* Navigation (barre basse sur mobile, colonne sur grand écran). */
+  /* Navigation du téléphone (barre basse et feuille « Plus ») — voir le mode clair. */
   --sidebar: #1c1917;
   /* Texte des entrées de navigation. */
   --sidebar-foreground: #a8a29e;

@@ -33,6 +33,9 @@ export const fr = {
   "nav.label": "Navigation principale",
   "nav.close": "Fermer le menu",
 
+  // ── Menu compte (Tranche 9.6) ──
+  "account.label": "Mon compte",
+
   // ── Thème ──
   "theme.label": "Thème",
   "theme.light": "Clair",

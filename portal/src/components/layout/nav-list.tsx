@@ -1,27 +1,27 @@
 import { NavLink } from "react-router"
 import { cn } from "@/lib/utils"
 import { useT } from "@/i18n/use-t"
-import { NAV_ENTRIES } from "@/lib/nav"
+import { MORE_NAV } from "@/lib/nav"
 
 /**
- * Navigation en liste — utilisée par la colonne latérale (grand écran) ET par la feuille
- * « Plus » (mobile), avec la même table `NAV_ENTRIES`. Un seul composant pour les deux : le
- * menu ne peut pas diverger d'une taille d'écran à l'autre.
+ * Navigation en LISTE VERTICALE — la feuille « Plus » du téléphone, et elle seule depuis la
+ * Tranche 9.6 (la colonne latérale, qui la partageait, a laissé la place à la barre
+ * horizontale ; garder le nom `SidebarNav` aurait désigné un meuble qui n'existe plus).
  *
- * `entries` permet à la feuille mobile de ne montrer que les écrans SECONDAIRES — les quatre
- * autres sont déjà dans la barre d'onglets, les répéter ferait douter qu'il s'agit des mêmes.
+ * Les icônes RESTENT ici, contrairement aux liens de la barre : dans une liste consultée au
+ * pouce, elles donnent un point d'accroche et ne coûtent aucune largeur.
  */
-export function SidebarNav({
-  entries = NAV_ENTRIES,
+export function NavList({
+  entries = MORE_NAV,
   onNavigate,
 }: {
-  entries?: typeof NAV_ENTRIES
+  entries?: typeof MORE_NAV
   onNavigate?: () => void
 }) {
   const t = useT()
 
   return (
-    <nav aria-label={t("nav.label")} className="p-2">
+    <nav aria-label={t("nav.moreTitle")} className="p-2">
       <ul className="space-y-1">
         {entries.map((entry) => (
           <li key={entry.path}>

@@ -52,6 +52,25 @@ ordinaire, et une assertion qui vise le mauvais des deux passe sans rien vérifi
 sans qu'on comprenne pourquoi. Les deux cas se sont produits en Tranche 9.5, et ESLint
 (`no-irregular-whitespace`) n'en attrape qu'une partie.
 
+## Le chrome, depuis la Tranche 9.6 (D-067)
+
+La navigation est HORIZONTALE. Il n'y a plus de colonne latérale, et plus d'en-tête
+d'application : `TopBar` (pilule flottante à partir de `lg`, en-tête simple en dessous) et
+`AccountMenu` portent tout le chrome. Trois choses à savoir avant d'y toucher :
+
+- **La barre est `sticky`, jamais `fixed`.** Elle reste dans le flux, donc aucun écran n'a de
+  marge haute à compenser. Passer à `fixed` obligerait chaque écran à connaître la hauteur du
+  chrome — et le premier qui l'oublierait cacherait son titre.
+- **La répartition des écrans vit dans `lib/nav.ts`, pas dans un composant.** Ajouter un écran,
+  c'est ajouter une ligne avec sa `place` (`bar` / `account` / `cta`). Une entrée oubliée de
+  toutes les surfaces reste une route qui marche, dont aucun lien ne parle : `nav.test.ts` le
+  refuse. La barre tient CINQ liens — c'est une contrainte de largeur mesurée à 1024 px, pas
+  une préférence.
+- **L'identité du membre ne s'écrit qu'à un seul endroit du chrome : le menu compte.** L'accueil
+  garde son en-tête personnel (`MemberHeader`) ; c'est l'unique duplication tolérée, et elle est
+  volontaire. Y remettre le nom ou le code dans la barre recréerait exactement le défaut que
+  cette tranche corrige.
+
 ## Ce que la Tranche 9.5 a établi (à lire avant de toucher un écran)
 
 ### Le registre est porté par `Surface`, pas par des classes recopiées
