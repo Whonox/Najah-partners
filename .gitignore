@@ -46,3 +46,10 @@ najah-uploads/
 # console écrits pendant une session de QA. Ce sont des traces de diagnostic, pas des
 # fixtures — elles portent un horodatage et ne se relisent jamais deux fois.
 .playwright-mcp/
+
+# Clés privées et certificats — ne jamais committer
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
